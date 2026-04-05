@@ -1,0 +1,17 @@
+D:\Project\BankLoan\src\LoanFlow.Application\bin\Debug\net8.0\LoanFlow.Application.deps.json
+D:\Project\BankLoan\src\LoanFlow.Application\bin\Debug\net8.0\LoanFlow.Application.dll
+D:\Project\BankLoan\src\LoanFlow.Application\bin\Debug\net8.0\LoanFlow.Application.pdb
+D:\Project\BankLoan\src\LoanFlow.Application\bin\Debug\net8.0\LoanFlow.Domain.dll
+D:\Project\BankLoan\src\LoanFlow.Application\bin\Debug\net8.0\LoanFlow.Infrastructure.dll
+D:\Project\BankLoan\src\LoanFlow.Application\bin\Debug\net8.0\LoanFlow.Domain.pdb
+D:\Project\BankLoan\src\LoanFlow.Application\bin\Debug\net8.0\LoanFlow.Infrastructure.pdb
+D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\LoanFlow.Application.csproj.AssemblyReference.cache
+D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\LoanFlow.Application.GeneratedMSBuildEditorConfig.editorconfig
+D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\LoanFlow.Application.AssemblyInfoInputs.cache
+D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\LoanFlow.Application.AssemblyInfo.cs
+D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\LoanFlow.Application.csproj.CoreCompileInputs.cache
+D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\LoanFlow.C553B588.Up2Date
+D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\LoanFlow.Application.dll
+D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\refint\LoanFlow.Application.dll
+D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\LoanFlow.Application.pdb
+D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\ref\LoanFlow.Application.dll

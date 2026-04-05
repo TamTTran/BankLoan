@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LoanFlow Lite — Quản lý khoản vay</title>
+  <meta name="description" content="Hệ thống quản lý khoản vay LoanFlow Lite — Dành cho cửa hàng trả góp, công ty tài chính nhỏ và SME lender." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- LOGIN SCREEN -->
+    <div id="screen-login" class="screen active">
+      <div class="login-bg">
+        <div class="login-card">
+          <div class="brand">
+            <div class="brand-icon">💳</div>
+            <h1>LoanFlow <span>Lite</span></h1>
+            <p>Hệ thống quản lý khoản vay</p>
+          </div>
+          <form id="loginForm" class="login-form">
+            <div class="form-group">
+              <label>Tên đăng nhập</label>
+              <input type="text" id="loginUsername" placeholder="admin" value="admin" autocomplete="username" />
+            </div>
+            <div class="form-group">
+              <label>Mật khẩu</label>
+              <input type="password" id="loginPassword" placeholder="••••••••" value="Admin@123" autocomplete="current-password" />
+            </div>
+            <div id="loginError" class="error-msg hidden"></div>
+            <button type="submit" class="btn btn-primary btn-full" id="loginBtn">
+              <span>Đăng nhập</span>
+            </button>
+          </form>
+          <div class="login-hints">
+            <p>Tài khoản demo:</p>
+            <div class="hint-grid">
+              <span class="badge-role">admin / Admin@123</span>
+              <span class="badge-role">officer01 / Officer@123</span>
+              <span class="badge-role">approver01 / Approver@123</span>
+              <span class="badge-role">collector01 / Collector@123</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN LAYOUT -->
+    <div id="screen-main" class="screen hidden">
+      <!-- Sidebar -->
+      <nav id="sidebar" class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-icon-sm">💳</div>
+          <span>LoanFlow <strong>Lite</strong></span>
+        </div>
+
+        <ul class="nav-menu">
+          <li><a href="#" class="nav-item active" data-page="dashboard" id="nav-dashboard">
+            <i class="icon">📊</i><span>Dashboard</span>
+          </a></li>
+          <li><a href="#" class="nav-item" data-page="customers" id="nav-customers">
+            <i class="icon">👥</i><span>Khách hàng</span>
+          </a></li>
+          <li><a href="#" class="nav-item" data-page="products" id="nav-products">
+            <i class="icon">📦</i><span>Sản phẩm vay</span>
+          </a></li>
+          <li><a href="#" class="nav-item" data-page="applications" id="nav-applications">
+            <i class="icon">📋</i><span>Hồ sơ vay</span>
+            <span class="badge" id="badge-pending">0</span>
+          </a></li>
+          <li><a href="#" class="nav-item" data-page="loans" id="nav-loans">
+            <i class="icon">💰</i><span>Khoản vay</span>
+          </a></li>
+          <li><a href="#" class="nav-item" data-page="overdue" id="nav-overdue">
+            <i class="icon">⚠️</i><span>Quá hạn</span>
+          </a></li>
+        </ul>
+
+        <div class="sidebar-footer">
+          <div class="user-info">
+            <div class="avatar" id="userAvatar">A</div>
+            <div>
+              <p class="user-name" id="userName">Admin</p>
+              <p class="user-role" id="userRole">Admin</p>
+            </div>
+          </div>
+          <button id="logoutBtn" class="btn-logout" title="Đăng xuất">⏻</button>
+        </div>
+      </nav>
+
+      <!-- Main Content -->
+      <main id="main-content" class="main-content">
+        <!-- DASHBOARD PAGE -->
+        <div id="page-dashboard" class="page active">
+          <div class="page-header">
+            <h2>Dashboard</h2>
+            <span class="subtitle" id="dashDate"></span>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi-card kpi-blue">
+              <div class="kpi-icon">💰</div>
+              <div>
+                <p class="kpi-label">Tổng dư nợ</p>
+                <p class="kpi-value" id="kpi-outstanding">--</p>
+              </div>
+            </div>
+            <div class="kpi-card kpi-green">
+              <div class="kpi-icon">📄</div>
+              <div>
+                <p class="kpi-label">Khoản vay active</p>
+                <p class="kpi-value" id="kpi-active">--</p>
+              </div>
+            </div>
+            <div class="kpi-card kpi-amber">
+              <div class="kpi-icon">⏳</div>
+              <div>
+                <p class="kpi-label">Chờ phê duyệt</p>
+                <p class="kpi-value" id="kpi-pending">--</p>
+              </div>
+            </div>
+            <div class="kpi-card kpi-red">
+              <div class="kpi-icon">🚨</div>
+              <div>
+                <p class="kpi-label">Tài khoản quá hạn</p>
+                <p class="kpi-value" id="kpi-overdue">--</p>
+              </div>
+            </div>
+            <div class="kpi-card kpi-purple">
+              <div class="kpi-icon">📈</div>
+              <div>
+                <p class="kpi-label">Giải ngân tháng này</p>
+                <p class="kpi-value" id="kpi-disbursed">--</p>
+              </div>
+            </div>
+            <div class="kpi-card kpi-teal">
+              <div class="kpi-icon">💵</div>
+              <div>
+                <p class="kpi-label">Thu nợ tháng này</p>
+                <p class="kpi-value" id="kpi-collected">--</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="card">
+              <div class="card-header">
+                <h3>Phân tích quá hạn (DPD)</h3>
+              </div>
+              <div id="overdue-buckets" class="bucket-list"></div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <h3>Trạng thái khoản vay</h3>
+              </div>
+              <div id="loan-status-breakdown" class="status-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CUSTOMERS PAGE -->
+        <div id="page-customers" class="page hidden">
+          <div class="page-header">
+            <h2>Quản lý khách hàng</h2>
+            <button class="btn btn-primary" id="btnNewCustomer">+ Thêm khách hàng</button>
+          </div>
+          <div class="filter-bar">
+            <input type="text" id="customerSearch" placeholder="Tìm theo tên, CCCD, số điện thoại..." class="search-input" />
+            <button class="btn btn-outline" id="btnSearchCustomer">Tìm kiếm</button>
+          </div>
+          <div class="card">
+            <table class="data-table" id="customersTable">
+              <thead>
+                <tr>
+                  <th>Mã KH</th><th>Họ tên</th><th>CCCD</th><th>Điện thoại</th>
+                  <th>Chi nhánh</th><th>Khoản vay</th><th>Dư nợ</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="customersBody">
+                <tr><td colspan="8" class="loading-row">Đang tải...</td></tr>
+              </tbody>
+            </table>
+            <div class="pagination" id="customerPagination"></div>
+          </div>
+        </div>
+
+        <!-- LOAN PRODUCTS PAGE -->
+        <div id="page-products" class="page hidden">
+          <div class="page-header">
+            <h2>Sản phẩm vay</h2>
+            <button class="btn btn-primary" id="btnNewProduct">+ Thêm sản phẩm</button>
+          </div>
+          <div class="products-grid" id="productsGrid">
+            <div class="loading-row">Đang tải...</div>
+          </div>
+        </div>
+
+        <!-- APPLICATIONS PAGE -->
+        <div id="page-applications" class="page hidden">
+          <div class="page-header">
+            <h2>Hồ sơ vay</h2>
+            <button class="btn btn-primary" id="btnNewApplication">+ Tạo hồ sơ mới</button>
+          </div>
+          <div class="filter-bar">
+            <input type="text" id="appSearch" placeholder="Tìm theo số hồ sơ, khách hàng..." class="search-input" />
+            <select id="appStatusFilter" class="select-filter">
+              <option value="">Tất cả trạng thái</option>
+              <option value="Draft">Nháp</option>
+              <option value="Submitted">Chờ duyệt</option>
+              <option value="UnderReview">Đang xét</option>
+              <option value="Approved">Đã duyệt</option>
+              <option value="Rejected">Từ chối</option>
+            </select>
+            <button class="btn btn-outline" id="btnSearchApp">Tìm kiếm</button>
+          </div>
+          <div class="card">
+            <table class="data-table" id="applicationsTable">
+              <thead>
+                <tr>
+                  <th>Số hồ sơ</th><th>Khách hàng</th><th>Sản phẩm</th>
+                  <th>Số tiền vay</th><th>Kỳ hạn</th><th>Trạng thái</th>
+                  <th>Ngày tạo</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="applicationsBody">
+                <tr><td colspan="8" class="loading-row">Đang tải...</td></tr>
+              </tbody>
+            </table>
+            <div class="pagination" id="appPagination"></div>
+          </div>
+        </div>
+
+        <!-- LOANS PAGE -->
+        <div id="page-loans" class="page hidden">
+          <div class="page-header">
+            <h2>Khoản vay</h2>
+          </div>
+          <div class="filter-bar">
+            <input type="text" id="loanSearch" placeholder="Tìm theo mã khoản vay, khách hàng..." class="search-input" />
+            <select id="loanStatusFilter" class="select-filter">
+              <option value="">Tất cả trạng thái</option>
+              <option value="Active">Đang hoạt động</option>
+              <option value="Closed">Đã đóng</option>
+              <option value="Defaulted">Nợ xấu</option>
+            </select>
+            <button class="btn btn-outline" id="btnSearchLoan">Tìm kiếm</button>
+          </div>
+          <div class="card">
+            <table class="data-table" id="loansTable">
+              <thead>
+                <tr>
+                  <th>Mã khoản vay</th><th>Khách hàng</th><th>Sản phẩm</th>
+                  <th>Số tiền</th><th>Dư nợ còn lại</th><th>Lãi suất</th>
+                  <th>Đến hạn</th><th>Trạng thái</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="loansBody">
+                <tr><td colspan="9" class="loading-row">Đang tải...</td></tr>
+              </tbody>
+            </table>
+            <div class="pagination" id="loanPagination"></div>
+          </div>
+        </div>
+
+        <!-- OVERDUE PAGE -->
+        <div id="page-overdue" class="page hidden">
+          <div class="page-header">
+            <h2>Quản lý quá hạn</h2>
+            <button class="btn btn-outline" id="btnUpdateOverdue">🔄 Cập nhật DPD</button>
+          </div>
+          <div class="overdue-buckets-summary" id="overdueSummary"></div>
+          <div class="card">
+            <table class="data-table" id="overdueTable">
+              <thead>
+                <tr>
+                  <th>Mã KV</th><th>Khách hàng</th><th>SĐT</th>
+                  <th>Dư nợ</th><th>Số tiền QH</th><th>Số ngày QH</th>
+                  <th>Bucket</th><th>Ghi chú thu hồi</th>
+                </tr>
+              </thead>
+              <tbody id="overdueBody">
+                <tr><td colspan="8" class="loading-row">Đang tải...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <!-- Customer Modal -->
+  <div id="modal-customer" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modalCustomerTitle">Thêm khách hàng</h3>
+        <button class="btn-close" data-close="modal-customer">✕</button>
+      </div>
+      <form id="customerForm" class="modal-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Họ và tên <span class="required">*</span></label>
+            <input type="text" id="cFullName" placeholder="Nguyễn Văn A" required />
+          </div>
+          <div class="form-group">
+            <label>CCCD/CMND <span class="required">*</span></label>
+            <input type="text" id="cNationalId" placeholder="012345678901" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Số điện thoại <span class="required">*</span></label>
+            <input type="tel" id="cPhone" placeholder="0901234567" required />
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="cEmail" placeholder="example@email.com" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Ngày sinh <span class="required">*</span></label>
+            <input type="date" id="cDob" required />
+          </div>
+          <div class="form-group">
+            <label>Nghề nghiệp</label>
+            <input type="text" id="cOccupation" placeholder="Nhân viên văn phòng" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Thu nhập hàng tháng</label>
+            <input type="text" id="cIncome" placeholder="15,000,000" />
+          </div>
+          <div class="form-group full">
+            <label>Địa chỉ</label>
+            <input type="text" id="cAddress" placeholder="123 Đường ABC, Quận 1, TP.HCM" />
+          </div>
+        </div>
+        <div id="customerFormError" class="error-msg hidden"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close="modal-customer">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu khách hàng</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Application Modal -->
+  <div id="modal-application" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3>Tạo hồ sơ vay</h3>
+        <button class="btn-close" data-close="modal-application">✕</button>
+      </div>
+      <form id="applicationForm" class="modal-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Khách hàng <span class="required">*</span></label>
+            <select id="appCustomerId" required>
+              <option value="">-- Chọn khách hàng --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Sản phẩm vay <span class="required">*</span></label>
+            <select id="appProductId" required>
+              <option value="">-- Chọn sản phẩm --</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Số tiền vay (VNĐ) <span class="required">*</span></label>
+            <input type="number" id="appAmount" placeholder="50000000" required />
+          </div>
+          <div class="form-group">
+            <label>Kỳ hạn (tháng) <span class="required">*</span></label>
+            <input type="number" id="appTenor" placeholder="12" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Mục đích vay <span class="required">*</span></label>
+          <input type="text" id="appPurpose" placeholder="Mua xe máy, cải thiện nhà ở, ..." required />
+        </div>
+
+        <!-- Installment Preview -->
+        <div class="preview-box hidden" id="installmentPreview">
+          <h4>📊 Dự kiến thanh toán</h4>
+          <div class="preview-grid">
+            <div><span>Trả hàng tháng</span><strong id="previewMonthly">--</strong></div>
+            <div><span>Tổng thanh toán</span><strong id="previewTotal">--</strong></div>
+            <div><span>Tổng lãi</span><strong id="previewInterest">--</strong></div>
+            <div><span>Phí xử lý</span><strong id="previewFee">--</strong></div>
+          </div>
+        </div>
+
+        <div id="appFormError" class="error-msg hidden"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close="modal-application">Hủy</button>
+          <button type="button" class="btn btn-outline" id="btnPreviewInstallment">Tính toán</button>
+          <button type="submit" class="btn btn-primary">Tạo hồ sơ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Decision Modal -->
+  <div id="modal-decision" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Quyết định phê duyệt</h3>
+        <button class="btn-close" data-close="modal-decision">✕</button>
+      </div>
+      <div class="modal-form">
+        <input type="hidden" id="decisionAppId" />
+        <div class="form-group">
+          <label>Quyết định <span class="required">*</span></label>
+          <div class="decision-buttons">
+            <button type="button" class="btn btn-success decision-btn active" data-value="Approved">✅ Phê duyệt</button>
+            <button type="button" class="btn btn-danger decision-btn" data-value="Rejected">❌ Từ chối</button>
+          </div>
+          <input type="hidden" id="decisionValue" value="Approved" />
+        </div>
+        <div class="form-row" id="approvedAmountRow">
+          <div class="form-group">
+            <label>Số tiền phê duyệt</label>
+            <input type="number" id="decisionAmount" placeholder="Để trống = số tiền đề nghị" />
+          </div>
+          <div class="form-group">
+            <label>Kỳ hạn phê duyệt (tháng)</label>
+            <input type="number" id="decisionTenor" placeholder="Để trống = kỳ hạn đề nghị" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Ghi chú / Lý do</label>
+          <textarea id="decisionRemark" rows="3" placeholder="Ghi chú quyết định..."></textarea>
+        </div>
+        <div id="decisionError" class="error-msg hidden"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close="modal-decision">Hủy</button>
+          <button type="button" class="btn btn-primary" id="btnSubmitDecision">Xác nhận</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payment Modal -->
+  <div id="modal-payment" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Thu tiền trả nợ</h3>
+        <button class="btn-close" data-close="modal-payment">✕</button>
+      </div>
+      <div class="modal-form">
+        <input type="hidden" id="paymentLoanId" />
+        <div class="form-row">
+          <div class="form-group">
+            <label>Số tiền thu (VNĐ) <span class="required">*</span></label>
+            <input type="number" id="payAmount" placeholder="0" required />
+          </div>
+          <div class="form-group">
+            <label>Ngày thu <span class="required">*</span></label>
+            <input type="date" id="payDate" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Phương thức thanh toán</label>
+          <select id="payMethod">
+            <option value="Cash">Tiền mặt</option>
+            <option value="BankTransfer">Chuyển khoản</option>
+            <option value="MoMo">MoMo</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Số tham chiếu</label>
+          <input type="text" id="payRef" placeholder="Số GD ngân hàng..." />
+        </div>
+        <div id="paymentError" class="error-msg hidden"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-close="modal-payment">Hủy</button>
+          <button type="button" class="btn btn-primary" id="btnSubmitPayment">Ghi nhận thanh toán</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast-container"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
