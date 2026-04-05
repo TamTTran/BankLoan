@@ -47,13 +47,13 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "LoanFlow Lite API",
-        Version = "v1",
-        Description = "Hệ thống quản lý khoản vay — LoanFlow Lite"
+        Version = "v2",
+        Description = "Loan Management System — LoanFlow Lite v2"
     });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         In = ParameterLocation.Header,
-        Description = "Nhập: Bearer {token}",
+        Description = "Enter: Bearer {token}",
         Name = "Authorization",
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
@@ -81,8 +81,8 @@ app.UseCors("AllowFrontend");
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "LoanFlow Lite API v1");
-    c.DocumentTitle = "LoanFlow Lite API";
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "LoanFlow Lite API v2");
+    c.DocumentTitle = "LoanFlow Lite API v2";
     c.RoutePrefix = "swagger";
 });
 

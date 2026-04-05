@@ -1,5 +1,6 @@
 using LoanFlow.Application.Common;
 using LoanFlow.Application.DTOs.LoanApplication;
+using LoanFlow.Application.DTOs.LoanProduct;
 using LoanFlow.Domain.Constants;
 using LoanFlow.Domain.Entities;
 using LoanFlow.Infrastructure.Data;
@@ -11,10 +12,12 @@ public interface ILoanApplicationService
 {
     Task<PagedResult<LoanApplicationDto>> GetListAsync(ApplicationFilterRequest filter);
     Task<Result<LoanApplicationDto>> GetByIdAsync(int id);
-    Task<Result<LoanApplicationDto>> CreateAsync(CreateApplicationRequest request, int userId, int? branchId);
+    Task<Result<LoanApplicationDto>> CreateAsync(CreateApplicationRequest request, int userId);
+    Task<Result<LoanApplicationDto>> UpdateAsync(int id, UpdateApplicationRequest request, int userId);
     Task<Result> SubmitAsync(int id, int userId);
-    Task<Result<LoanApplicationDto>> DecideAsync(int id, ApprovalDecisionRequest request, int approverUserId);
-    Task<Result> CancelAsync(int id, int userId);
+    Task<Result> ApproveAsync(int id, int approverUserId);
+    Task<Result> RejectAsync(int id, RejectApplicationRequest request, int approverUserId);
+    Task<Result<InstallmentPreviewDto>> PreviewAsync(InstallmentPreviewRequest request);
 }
 
 public class LoanApplicationService : ILoanApplicationService
@@ -32,7 +35,7 @@ public class LoanApplicationService : ILoanApplicationService
     {
         var query = _db.LoanApplications
             .Include(a => a.Customer)
-            .Include(a => a.LoanProduct)
+            .Include(a => a.Product)
             .Include(a => a.CreatedBy)
             .AsQueryable();
 
@@ -40,14 +43,11 @@ public class LoanApplicationService : ILoanApplicationService
         {
             var s = filter.Search.ToLower();
             query = query.Where(a =>
-                a.ApplicationNumber.Contains(s) ||
                 a.Customer.FullName.ToLower().Contains(s) ||
-                a.Customer.PhoneNumber.Contains(s));
+                a.Customer.Phone.Contains(s));
         }
         if (!string.IsNullOrWhiteSpace(filter.Status))
             query = query.Where(a => a.Status == filter.Status);
-        if (filter.BranchId.HasValue)
-            query = query.Where(a => a.BranchId == filter.BranchId);
         if (filter.FromDate.HasValue)
             query = query.Where(a => a.CreatedAt >= filter.FromDate);
         if (filter.ToDate.HasValue)
@@ -73,151 +73,232 @@ public class LoanApplicationService : ILoanApplicationService
     {
         var a = await _db.LoanApplications
             .Include(x => x.Customer)
-            .Include(x => x.LoanProduct)
+            .Include(x => x.Product)
             .Include(x => x.CreatedBy)
             .Include(x => x.Decisions).ThenInclude(d => d.DecidedBy)
+            .Include(x => x.Loan)
             .FirstOrDefaultAsync(x => x.Id == id);
 
-        if (a is null) return Result.Failure<LoanApplicationDto>("Hồ sơ vay không tồn tại.");
+        if (a is null) return Result.Failure<LoanApplicationDto>("APP-VAL-003: Application not found.");
         return Result.Success(MapToDto(a));
     }
 
-    public async Task<Result<LoanApplicationDto>> CreateAsync(CreateApplicationRequest req, int userId, int? branchId)
+    public async Task<Result<LoanApplicationDto>> CreateAsync(CreateApplicationRequest req, int userId)
     {
+        // APP-VAL-003
         var customer = await _db.Customers.FindAsync(req.CustomerId);
-        if (customer is null) return Result.Failure<LoanApplicationDto>("Khách hàng không tồn tại.");
+        if (customer is null) return Result.Failure<LoanApplicationDto>("APP-VAL-003: Customer not found.");
+        if (customer.Status != "Active") return Result.Failure<LoanApplicationDto>("Customer is not active.");
 
-        var preview = await _productService.PreviewInstallmentAsync(new()
-        {
-            LoanProductId = req.LoanProductId,
-            Amount = req.RequestedAmount,
-            TenorMonths = req.TenorMonths
-        });
-        if (!preview.IsSuccess) return Result.Failure<LoanApplicationDto>(preview.Error!);
+        // APP-VAL-004
+        var product = await _db.LoanProducts.FindAsync(req.ProductId);
+        if (product is null) return Result.Failure<LoanApplicationDto>("APP-VAL-004: Product not found.");
+        if (product.Status != "Active") return Result.Failure<LoanApplicationDto>("APP-VAL-004: Product is not active.");
 
-        var appNumber = await GenerateApplicationNumberAsync();
+        // APP-VAL-001
+        if (req.RequestedAmount < product.MinAmount || req.RequestedAmount > product.MaxAmount)
+            return Result.Failure<LoanApplicationDto>("APP-VAL-001: Requested amount is outside product range.");
+
+        // APP-VAL-002
+        var allowedTenors = product.GetAllowedTenors();
+        if (!allowedTenors.Contains(req.RequestedTenorMonths))
+            return Result.Failure<LoanApplicationDto>("APP-VAL-002: Requested tenor is not allowed for this product.");
+
         var entity = new LoanApplication
         {
-            ApplicationNumber = appNumber,
             CustomerId = req.CustomerId,
-            LoanProductId = req.LoanProductId,
-            BranchId = branchId,
-            CreatedByUserId = userId,
+            ProductId = req.ProductId,
             RequestedAmount = req.RequestedAmount,
-            TenorMonths = req.TenorMonths,
-            EstimatedInstallment = preview.Value!.MonthlyInstallment,
+            RequestedTenorMonths = req.RequestedTenorMonths,
             Purpose = req.Purpose,
-            Notes = req.Notes,
-            Status = ApplicationStatus.Draft
+            Remarks = req.Remarks,
+            Status = ApplicationStatus.Draft,
+            CreatedByUserId = userId
         };
         _db.LoanApplications.Add(entity);
         await _db.SaveChangesAsync();
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = userId,
+            ActionCode = AuditActions.ApplicationCreated,
+            EntityType = "Application",
+            EntityId = entity.Id,
+            NewValuesJson = $"{{\"customerId\":{entity.CustomerId},\"productId\":{entity.ProductId},\"amount\":{entity.RequestedAmount}}}"
+        });
+        await _db.SaveChangesAsync();
+
         return await GetByIdAsync(entity.Id);
+    }
+
+    public async Task<Result<LoanApplicationDto>> UpdateAsync(int id, UpdateApplicationRequest req, int userId)
+    {
+        var entity = await _db.LoanApplications
+            .Include(a => a.Product)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
+        if (entity is null) return Result.Failure<LoanApplicationDto>("Application not found.");
+
+        // §12.3 Draft applications can be edited; submitted/approved/rejected cannot
+        if (entity.Status != ApplicationStatus.Draft)
+            return Result.Failure<LoanApplicationDto>("APP-SUB-001: Only draft application can be edited.");
+
+        var product = entity.Product;
+        if (req.RequestedAmount < product.MinAmount || req.RequestedAmount > product.MaxAmount)
+            return Result.Failure<LoanApplicationDto>("APP-VAL-001: Requested amount is outside product range.");
+
+        var allowedTenors = product.GetAllowedTenors();
+        if (!allowedTenors.Contains(req.RequestedTenorMonths))
+            return Result.Failure<LoanApplicationDto>("APP-VAL-002: Requested tenor is not allowed.");
+
+        entity.RequestedAmount = req.RequestedAmount;
+        entity.RequestedTenorMonths = req.RequestedTenorMonths;
+        entity.Purpose = req.Purpose;
+        entity.Remarks = req.Remarks;
+        entity.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = userId,
+            ActionCode = AuditActions.ApplicationUpdated,
+            EntityType = "Application",
+            EntityId = entity.Id
+        });
+        await _db.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
     }
 
     public async Task<Result> SubmitAsync(int id, int userId)
     {
-        var entity = await _db.LoanApplications.FindAsync(id);
-        if (entity is null) return Result.Failure("Hồ sơ vay không tồn tại.");
-        if (entity.CreatedByUserId != userId) return Result.Failure("Bạn không có quyền nộp hồ sơ này.");
-        if (entity.Status != ApplicationStatus.Draft) return Result.Failure($"Không thể nộp hồ sơ ở trạng thái {entity.Status}.");
+        var entity = await _db.LoanApplications
+            .Include(a => a.Customer)
+            .Include(a => a.Product)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
+        if (entity is null) return Result.Failure("Application not found.");
+
+        // APP-SUB-001
+        if (entity.Status != ApplicationStatus.Draft)
+            return Result.Failure($"APP-SUB-001: Only draft application can be submitted.");
+
+        // APP-SUB-002: customer and product must be active
+        if (entity.Customer.Status != "Active") return Result.Failure("APP-SUB-002: Customer is not active.");
+        if (entity.Product.Status != "Active") return Result.Failure("APP-SUB-002: Product is not active.");
 
         entity.Status = ApplicationStatus.Submitted;
         entity.SubmittedAt = DateTime.UtcNow;
+        entity.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = userId,
+            ActionCode = AuditActions.ApplicationSubmitted,
+            EntityType = "Application",
+            EntityId = entity.Id
+        });
+        await _db.SaveChangesAsync();
+
         return Result.Success();
     }
 
-    public async Task<Result<LoanApplicationDto>> DecideAsync(int id, ApprovalDecisionRequest req, int approverUserId)
+    public async Task<Result> ApproveAsync(int id, int approverUserId)
     {
         var entity = await _db.LoanApplications.FindAsync(id);
-        if (entity is null) return Result.Failure<LoanApplicationDto>("Hồ sơ không tồn tại.");
-        if (entity.Status is not (ApplicationStatus.Submitted or ApplicationStatus.UnderReview))
-            return Result.Failure<LoanApplicationDto>("Hồ sơ không ở trạng thái chờ duyệt.");
+        if (entity is null) return Result.Failure("Application not found.");
 
-        if (req.Decision == "Rejected" && string.IsNullOrWhiteSpace(req.Remark))
-            return Result.Failure<LoanApplicationDto>("Từ chối phải có lý do.");
+        // APR-VAL-001
+        if (entity.Status != ApplicationStatus.Submitted)
+            return Result.Failure("APR-VAL-001: Only submitted application can be approved.");
 
-        entity.Status = req.Decision == "Approved"
-            ? ApplicationStatus.Approved
-            : req.Decision == "Rejected"
-                ? ApplicationStatus.Rejected
-                : ApplicationStatus.UnderReview;
+        entity.Status = ApplicationStatus.Approved;
         entity.UpdatedAt = DateTime.UtcNow;
 
         _db.ApplicationDecisions.Add(new ApplicationDecision
         {
-            LoanApplicationId = id,
-            DecidedByUserId = approverUserId,
-            Decision = req.Decision,
-            Remark = req.Remark,
-            ApprovedAmount = req.ApprovedAmount,
-            ApprovedTenorMonths = req.ApprovedTenorMonths
+            ApplicationId = id,
+            Decision = "Approved",
+            DecidedByUserId = approverUserId
         });
 
         _db.AuditLogs.Add(new AuditLog
         {
-            UserId = approverUserId,
-            Action = req.Decision.ToUpper(),
-            EntityType = "LoanApplication",
-            EntityId = id.ToString(),
-            NewValues = $"{{\"decision\":\"{req.Decision}\",\"remark\":\"{req.Remark}\"}}"
+            ActorUserId = approverUserId,
+            ActionCode = AuditActions.ApplicationApproved,
+            EntityType = "Application",
+            EntityId = entity.Id
         });
 
-        await _db.SaveChangesAsync();
-        return await GetByIdAsync(id);
-    }
-
-    public async Task<Result> CancelAsync(int id, int userId)
-    {
-        var entity = await _db.LoanApplications.FindAsync(id);
-        if (entity is null) return Result.Failure("Hồ sơ không tồn tại.");
-        if (entity.Status is ApplicationStatus.Approved or ApplicationStatus.Rejected)
-            return Result.Failure("Không thể hủy hồ sơ đã có quyết định.");
-
-        entity.Status = ApplicationStatus.Cancelled;
-        entity.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return Result.Success();
     }
 
-    private async Task<string> GenerateApplicationNumberAsync()
+    public async Task<Result> RejectAsync(int id, RejectApplicationRequest req, int approverUserId)
     {
-        var today = DateTime.Now.ToString("yyyyMMdd");
-        var prefix = $"APP-{today}-";
-        var last = await _db.LoanApplications
-            .Where(a => a.ApplicationNumber.StartsWith(prefix))
-            .OrderByDescending(a => a.ApplicationNumber)
-            .Select(a => a.ApplicationNumber)
-            .FirstOrDefaultAsync();
+        var entity = await _db.LoanApplications.FindAsync(id);
+        if (entity is null) return Result.Failure("Application not found.");
 
-        int seq = 1;
-        if (last is not null)
+        // APR-VAL-001
+        if (entity.Status != ApplicationStatus.Submitted)
+            return Result.Failure("APR-VAL-001: Only submitted application can be rejected.");
+
+        // APR-VAL-003
+        if (string.IsNullOrWhiteSpace(req.Reason))
+            return Result.Failure("APR-VAL-003: Rejection reason is required.");
+
+        entity.Status = ApplicationStatus.Rejected;
+        entity.UpdatedAt = DateTime.UtcNow;
+
+        _db.ApplicationDecisions.Add(new ApplicationDecision
         {
-            var parts = last.Split('-');
-            if (parts.Length >= 3 && int.TryParse(parts[^1], out var n)) seq = n + 1;
-        }
-        return $"{prefix}{seq:D4}";
+            ApplicationId = id,
+            Decision = "Rejected",
+            DecisionReason = req.Reason,
+            DecidedByUserId = approverUserId
+        });
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = approverUserId,
+            ActionCode = AuditActions.ApplicationRejected,
+            EntityType = "Application",
+            EntityId = entity.Id,
+            NewValuesJson = $"{{\"reason\":\"{req.Reason}\"}}"
+        });
+
+        await _db.SaveChangesAsync();
+        return Result.Success();
     }
+
+    /// <summary>Delegates to LoanProductService preview (§APP-005)</summary>
+    public Task<Result<InstallmentPreviewDto>> PreviewAsync(InstallmentPreviewRequest request)
+        => _productService.PreviewInstallmentAsync(request);
 
     private static LoanApplicationDto MapToDto(LoanApplication a) => new()
     {
-        Id = a.Id, ApplicationNumber = a.ApplicationNumber,
-        CustomerId = a.CustomerId, CustomerName = a.Customer?.FullName ?? "",
-        CustomerPhone = a.Customer?.PhoneNumber ?? "",
-        LoanProductId = a.LoanProductId, ProductName = a.LoanProduct?.Name ?? "",
-        RequestedAmount = a.RequestedAmount, TenorMonths = a.TenorMonths,
-        EstimatedInstallment = a.EstimatedInstallment, Purpose = a.Purpose,
-        Status = a.Status, Notes = a.Notes,
+        Id = a.Id,
+        CustomerId = a.CustomerId,
+        CustomerName = a.Customer?.FullName ?? "",
+        CustomerPhone = a.Customer?.Phone ?? "",
+        ProductId = a.ProductId,
+        ProductName = a.Product?.ProductName ?? "",
+        RequestedAmount = a.RequestedAmount,
+        RequestedTenorMonths = a.RequestedTenorMonths,
+        Purpose = a.Purpose,
+        Remarks = a.Remarks,
+        Status = a.Status,
         CreatedByName = a.CreatedBy?.FullName ?? "",
-        CreatedAt = a.CreatedAt, SubmittedAt = a.SubmittedAt,
+        SubmittedAt = a.SubmittedAt,
+        CreatedAt = a.CreatedAt,
+        LoanId = a.Loan?.Id,
         DecisionHistory = (a.Decisions ?? []).Select(d => new DecisionHistoryDto
         {
-            Decision = d.Decision, Remark = d.Remark,
+            Decision = d.Decision,
+            DecisionReason = d.DecisionReason,
             DecidedBy = d.DecidedBy?.FullName ?? "",
-            DecidedAt = d.DecidedAt,
-            ApprovedAmount = d.ApprovedAmount,
-            ApprovedTenorMonths = d.ApprovedTenorMonths
+            DecidedAt = d.DecidedAt
         }).ToList()
     };
 }

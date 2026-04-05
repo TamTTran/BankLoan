@@ -3,64 +3,99 @@ namespace LoanFlow.Application.DTOs.Loan;
 public class LoanDto
 {
     public int Id { get; set; }
-    public string LoanNumber { get; set; } = default!;
-    public string ApplicationNumber { get; set; } = default!;
+    public string LoanAccountNo { get; set; } = default!;
+    public int ApplicationId { get; set; }
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = default!;
     public string ProductName { get; set; } = default!;
-    public decimal PrincipalAmount { get; set; }
-    public decimal InterestRatePerMonth { get; set; }
+    public decimal ApprovedAmount { get; set; }
     public int TenorMonths { get; set; }
-    public decimal MonthlyInstallment { get; set; }
-    public decimal OutstandingBalance { get; set; }
-    public decimal TotalPaid { get; set; }
+    public decimal MonthlyInterestRate { get; set; }
+    public decimal ProcessingFee { get; set; }
+    public DateOnly? DisbursementDate { get; set; }
+    public DateOnly? MaturityDate { get; set; }
     public string Status { get; set; } = default!;
-    public DateTime DisbursedAt { get; set; }
-    public DateTime MaturityDate { get; set; }
-    public List<RepaymentScheduleDto> Schedule { get; set; } = [];
-    public List<PaymentSummaryDto> RecentPayments { get; set; } = [];
+    public decimal OutstandingAmount { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public List<ScheduleItemDto> Schedule { get; set; } = [];
+    public List<PaymentDto> Payments { get; set; } = [];
 }
 
-public class RepaymentScheduleDto
+public class ScheduleItemDto
 {
-    public int InstallmentNumber { get; set; }
-    public DateTime DueDate { get; set; }
-    public decimal PrincipalAmount { get; set; }
-    public decimal InterestAmount { get; set; }
+    public int InstallmentNo { get; set; }
+    public DateOnly DueDate { get; set; }
+    public decimal PrincipalDue { get; set; }
+    public decimal InterestDue { get; set; }
     public decimal TotalDue { get; set; }
-    public decimal PaidAmount { get; set; }
-    public decimal RemainingBalance { get; set; }
-    public string Status { get; set; } = default!;
-    public DateTime? PaidAt { get; set; }
-}
-
-public class PaymentSummaryDto
-{
-    public int Id { get; set; }
-    public decimal Amount { get; set; }
     public decimal PrincipalPaid { get; set; }
     public decimal InterestPaid { get; set; }
-    public DateTime PaymentDate { get; set; }
-    public string PaymentMethod { get; set; } = default!;
-    public string CollectedBy { get; set; } = default!;
+    public decimal RemainingDueAmount { get; set; }
+    public string Status { get; set; } = default!;
+    public int Dpd { get; set; }        // computed at query time
 }
 
+public class PaymentDto
+{
+    public int Id { get; set; }
+    public DateOnly PaymentDate { get; set; }
+    public decimal Amount { get; set; }
+    public string PaymentMethod { get; set; } = default!;
+    public string? Remarks { get; set; }
+    public string CreatedBy { get; set; } = default!;
+    public DateTime CreatedAt { get; set; }
+}
+
+// POST /applications/{id}/create-loan (§17.8)
 public class CreateLoanRequest
 {
-    public int LoanApplicationId { get; set; }
-    public DateTime DisbursedAt { get; set; }
-    public string PaymentMethod { get; set; } = default!;
-    public string? ReferenceNumber { get; set; }
-    public string? Notes { get; set; }
+    // No body needed — loan is created from approved application
 }
 
-public class CollectPaymentRequest
+// POST /loans/{id}/disburse (§17.8)
+public class DisburseRequest
 {
+    public DateOnly DisbursementDate { get; set; }
+    public decimal DisbursedAmount { get; set; }
+}
+
+// POST /loans/{id}/payments (§17.9)
+public class RecordPaymentRequest
+{
+    public DateOnly PaymentDate { get; set; }
     public decimal Amount { get; set; }
-    public DateTime PaymentDate { get; set; }
     public string PaymentMethod { get; set; } = default!;
-    public string? ReferenceNumber { get; set; }
-    public string? Notes { get; set; }
+    public string? Remarks { get; set; }
+}
+
+// POST /loans/{id}/collection-notes (§17.10)
+public class AddCollectionNoteRequest
+{
+    public DateOnly NoteDate { get; set; }
+    public string NoteText { get; set; } = default!;
+}
+
+public class CollectionNoteDto
+{
+    public int Id { get; set; }
+    public DateOnly NoteDate { get; set; }
+    public string NoteText { get; set; } = default!;
+    public string CreatedBy { get; set; } = default!;
+    public DateTime CreatedAt { get; set; }
+}
+
+public class OverdueItemDto
+{
+    public int LoanId { get; set; }
+    public string LoanAccountNo { get; set; } = default!;
+    public int CustomerId { get; set; }
+    public string CustomerName { get; set; } = default!;
+    public string CustomerPhone { get; set; } = default!;
+    public decimal OutstandingAmount { get; set; }
+    public decimal OverdueDueAmount { get; set; }
+    public int Dpd { get; set; }
+    public string Bucket { get; set; } = default!;
+    public string? LastCollectionNote { get; set; }
 }
 
 public class LoanFilterRequest

@@ -30,33 +30,16 @@ public class AuthService : IAuthService
     public async Task<Result<LoginResponse>> LoginAsync(LoginRequest request)
     {
         var user = await _db.Users
-            .Include(u => u.Branch)
-            .FirstOrDefaultAsync(u => u.Username == request.Username && u.IsActive);
+            .FirstOrDefaultAsync(u => u.Username == request.Username && u.Status == "Active");
 
         if (user is null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            return Result.Failure<LoginResponse>("Sai tên đăng nhập hoặc mật khẩu.");
+            return Result.Failure<LoginResponse>("Invalid credentials.");
 
-        user.LastLoginAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-
+        // AUTH-001: valid credentials log user in
         var token = GenerateJwtToken(user);
         var expiresAt = DateTime.UtcNow.AddHours(8);
 
-        // Audit log
-        _db.AuditLogs.Add(new AuditLog
-        {
-            UserId = user.Id,
-            Action = "LOGIN",
-            EntityType = "User",
-            EntityId = user.Id.ToString(),
-            NewValues = $"{{\"username\":\"{user.Username}\",\"role\":\"{user.Role}\"}}"
-        });
-        await _db.SaveChangesAsync();
-
-        return Result.Success(new LoginResponse(
-            token, user.Username, user.FullName, user.Role,
-            user.Id, user.BranchId, expiresAt
-        ));
+        return Result.Success(new LoginResponse(token, user.Username, user.FullName, user.Role, user.Id, expiresAt));
     }
 
     private string GenerateJwtToken(User user)
@@ -71,7 +54,6 @@ public class AuthService : IAuthService
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(ClaimTypes.Role, user.Role),
             new Claim("fullName", user.FullName),
-            new Claim("branchId", user.BranchId?.ToString() ?? ""),
         };
 
         var token = new JwtSecurityToken(

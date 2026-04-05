@@ -17,50 +17,39 @@ public class CustomersController : ControllerBase
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    /// <summary>Danh sách khách hàng có phân trang và tìm kiếm</summary>
+    /// <summary>GET /customers — CUS-003</summary>
     [HttpGet]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Approver},{Roles.Manager}")]
     public async Task<IActionResult> GetList([FromQuery] CustomerFilterRequest filter)
-    {
-        var result = await _service.GetListAsync(filter);
-        return Ok(result);
-    }
+        => Ok(await _service.GetListAsync(filter));
 
-    /// <summary>Chi tiết khách hàng</summary>
+    /// <summary>GET /customers/{id} — CUS-004</summary>
     [HttpGet("{id:int}")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Approver},{Roles.Manager}")]
     public async Task<IActionResult> GetById(int id)
     {
         var result = await _service.GetByIdAsync(id);
-        if (!result.IsSuccess) return NotFound(new { message = result.Error });
-        return Ok(result.Value);
+        if (!result.IsSuccess) return NotFound(new { success = false, error = new { code = "APP-VAL-003", message = result.Error } });
+        return Ok(new { success = true, data = result.Value });
     }
 
-    /// <summary>Tạo khách hàng mới</summary>
+    /// <summary>POST /customers — CUS-001</summary>
     [HttpPost]
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer}")]
     public async Task<IActionResult> Create([FromBody] CreateCustomerRequest request)
     {
         var result = await _service.CreateAsync(request, CurrentUserId);
-        if (!result.IsSuccess) return BadRequest(new { message = result.Error });
-        return CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, result.Value);
+        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
+        return CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, new { success = true, data = result.Value });
     }
 
-    /// <summary>Cập nhật thông tin khách hàng</summary>
-    [HttpPut("{id:int}")]
+    /// <summary>PATCH /customers/{id} — CUS-002</summary>
+    [HttpPatch("{id:int}")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateCustomerRequest request)
     {
         var result = await _service.UpdateAsync(id, request);
-        if (!result.IsSuccess) return BadRequest(new { message = result.Error });
-        return Ok(result.Value);
-    }
-
-    /// <summary>Xóa khách hàng (chỉ khi chưa có hồ sơ vay)</summary>
-    [HttpDelete("{id:int}")]
-    [Authorize(Roles = Roles.Admin)]
-    public async Task<IActionResult> Delete(int id)
-    {
-        var result = await _service.DeleteAsync(id);
-        if (!result.IsSuccess) return BadRequest(new { message = result.Error });
-        return NoContent();
+        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
+        return Ok(new { success = true, data = result.Value });
     }
 }

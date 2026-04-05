@@ -4,13 +4,11 @@ public class LoanDisbursement
 {
     public int Id { get; set; }
     public int LoanId { get; set; }
-    public decimal Amount { get; set; }
-    public DateTime DisbursedAt { get; set; }
-    public string PaymentMethod { get; set; } = default!; // Cash | BankTransfer | Cheque
-    public string? ReferenceNumber { get; set; }
-    public string? Notes { get; set; }
-    public int ProcessedByUserId { get; set; }
+    public decimal DisbursedAmount { get; set; }            // must equal approved amount
+    public DateOnly DisbursementDate { get; set; }
+    public int RecordedByUserId { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public Loan Loan { get; set; } = default!;
-    public User ProcessedBy { get; set; } = default!;
+    public User RecordedBy { get; set; } = default!;
 }

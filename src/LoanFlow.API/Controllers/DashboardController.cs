@@ -1,33 +1,26 @@
 using LoanFlow.Application.Services;
+using LoanFlow.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LoanFlow.API.Controllers;
 
 [ApiController]
-[Route("api/dashboard")]
+[Route("api")]
 [Authorize]
 public class DashboardController : ControllerBase
 {
     private readonly IDashboardService _service;
     public DashboardController(IDashboardService service) => _service = service;
 
-    /// <summary>Tổng quan danh mục khoản vay</summary>
-    [HttpGet("summary")]
+    /// <summary>GET /dashboard/summary — RPT-001</summary>
+    [HttpGet("dashboard/summary")]
     public async Task<IActionResult> GetSummary()
-        => Ok(await _service.GetSummaryAsync());
+        => Ok(new { success = true, data = await _service.GetSummaryAsync() });
 
-    /// <summary>Danh sách khoản vay quá hạn</summary>
-    [HttpGet("overdue")]
-    public async Task<IActionResult> GetOverdue()
-        => Ok(await _service.GetOverdueListAsync());
-
-    /// <summary>Cập nhật trạng thái quá hạn thủ công (admin)</summary>
-    [HttpPost("update-overdue")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> UpdateOverdue()
-    {
-        await _service.UpdateOverdueStatusAsync();
-        return Ok(new { message = "Đã cập nhật trạng thái quá hạn." });
-    }
+    /// <summary>GET /reports/overdue-buckets — RPT-002</summary>
+    [HttpGet("reports/overdue-buckets")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Collector},{Roles.Manager}")]
+    public async Task<IActionResult> GetOverdueBuckets()
+        => Ok(new { success = true, data = await _service.GetOverdueBucketReportAsync() });
 }
