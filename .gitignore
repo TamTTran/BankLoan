@@ -1,5 +1,8 @@
+# ──────────────────────────────────────────────────────
+# .gitignore — LoanFlow Lite (.NET 8 + Vite/Node frontend)
+# ──────────────────────────────────────────────────────
 
-# ── Visual Studio ────────────────────────────────────────────────────────────
+# ── Visual Studio ─────────────────────────────────────
 .vs/
 *.user
 *.suo
@@ -7,15 +10,16 @@
 *.sln.docstates
 *.userprefs
 
-# ── Build output ──────────────────────────────────────────────────────────────
+# ── Build output ───────────────────────────────────────
+[Dd]ebug/
+[Rr]elease/
 [Bb]in/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
 out/
-artifacts/
 
-# ── .NET / NuGet ─────────────────────────────────────────────────────────────
+# ── .NET / NuGet ──────────────────────────────────────
 *.nupkg
 *.snupkg
 *.nuget.props
@@ -25,14 +29,11 @@ project.fragment.lock.json
 packages/
 !packages/build/
 
-# User-specific NuGet files
-nuget.config
-*.nuspec
-
-# ── Secrets & config ──────────────────────────────────────────────────────────
+# ── Secrets & environment ─────────────────────────────
 appsettings.Development.json
 appsettings.Local.json
 appsettings.Production.json
+appsettings.Staging.json
 *.pfx
 *.p12
 *.pem
@@ -42,24 +43,31 @@ secrets.json
 .env.*
 !.env.example
 
-# ── Entity Framework ─────────────────────────────────────────────────────────
-# Keep Migrations folder tracked; ignore snapshot if regenerating
-# (Comment out next line if you want to track migrations)
-# Migrations/
+# ── Entity Framework Migrations ───────────────────────
+# Migrations are tracked in git — do NOT add Migrations/ here
+# But ignore the design-time build cache
+*.dtbcache.v2
 
-# ── Rider / JetBrains ────────────────────────────────────────────────────────
+# ── Rider / JetBrains ─────────────────────────────────
 .idea/
 *.sln.iml
 _ReSharper*/
 *.ReSharper
 
-# ── Test results ──────────────────────────────────────────────────────────────
+# ── VSCode ────────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+!.vscode/extensions.json
+
+# ── Test results ──────────────────────────────────────
 TestResults/
 coverage/
 *.coveragexml
 *.trx
+*.coverage
 
-# ── Node / Frontend ───────────────────────────────────────────────────────────
+# ── Node / Frontend ────────────────────────────────────
 node_modules/
 dist/
 .next/
@@ -67,24 +75,29 @@ dist/
 .output/
 .cache/
 .parcel-cache/
+*.local
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-*.local
 
-# ── OS ────────────────────────────────────────────────────────────────────────
+# ── Docker ────────────────────────────────────────────
+.docker/
+
+# ── OS ────────────────────────────────────────────────
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+ehthumbs.db
 
-# ── Docker ────────────────────────────────────────────────────────────────────
-.dockerignore
-
-# ── Misc ──────────────────────────────────────────────────────────────────────
+# ── Misc ──────────────────────────────────────────────
 *.bak
 *.tmp
 *.swp
 *.orig
-.vscode/settings.json
+*.log
