@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LoanFlow.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a571f7edb2cdc6781acdcb794a580a7fcf7c76dd")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+471bc8153c457a42f07abaf7656af8889f778472")]
 [assembly: System.Reflection.AssemblyProductAttribute("LoanFlow.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LoanFlow.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
