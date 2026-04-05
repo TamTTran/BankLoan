@@ -10,14 +10,53 @@
 *.sln.docstates
 *.userprefs
 
+
 # ── Build output ───────────────────────────────────────
-[Dd]ebug/
-[Rr]elease/
-[Bb]in/
-[Oo]bj/
-[Ll]og/
-[Ll]ogs/
+[D]ebug/
+[r]elease/
+[b]in/
+[o]bj/
+[l]og/
+[l]ogs/
 out/
+publish/
+**/bin/Debug/
+**/bin/Release/
+**/obj/Debug/
+**/obj/Release/
+
+# ── Debug ──────────────────────────────────────────────
+# Visual Studio debugger
+*.pdb
+*.ilk
+*.idb
+*.ipdb
+
+# Crash dumps & memory snapshots
+*.dmp
+*.mdmp
+*.psess
+*.vsp
+*.vspx
+*.sap
+
+# .NET profiler / diagnostic traces
+*.diagsession
+*.etl
+*.nettrace
+
+# VS / VSCode launch overrides (keep checked-in defaults, ignore local overrides)
+launchSettings.override.json
+.vscode/launch.json
+
+# Hot reload / fast refresh cache
+.hotreload/
+**/Properties/launchSettings.local.json
+
+# SQL Server debug trace
+*.mdf-journal
+*.ldf
+*.mdf
 
 # ── .NET / NuGet ──────────────────────────────────────
 *.nupkg
