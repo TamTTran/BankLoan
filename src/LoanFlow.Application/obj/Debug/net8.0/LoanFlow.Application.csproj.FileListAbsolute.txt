@@ -15,3 +15,4 @@ D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\LoanFlow.Applicati
 D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\refint\LoanFlow.Application.dll
 D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\LoanFlow.Application.pdb
 D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\ref\LoanFlow.Application.dll
+D:\Project\BankLoan\src\LoanFlow.Application\obj\Debug\net8.0\LoanFlow.Application.sourcelink.json

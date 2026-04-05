@@ -15,3 +15,4 @@ D:\Project\BankLoan\src\LoanFlow.Infrastructure\obj\Debug\net8.0\refint\LoanFlow
 D:\Project\BankLoan\src\LoanFlow.Infrastructure\obj\Debug\net8.0\LoanFlow.Infrastructure.pdb
 D:\Project\BankLoan\src\LoanFlow.Infrastructure\obj\Debug\net8.0\LoanFlow.Infrastructure.genruntimeconfig.cache
 D:\Project\BankLoan\src\LoanFlow.Infrastructure\obj\Debug\net8.0\ref\LoanFlow.Infrastructure.dll
+D:\Project\BankLoan\src\LoanFlow.Infrastructure\obj\Debug\net8.0\LoanFlow.Infrastructure.sourcelink.json
