@@ -80,3 +80,4 @@ D:\Project\BankLoan\src\LoanFlow.API\obj\Debug\net8.0\LoanFlow.API.genruntimecon
 D:\Project\BankLoan\src\LoanFlow.API\obj\Debug\net8.0\ref\LoanFlow.API.dll
 D:\Project\BankLoan\src\LoanFlow.API\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
 D:\Project\BankLoan\src\LoanFlow.API\obj\Debug\net8.0\LoanFlow.API.sourcelink.json
+D:\Project\BankLoan\src\LoanFlow.API\bin\Debug\net8.0\appsettings.Development.json

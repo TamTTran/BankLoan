@@ -90,12 +90,43 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// === Migrate + Seed ===
-using (var scope = app.Services.CreateScope())
+// === Migrate + Seed (with retry for Docker) ===
+// SQL Server trong Docker có thể chưa sẵn sàng khi API start
+await MigrateWithRetryAsync(app);
+
+app.Run();
+
+static async Task MigrateWithRetryAsync(WebApplication app)
 {
-    var db = scope.ServiceProvider.GetRequiredService<LoanFlowDbContext>();
+    const int maxRetries = 5;
+    const int delaySeconds = 5;
+
+    using var scope = app.Services.CreateScope();
+    var db    = scope.ServiceProvider.GetRequiredService<LoanFlowDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    for (int attempt = 1; attempt <= maxRetries; attempt++)
+    {
+        try
+        {
+            logger.LogInformation("Migration attempt {Attempt}/{Max}...", attempt, maxRetries);
+            await db.Database.MigrateAsync();
+            await DbSeeder.SeedAsync(db);
+            logger.LogInformation("Database ready.");
+            return;
+        }
+        catch (Exception ex) when (attempt < maxRetries)
+        {
+            logger.LogWarning(
+                "DB not ready (attempt {Attempt}/{Max}): {Message}. Retrying in {Delay}s...",
+                attempt, maxRetries, ex.Message, delaySeconds);
+
+            await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+        }
+    }
+
+    // Final attempt — let exception propagate and crash the app
+    logger.LogInformation("Final migration attempt {Max}/{Max}...", maxRetries, maxRetries);
     await db.Database.MigrateAsync();
     await DbSeeder.SeedAsync(db);
 }
-
-app.Run();

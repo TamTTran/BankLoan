@@ -1,0 +1,26 @@
+# docker-compose.override.yml
+# ──────────────────────────────────────────────────────────────────────────────
+# Dùng cho LOCAL DEVELOPMENT:
+#   - SQL Server chạy trong Docker (port 1433 exposed ra host)
+#   - API chạy trong Visual Studio / dotnet watch (KHÔNG build container API)
+#
+# Chạy: docker compose up db -d
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: loanflow
+
+services:
+  db:
+    ports:
+      - "1433:1433"    # Expose ra localhost để VS kết nối trực tiếp
+    environment:
+      MSSQL_SA_PASSWORD: "LoanFlow@2026!"
+
+  # Tắt container api và frontend khi dev local (chạy bằng VS)
+  api:
+    profiles:
+      - full            # chỉ start khi: docker compose --profile full up
+
+  frontend:
+    profiles:
+      - full
