@@ -12,9 +12,10 @@ name: loanflow
 services:
   db:
     ports:
-      - "1433:1433"    # Expose ra localhost để VS kết nối trực tiếp
+      - "3306:3306"    # Expose ra localhost để VS kết nối trực tiếp
     environment:
-      MSSQL_SA_PASSWORD: "LoanFlow@2026!"
+      MYSQL_PASSWORD: "LoanFlow@2026!"
+      MYSQL_ROOT_PASSWORD: "LoanFlow@2026!"
 
   # Tắt container api và frontend khi dev local (chạy bằng VS)
   api:

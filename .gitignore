@@ -12,23 +12,13 @@
 
 
 # ── Build output ───────────────────────────────────────────────────────────────
-# Kết quả build (Debug & Release)
-[D]ebug/
-[r]elease/
-[b]in/
-[o]bj/
-[l]og/
-[l]ogs/
+# Kết quả build (Debug & Release) — dùng ** để bắt mọi cấp thư mục
+**/bin/
+**/obj/
+**/log/
+**/logs/
 out/
 publish/
-
-# Tường minh các thư mục phổ biến nhất
-**/bin/Debug/
-**/bin/Release/
-**/bin/net8.0/
-**/obj/Debug/
-**/obj/Release/
-**/obj/net8.0/
 
 # Incremental build cache (MSBuild)
 *.FileListAbsolute.txt
@@ -93,14 +83,18 @@ wwwroot/uploads/
 *.nuget.targets
 project.lock.json
 project.fragment.lock.json
+project.assets.json
+**/*.csproj.nuget.dgspec.json
+**/*.nuget.cache
 packages/
 !packages/build/
 
 # ── Secrets & environment ─────────────────────────────
-appsettings.Development.json
-appsettings.Local.json
-appsettings.Production.json
-appsettings.Staging.json
+# appsettings có thông tin môi trường cụ thể — không commit
+**/appsettings.Development.json
+**/appsettings.Local.json
+**/appsettings.Production.json
+**/appsettings.Staging.json
 *.pfx
 *.p12
 *.pem
