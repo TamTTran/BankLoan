@@ -107,7 +107,7 @@ public class LoanConfiguration : IEntityTypeConfiguration<Loan>
         builder.Property(x => x.Status).IsRequired().HasMaxLength(30).HasDefaultValue("PendingDisbursement");
         builder.HasOne(x => x.Application).WithOne(a => a.Loan)
             .HasForeignKey<Loan>(x => x.ApplicationId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne(x => x.Customer).WithMany()
+        builder.HasOne(x => x.Customer).WithMany(c => c.Loans)
             .HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Product).WithMany()
             .HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);

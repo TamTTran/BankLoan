@@ -14,11 +14,13 @@ public class CustomersController : ControllerBase
 {
     private readonly ICustomerService _service;
     private readonly ICollateralService _collateralService;
+    private readonly ICreditCheckService _creditCheckService;
 
-    public CustomersController(ICustomerService service, ICollateralService collateralService)
+    public CustomersController(ICustomerService service, ICollateralService collateralService, ICreditCheckService creditCheckService)
     {
         _service = service;
         _collateralService = collateralService;
+        _creditCheckService = creditCheckService;
     }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -76,5 +78,14 @@ public class CustomersController : ControllerBase
     {
         var collaterals = await _collateralService.GetByCustomerIdAsync(id);
         return Ok(new { success = true, data = collaterals });
+    }
+
+    /// <summary>GET /customers/{id}/credit-checks</summary>
+    [HttpGet("{id:int}/credit-checks")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Approver},{Roles.Manager}")]
+    public async Task<IActionResult> GetCreditCheckHistory(int id)
+    {
+        var history = await _creditCheckService.GetHistoryAsync(id);
+        return Ok(new { success = true, data = history });
     }
 }
