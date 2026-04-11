@@ -15,6 +15,17 @@ public class Loan
     public DateOnly? MaturityDate { get; set; }
     public string Status { get; set; } = "PendingDisbursement"; // PendingDisbursement | Active | Overdue | Closed
     public decimal OutstandingAmount { get; set; }
+
+    // ── Bank-grade snapshot fields (frozen at loan creation from product) ────
+    public string InterestMethod { get; set; } = "Flat";    // snapshot: Flat | ReducingBalance
+    public int GracePeriodMonths { get; set; } = 0;         // snapshot: grace period from product
+    public decimal? PromotionalRate { get; set; }           // snapshot: promo rate from product
+    public int PromotionalMonths { get; set; } = 0;         // snapshot: promo months from product
+    public decimal EarlySettlementFeeRate { get; set; } = 0;// snapshot: early settlement penalty rate
+    public decimal LateFeeRate { get; set; } = 0;           // snapshot: late fee rate
+    public int LateFeeGraceDays { get; set; } = 0;          // snapshot: grace days before late fee
+    public string ProductType { get; set; } = "PersonalUnsecured"; // snapshot: product type
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
@@ -26,4 +37,6 @@ public class Loan
     public ICollection<Payment> Payments { get; set; } = new List<Payment>();
     public ICollection<LoanTransaction> Transactions { get; set; } = new List<LoanTransaction>();
     public ICollection<CollectionNote> CollectionNotes { get; set; } = new List<CollectionNote>();
+    public ICollection<LateFee> LateFees { get; set; } = new List<LateFee>();
+    public ICollection<LoanCollateral> LoanCollaterals { get; set; } = new List<LoanCollateral>();
 }

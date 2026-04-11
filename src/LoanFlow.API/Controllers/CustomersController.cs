@@ -13,7 +13,13 @@ namespace LoanFlow.API.Controllers;
 public class CustomersController : ControllerBase
 {
     private readonly ICustomerService _service;
-    public CustomersController(ICustomerService service) => _service = service;
+    private readonly ICollateralService _collateralService;
+
+    public CustomersController(ICustomerService service, ICollateralService collateralService)
+    {
+        _service = service;
+        _collateralService = collateralService;
+    }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -58,8 +64,17 @@ public class CustomersController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer}")]
     public async Task<IActionResult> CheckCreditStatus(int id)
     {
-        var result = await _service.CheckCreditStatusAsync(id);
+        var result = await _service.CheckCreditStatusAsync(id, CurrentUserId);
         if (!result.IsSuccess) return NotFound(new { success = false, error = new { message = result.Error } });
         return Ok(new { success = true, data = result.Value });
+    }
+
+    /// <summary>GET /customers/{id}/collaterals</summary>
+    [HttpGet("{id:int}/collaterals")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Approver}")]
+    public async Task<IActionResult> GetCollaterals(int id)
+    {
+        var collaterals = await _collateralService.GetByCustomerIdAsync(id);
+        return Ok(new { success = true, data = collaterals });
     }
 }

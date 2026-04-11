@@ -12,6 +12,11 @@ public class LoanApplication
     public string Status { get; set; } = "Draft"; // Draft | Submitted | Approved | Rejected
     public int CreatedByUserId { get; set; }
     public DateTime? SubmittedAt { get; set; }
+
+    // ── Multi-level approval tracking ───────────────────────────────────────
+    public int? CurrentApprovalLevel { get; set; }          // current level reached (1, 2, 3…)
+    public int? RequiredApprovalLevel { get; set; }         // total levels needed (determined at submit time)
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

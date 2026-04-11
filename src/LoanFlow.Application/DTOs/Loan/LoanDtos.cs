@@ -19,6 +19,7 @@ public class LoanDto
     public DateTime CreatedAt { get; set; }
     public List<ScheduleItemDto> Schedule { get; set; } = [];
     public List<PaymentDto> Payments { get; set; } = [];
+    public List<LateFeeDto> LateFees { get; set; } = [];
 }
 
 public class ScheduleItemDto
@@ -33,6 +34,7 @@ public class ScheduleItemDto
     public decimal RemainingDueAmount { get; set; }
     public string Status { get; set; } = default!;
     public int Dpd { get; set; }        // computed at query time
+    public decimal UnpaidLateFeeAmount { get; set; } // computed at query time
 }
 
 public class PaymentDto
@@ -105,4 +107,34 @@ public class LoanFilterRequest
     public int? CustomerId { get; set; }
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 20;
+}
+
+// ── Bank-grade Phase 2 DTOs ────────────────────────────────────────────────
+
+public class EarlySettleRequest
+{
+    public DateOnly SettlementDate { get; set; }
+    public bool WaiveFee { get; set; } = false;
+}
+
+public class EarlySettlePreviewDto
+{
+    public DateOnly SettlementDate { get; set; }
+    public decimal RemainingPrincipal { get; set; }
+    public decimal ProRataInterest { get; set; }
+    public decimal EarlySettlementFee { get; set; }
+    public decimal UnpaidLateFees { get; set; }
+    public decimal TotalSettlementAmount { get; set; }
+}
+
+public class LateFeeDto
+{
+    public int Id { get; set; }
+    public int ScheduleId { get; set; }
+    public decimal OverdueAmount { get; set; }
+    public int DaysOverdue { get; set; }
+    public decimal FeeRate { get; set; }
+    public decimal FeeAmount { get; set; }
+    public string Status { get; set; } = default!;
+    public DateTime CalculatedAt { get; set; }
 }

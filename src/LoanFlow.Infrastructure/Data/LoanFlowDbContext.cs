@@ -20,6 +20,13 @@ public class LoanFlowDbContext : DbContext
     public DbSet<CollectionNote> CollectionNotes => Set<CollectionNote>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
+    // ── Bank-grade entities ─────────────────────────────────────────────────
+    public DbSet<LateFee> LateFees => Set<LateFee>();
+    public DbSet<Collateral> Collaterals => Set<Collateral>();
+    public DbSet<LoanCollateral> LoanCollaterals => Set<LoanCollateral>();
+    public DbSet<ApprovalRule> ApprovalRules => Set<ApprovalRule>();
+    public DbSet<CreditCheck> CreditChecks => Set<CreditCheck>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

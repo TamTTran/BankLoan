@@ -19,7 +19,11 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<ILoanProductService, LoanProductService>();
 builder.Services.AddScoped<ILoanApplicationService, LoanApplicationService>();
+builder.Services.AddScoped<ILateFeeService, LateFeeService>();
+builder.Services.AddScoped<ICollateralService, CollateralService>();
 builder.Services.AddScoped<ILoanService, LoanService>();
+builder.Services.AddScoped<ICreditCheckService, CreditCheckService>();
+builder.Services.AddScoped<IApprovalRuleService, ApprovalRuleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 // === JWT Auth ===

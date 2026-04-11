@@ -49,6 +49,15 @@ public class LoanProductConfiguration : IEntityTypeConfiguration<LoanProduct>
         builder.Property(x => x.ProcessingFee).HasPrecision(18, 2);
         builder.Property(x => x.RepaymentFrequency).HasMaxLength(20).HasDefaultValue("Monthly");
         builder.Property(x => x.Status).IsRequired().HasMaxLength(20).HasDefaultValue("Active");
+
+        // Bank-grade fields
+        builder.Property(x => x.ProductType).HasMaxLength(30).HasDefaultValue("PersonalUnsecured");
+        builder.Property(x => x.InterestMethod).HasMaxLength(20).HasDefaultValue("Flat");
+        builder.Property(x => x.MaxLtvRatio).HasPrecision(5, 2);
+        builder.Property(x => x.EarlySettlementFeeRate).HasPrecision(10, 6);
+        builder.Property(x => x.LateFeeRate).HasPrecision(10, 6);
+        builder.Property(x => x.PromotionalRate).HasPrecision(10, 6);
+        builder.Property(x => x.Description).HasMaxLength(1000);
     }
 }
 
@@ -102,6 +111,13 @@ public class LoanConfiguration : IEntityTypeConfiguration<Loan>
             .HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Product).WithMany()
             .HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+
+        // Bank-grade snapshot fields
+        builder.Property(x => x.InterestMethod).HasMaxLength(20).HasDefaultValue("Flat");
+        builder.Property(x => x.PromotionalRate).HasPrecision(10, 6);
+        builder.Property(x => x.EarlySettlementFeeRate).HasPrecision(10, 6);
+        builder.Property(x => x.LateFeeRate).HasPrecision(10, 6);
+        builder.Property(x => x.ProductType).HasMaxLength(30).HasDefaultValue("PersonalUnsecured");
     }
 }
 
@@ -186,5 +202,80 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         builder.Property(x => x.EntityType).IsRequired().HasMaxLength(50);
         builder.HasOne(x => x.ActorUser).WithMany(u => u.AuditLogs)
             .HasForeignKey(x => x.ActorUserId).OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+// ── Bank-grade entity configurations ────────────────────────────────────────
+
+public class LateFeeConfiguration : IEntityTypeConfiguration<LateFee>
+{
+    public void Configure(EntityTypeBuilder<LateFee> builder)
+    {
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.OverdueAmount).HasPrecision(18, 2);
+        builder.Property(x => x.FeeRate).HasPrecision(10, 6);
+        builder.Property(x => x.FeeAmount).HasPrecision(18, 2);
+        builder.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("Pending");
+        builder.HasOne(x => x.Loan).WithMany(l => l.LateFees)
+            .HasForeignKey(x => x.LoanId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Schedule).WithMany()
+            .HasForeignKey(x => x.ScheduleId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class CollateralConfiguration : IEntityTypeConfiguration<Collateral>
+{
+    public void Configure(EntityTypeBuilder<Collateral> builder)
+    {
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.CollateralType).IsRequired().HasMaxLength(30);
+        builder.Property(x => x.Description).IsRequired().HasMaxLength(500);
+        builder.Property(x => x.RegistrationNo).HasMaxLength(100);
+        builder.Property(x => x.AppraisedValue).HasPrecision(18, 2);
+        builder.Property(x => x.AppraisedBy).HasMaxLength(150);
+        builder.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("Active");
+        builder.Property(x => x.Address).HasMaxLength(500);
+        builder.HasOne(x => x.Customer).WithMany(c => c.Collaterals)
+            .HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class LoanCollateralConfiguration : IEntityTypeConfiguration<LoanCollateral>
+{
+    public void Configure(EntityTypeBuilder<LoanCollateral> builder)
+    {
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.AllocatedValue).HasPrecision(18, 2);
+        builder.HasOne(x => x.Loan).WithMany(l => l.LoanCollaterals)
+            .HasForeignKey(x => x.LoanId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Collateral).WithMany(c => c.LoanCollaterals)
+            .HasForeignKey(x => x.CollateralId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class ApprovalRuleConfiguration : IEntityTypeConfiguration<ApprovalRule>
+{
+    public void Configure(EntityTypeBuilder<ApprovalRule> builder)
+    {
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.ProductType).HasMaxLength(30);
+        builder.Property(x => x.MinAmount).HasPrecision(18, 2);
+        builder.Property(x => x.MaxAmount).HasPrecision(18, 2);
+        builder.Property(x => x.ApproverRole).IsRequired().HasMaxLength(30);
+    }
+}
+
+public class CreditCheckConfiguration : IEntityTypeConfiguration<CreditCheck>
+{
+    public void Configure(EntityTypeBuilder<CreditCheck> builder)
+    {
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.TotalOutstanding).HasPrecision(18, 2);
+        builder.Property(x => x.CreditGrade).IsRequired().HasMaxLength(5);
+        builder.Property(x => x.Recommendation).IsRequired().HasMaxLength(20);
+        builder.HasOne(x => x.Customer).WithMany(c => c.CreditChecks)
+            .HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.CheckedBy).WithMany()
+            .HasForeignKey(x => x.CheckedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 }

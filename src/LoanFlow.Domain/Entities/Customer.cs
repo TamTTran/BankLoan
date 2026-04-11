@@ -17,4 +17,7 @@ public class Customer
 
     public User? CreatedBy { get; set; }
     public ICollection<LoanApplication> LoanApplications { get; set; } = new List<LoanApplication>();
+    public ICollection<Loan> Loans { get; set; } = new List<Loan>();
+    public ICollection<Collateral> Collaterals { get; set; } = new List<Collateral>();
+    public ICollection<CreditCheck> CreditChecks { get; set; } = new List<CreditCheck>();
 }

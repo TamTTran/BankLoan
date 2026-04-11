@@ -24,11 +24,13 @@ public class LoanApplicationService : ILoanApplicationService
 {
     private readonly LoanFlowDbContext _db;
     private readonly ILoanProductService _productService;
+    private readonly IApprovalRuleService _approvalRuleService;
 
-    public LoanApplicationService(LoanFlowDbContext db, ILoanProductService productService)
+    public LoanApplicationService(LoanFlowDbContext db, ILoanProductService productService, IApprovalRuleService approvalRuleService)
     {
         _db = db;
         _productService = productService;
+        _approvalRuleService = approvalRuleService;
     }
 
     public async Task<PagedResult<LoanApplicationDto>> GetListAsync(ApplicationFilterRequest filter)
@@ -206,29 +208,62 @@ public class LoanApplicationService : ILoanApplicationService
 
     public async Task<Result> ApproveAsync(int id, int approverUserId)
     {
-        var entity = await _db.LoanApplications.FindAsync(id);
+        var entity = await _db.LoanApplications
+            .Include(a => a.Decisions)
+            .FirstOrDefaultAsync(a => a.Id == id);
+            
         if (entity is null) return Result.Failure("Application not found.");
 
         // APR-VAL-001
         if (entity.Status != ApplicationStatus.Submitted)
             return Result.Failure("APR-VAL-001: Only submitted application can be approved.");
 
-        entity.Status = ApplicationStatus.Approved;
-        entity.UpdatedAt = DateTime.UtcNow;
+        var approverUser = await _db.Users.FindAsync(approverUserId);
+        if (approverUser == null) return Result.Failure("Approver not found.");
+
+        var requiredRules = (await _approvalRuleService.GetRequiredRulesForApplicationAsync(id)).ToList();
+        
+        var approvedDecisions = entity.Decisions?.Where(d => d.Decision == "Approved").ToList() ?? new List<ApplicationDecision>();
+        int currentLevel = approvedDecisions.Count + 1;
+
+        var currentRule = requiredRules.FirstOrDefault(r => r.RequiredLevel == currentLevel);
+        
+        if (currentRule != null)
+        {
+            if (approverUser.Role != currentRule.ApproverRole && approverUser.Role != Roles.Admin)
+            {
+                return Result.Failure($"Approval at level {currentLevel} requires role: {currentRule.ApproverRole}. Approver role is {approverUser.Role}.");
+            }
+        }
+        else if (requiredRules.Count > 0 && currentLevel > requiredRules.Max(r => r.RequiredLevel))
+        {
+            return Result.Failure("Application is already fully approved.");
+        }
 
         _db.ApplicationDecisions.Add(new ApplicationDecision
         {
             ApplicationId = id,
             Decision = "Approved",
-            DecidedByUserId = approverUserId
+            DecidedByUserId = approverUserId,
+            DecisionReason = currentRule != null ? $"Approved Level {currentLevel}" : "Approved"
         });
+
+        bool isFullyApproved = requiredRules.Count == 0 || currentLevel >= requiredRules.Max(r => r.RequiredLevel);
+
+        if (isFullyApproved)
+        {
+            entity.Status = ApplicationStatus.Approved;
+        }
+        
+        entity.UpdatedAt = DateTime.UtcNow;
 
         _db.AuditLogs.Add(new AuditLog
         {
             ActorUserId = approverUserId,
             ActionCode = AuditActions.ApplicationApproved,
             EntityType = "Application",
-            EntityId = entity.Id
+            EntityId = entity.Id,
+            NewValuesJson = $"{{\"level\":{currentLevel},\"fullyApproved\":{isFullyApproved}}}"
         });
 
         await _db.SaveChangesAsync();

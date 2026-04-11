@@ -45,6 +45,81 @@ public static class RepaymentFrequency
     public const string Monthly = "Monthly";
 }
 
+// ── Loan Product Type (inspired by VPBank, Techcombank, VIB, TPBank, BIDV) ──
+public static class ProductType
+{
+    public const string PersonalUnsecured = "PersonalUnsecured";   // Vay tín chấp
+    public const string PersonalSecured = "PersonalSecured";       // Vay thế chấp cá nhân
+    public const string Mortgage = "Mortgage";                      // Vay mua nhà
+    public const string AutoLoan = "AutoLoan";                      // Vay mua xe
+    public const string BusinessLoan = "BusinessLoan";              // Vay kinh doanh
+    public const string Overdraft = "Overdraft";                    // Thấu chi
+
+    public static readonly string[] All =
+        [PersonalUnsecured, PersonalSecured, Mortgage, AutoLoan, BusinessLoan, Overdraft];
+}
+
+// ── Interest Calculation Method ─────────────────────────────────────────────
+public static class InterestMethod
+{
+    public const string Flat = "Flat";                              // Lãi cố định trên gốc ban đầu
+    public const string ReducingBalance = "ReducingBalance";        // Lãi trên dư nợ giảm dần
+}
+
+// ── Collateral Types ────────────────────────────────────────────────────────
+public static class CollateralType
+{
+    public const string RealEstate = "RealEstate";                  // Bất động sản / Sổ đỏ
+    public const string Vehicle = "Vehicle";                        // Xe ô tô / xe máy
+    public const string SavingsBook = "SavingsBook";                // Sổ tiết kiệm
+    public const string OtherAsset = "OtherAsset";                  // Tài sản khác
+}
+
+// ── Collateral Status ───────────────────────────────────────────────────────
+public static class CollateralStatus
+{
+    public const string Active = "Active";
+    public const string Released = "Released";
+    public const string Seized = "Seized";
+}
+
+// ── Credit Grade ────────────────────────────────────────────────────────────
+public static class CreditGrade
+{
+    public const string A = "A";  // 80-100: Xuất sắc
+    public const string B = "B";  // 60-79:  Tốt
+    public const string C = "C";  // 40-59:  Trung bình
+    public const string D = "D";  // 20-39:  Yếu
+    public const string E = "E";  // 0-19:   Rất yếu
+
+    public static string FromScore(int score) => score switch
+    {
+        >= 80 => A,
+        >= 60 => B,
+        >= 40 => C,
+        >= 20 => D,
+        _ => E
+    };
+
+    public static string Recommendation(string grade) => grade switch
+    {
+        A => "Approve",
+        B => "Approve",
+        C => "Review",
+        D => "Reject",
+        E => "Reject",
+        _ => "Review"
+    };
+}
+
+// ── Late Fee Status ─────────────────────────────────────────────────────────
+public static class LateFeeStatus
+{
+    public const string Pending = "Pending";
+    public const string Paid = "Paid";
+    public const string Waived = "Waived";
+}
+
 public static class DpdBucket
 {
     public const string Current = "Current";
@@ -76,4 +151,9 @@ public static class AuditActions
     public const string LoanDisbursed = "LOAN_DISBURSED";
     public const string PaymentRecorded = "PAYMENT_RECORDED";
     public const string CollectionNoteAdded = "COLLECTION_NOTE_ADDED";
+    public const string LoanEarlySettled = "LOAN_EARLY_SETTLED";
+    public const string LateFeeWaived = "LATE_FEE_WAIVED";
+    public const string CollateralCreated = "COLLATERAL_CREATED";
+    public const string CollateralUpdated = "COLLATERAL_UPDATED";
+    public const string CreditCheckPerformed = "CREDIT_CHECK_PERFORMED";
 }
