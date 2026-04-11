@@ -15,6 +15,18 @@ public class CustomerDto
     public DateTime UpdatedAt { get; set; }
 }
 
+public class CustomerListItemDto
+{
+    public int Id { get; set; }
+    public string FullName { get; set; } = default!;
+    public string MaskedPhone { get; set; } = default!;
+    public string MaskedIdNumber { get; set; } = default!;
+    public string Status { get; set; } = default!;
+    public int? CreditScore { get; set; }
+    public string? CreditStatus { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
 // POST /customers
 public class CreateCustomerRequest
 {

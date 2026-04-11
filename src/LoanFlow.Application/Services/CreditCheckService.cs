@@ -150,7 +150,7 @@ public class CreditCheckService : ICreditCheckService
             ActionCode = "CREDIT_CHECK_PERFORMED",
             EntityType = "CreditCheck",
             EntityId = 0, // Entity not saved yet
-            NewValuesJson = $"{{\"score\":{score},\"grade\":\"{grade}\"}}"
+            NewValuesJson = AuditHelper.ToJson(new { score, grade })
         });
 
         await _db.SaveChangesAsync();

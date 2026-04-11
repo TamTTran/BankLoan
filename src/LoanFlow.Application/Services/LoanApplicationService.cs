@@ -126,7 +126,7 @@ public class LoanApplicationService : ILoanApplicationService
             ActionCode = AuditActions.ApplicationCreated,
             EntityType = "Application",
             EntityId = entity.Id,
-            NewValuesJson = $"{{\"customerId\":{entity.CustomerId},\"productId\":{entity.ProductId},\"amount\":{entity.RequestedAmount}}}"
+            NewValuesJson = AuditHelper.ToJson(new { customerId = entity.CustomerId, productId = entity.ProductId, amount = entity.RequestedAmount })
         });
         await _db.SaveChangesAsync();
 
@@ -263,7 +263,7 @@ public class LoanApplicationService : ILoanApplicationService
             ActionCode = AuditActions.ApplicationApproved,
             EntityType = "Application",
             EntityId = entity.Id,
-            NewValuesJson = $"{{\"level\":{currentLevel},\"fullyApproved\":{isFullyApproved}}}"
+            NewValuesJson = AuditHelper.ToJson(new { level = currentLevel, fullyApproved = isFullyApproved })
         });
 
         await _db.SaveChangesAsync();
@@ -300,7 +300,7 @@ public class LoanApplicationService : ILoanApplicationService
             ActionCode = AuditActions.ApplicationRejected,
             EntityType = "Application",
             EntityId = entity.Id,
-            NewValuesJson = $"{{\"reason\":\"{req.Reason}\"}}"
+            NewValuesJson = AuditHelper.ToJson(new { reason = req.Reason })
         });
 
         await _db.SaveChangesAsync();

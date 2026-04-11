@@ -175,7 +175,7 @@ public class LoanService : ILoanService
             ActionCode = AuditActions.LoanCreated,
             EntityType = "Loan",
             EntityId = loan.Id,
-            NewValuesJson = $"{{\"loanAccountNo\":\"{loanNo}\",\"applicationId\":{applicationId}}}"
+            NewValuesJson = AuditHelper.ToJson(new { loanAccountNo = loanNo, applicationId })
         });
         await _db.SaveChangesAsync();
 
@@ -252,7 +252,7 @@ public class LoanService : ILoanService
             ActionCode = AuditActions.LoanDisbursed,
             EntityType = "Loan",
             EntityId = loanId,
-            NewValuesJson = $"{{\"disbursedAmount\":{req.DisbursedAmount},\"disbursementDate\":\"{req.DisbursementDate}\"}}"
+            NewValuesJson = AuditHelper.ToJson(new { disbursedAmount = req.DisbursedAmount, disbursementDate = req.DisbursementDate })
         });
 
         await _db.SaveChangesAsync();
@@ -392,7 +392,7 @@ public class LoanService : ILoanService
             ActionCode = AuditActions.PaymentRecorded,
             EntityType = "Payment",
             EntityId = payment.Id,
-            NewValuesJson = $"{{\"amount\":{req.Amount},\"loanId\":{loanId}}}"
+            NewValuesJson = AuditHelper.ToJson(new { amount = req.Amount, loanId })
         });
 
         await _db.SaveChangesAsync();
@@ -541,7 +541,7 @@ public class LoanService : ILoanService
             ActionCode = AuditActions.LoanEarlySettled,
             EntityType = "Loan",
             EntityId = loanId,
-            NewValuesJson = $"{{\"settlementAmount\":{totalAmount},\"feeWaived\":{request.WaiveFee}}}"
+            NewValuesJson = AuditHelper.ToJson(new { settlementAmount = totalAmount, feeWaived = request.WaiveFee })
         });
 
         await _db.SaveChangesAsync();

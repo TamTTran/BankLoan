@@ -68,7 +68,7 @@ public class CollateralService : ICollateralService
             ActionCode = AuditActions.CollateralCreated,
             EntityType = "Collateral",
             EntityId = entity.Id,
-            NewValuesJson = $"{{\"customerId\":{entity.CustomerId},\"value\":{entity.AppraisedValue}}}"
+            NewValuesJson = AuditHelper.ToJson(new { customerId = entity.CustomerId, value = entity.AppraisedValue })
         });
         await _db.SaveChangesAsync();
 

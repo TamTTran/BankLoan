@@ -100,7 +100,7 @@ public class LateFeeService : ILateFeeService
             ActionCode = AuditActions.LateFeeWaived,
             EntityType = "LateFee",
             EntityId = lateFee.Id,
-            NewValuesJson = $"{{\"waivedAmount\":{lateFee.FeeAmount}}}"
+            NewValuesJson = AuditHelper.ToJson(new { waivedAmount = lateFee.FeeAmount })
         });
 
         await _db.SaveChangesAsync();

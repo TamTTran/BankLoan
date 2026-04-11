@@ -1,10 +1,12 @@
 using LoanFlow.Application.Services;
 using LoanFlow.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,12 +41,28 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ClockSkew = TimeSpan.FromMinutes(1) // Tighten clock skew from default 5min
         };
     });
 
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
+
+// === Rate Limiting ===
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("LoginRateLimit", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
 
 // === Swagger ===
 builder.Services.AddEndpointsApiExplorer();
@@ -73,31 +91,38 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// === CORS (for frontend) ===
+// === CORS (origins from config) ===
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", p =>
-        p.WithOrigins("http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:5500")
+        p.WithOrigins(allowedOrigins)
          .AllowAnyHeader()
          .AllowAnyMethod()));
 
 var app = builder.Build();
 
 // === Middleware ===
+app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
-app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "LoanFlow Lite API v2");
-    c.DocumentTitle = "LoanFlow Lite API v2";
-    c.RoutePrefix = "swagger";
-});
 
+// Swagger — Development only
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "LoanFlow Lite API v2");
+        c.DocumentTitle = "LoanFlow Lite API v2";
+        c.RoutePrefix = "swagger";
+    });
+}
+
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
 // === Migrate + Seed (with retry for Docker) ===
-// SQL Server trong Docker có thể chưa sẵn sàng khi API start
 await MigrateWithRetryAsync(app);
 
 app.Run();
@@ -117,7 +142,13 @@ static async Task MigrateWithRetryAsync(WebApplication app)
         {
             logger.LogInformation("Migration attempt {Attempt}/{Max}...", attempt, maxRetries);
             await db.Database.MigrateAsync();
-            await DbSeeder.SeedAsync(db);
+
+            // Seed only in Development
+            if (app.Environment.IsDevelopment())
+            {
+                await DbSeeder.SeedAsync(db);
+            }
+
             logger.LogInformation("Database ready.");
             return;
         }
@@ -134,5 +165,9 @@ static async Task MigrateWithRetryAsync(WebApplication app)
     // Final attempt — let exception propagate and crash the app
     logger.LogInformation("Final migration attempt {Max}/{Max}...", maxRetries, maxRetries);
     await db.Database.MigrateAsync();
-    await DbSeeder.SeedAsync(db);
+
+    if (app.Environment.IsDevelopment())
+    {
+        await DbSeeder.SeedAsync(db);
+    }
 }

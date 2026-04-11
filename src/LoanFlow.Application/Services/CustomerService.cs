@@ -9,7 +9,7 @@ namespace LoanFlow.Application.Services;
 
 public interface ICustomerService
 {
-    Task<PagedResult<CustomerDto>> GetListAsync(CustomerFilterRequest filter);
+    Task<PagedResult<CustomerListItemDto>> GetListAsync(CustomerFilterRequest filter);
     Task<Result<CustomerDto>> GetByIdAsync(int id);
     Task<Result<CustomerDto>> CreateAsync(CreateCustomerRequest request, int createdByUserId);
     Task<Result<CustomerDto>> UpdateAsync(int id, UpdateCustomerRequest request);
@@ -27,7 +27,7 @@ public class CustomerService : ICustomerService
         _creditCheckService = creditCheckService;
     }
 
-    public async Task<PagedResult<CustomerDto>> GetListAsync(CustomerFilterRequest filter)
+    public async Task<PagedResult<CustomerListItemDto>> GetListAsync(CustomerFilterRequest filter)
     {
         var query = _db.Customers.AsQueryable();
 
@@ -45,23 +45,20 @@ public class CustomerService : ICustomerService
             .OrderByDescending(c => c.CreatedAt)
             .Skip((filter.Page - 1) * filter.PageSize)
             .Take(filter.PageSize)
-            .Select(c => new CustomerDto
+            .Select(c => new CustomerListItemDto
             {
                 Id = c.Id,
                 FullName = c.FullName,
-                Phone = c.Phone,
-                IdNumber = c.IdNumber,
-                Address = c.Address,
-                DateOfBirth = DateOnly.FromDateTime(c.DateOfBirth),
+                MaskedPhone = c.Phone.MaskPhone(),
+                MaskedIdNumber = c.IdNumber.MaskIdNumber(),
                 Status = c.Status,
                 CreditScore = c.CreditScore,
                 CreditStatus = c.CreditStatus,
-                CreatedAt = c.CreatedAt,
-                UpdatedAt = c.UpdatedAt
+                CreatedAt = c.CreatedAt
             })
             .ToListAsync();
 
-        return new PagedResult<CustomerDto>
+        return new PagedResult<CustomerListItemDto>
         {
             Items = items,
             TotalCount = total,
@@ -106,7 +103,7 @@ public class CustomerService : ICustomerService
             ActionCode = AuditActions.CustomerCreated,
             EntityType = "Customer",
             EntityId = entity.Id,
-            NewValuesJson = $"{{\"fullName\":\"{entity.FullName}\",\"phone\":\"{entity.Phone}\"}}"
+            NewValuesJson = AuditHelper.ToJson(new { fullName = entity.FullName, phone = entity.Phone })
         });
         await _db.SaveChangesAsync();
 
@@ -135,8 +132,8 @@ public class CustomerService : ICustomerService
             ActionCode = AuditActions.CustomerUpdated,
             EntityType = "Customer",
             EntityId = entity.Id,
-            OldValuesJson = $"{{\"phone\":\"{oldPhone}\"}}",
-            NewValuesJson = $"{{\"phone\":\"{entity.Phone}\"}}"
+            OldValuesJson = AuditHelper.ToJson(new { phone = oldPhone }),
+            NewValuesJson = AuditHelper.ToJson(new { phone = entity.Phone })
         });
         await _db.SaveChangesAsync();
 

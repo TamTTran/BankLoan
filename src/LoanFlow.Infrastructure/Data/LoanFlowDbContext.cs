@@ -19,6 +19,7 @@ public class LoanFlowDbContext : DbContext
     public DbSet<LoanTransaction> LoanTransactions => Set<LoanTransaction>();
     public DbSet<CollectionNote> CollectionNotes => Set<CollectionNote>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     // ── Bank-grade entities ─────────────────────────────────────────────────
     public DbSet<LateFee> LateFees => Set<LateFee>();
