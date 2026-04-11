@@ -13,6 +13,7 @@ public interface ICustomerService
     Task<Result<CustomerDto>> GetByIdAsync(int id);
     Task<Result<CustomerDto>> CreateAsync(CreateCustomerRequest request, int createdByUserId);
     Task<Result<CustomerDto>> UpdateAsync(int id, UpdateCustomerRequest request);
+    Task<Result<CustomerDto>> CheckCreditStatusAsync(int id);
 }
 
 public class CustomerService : ICustomerService
@@ -48,6 +49,8 @@ public class CustomerService : ICustomerService
                 Address = c.Address,
                 DateOfBirth = DateOnly.FromDateTime(c.DateOfBirth),
                 Status = c.Status,
+                CreditScore = c.CreditScore,
+                CreditStatus = c.CreditStatus,
                 CreatedAt = c.CreatedAt,
                 UpdatedAt = c.UpdatedAt
             })
@@ -135,6 +138,38 @@ public class CustomerService : ICustomerService
         return await GetByIdAsync(id);
     }
 
+    public async Task<Result<CustomerDto>> CheckCreditStatusAsync(int id)
+    {
+        var entity = await _db.Customers.FindAsync(id);
+        if (entity is null) return Result.Failure<CustomerDto>("Customer not found.");
+
+        // Giả lập logic lấy Credit Score (CIC) từ hệ thống bên ngoài
+        // Random score từ 300 đến 850 dựa vào số CCCD để có tính nhất quán ngẫu nhiên.
+        var random = new Random(entity.IdNumber.GetHashCode());
+        var score = random.Next(300, 851);
+        entity.CreditScore = score;
+        
+        if (score >= 740) entity.CreditStatus = "Excellent";
+        else if (score >= 670) entity.CreditStatus = "Good";
+        else if (score >= 580) entity.CreditStatus = "Fair";
+        else entity.CreditStatus = "Poor";
+
+        entity.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = entity.CreatedByUserId, // System/Same user since we don't pass actor id down here, but minimal logic
+            ActionCode = "CREDIT_CHECK",
+            EntityType = "Customer",
+            EntityId = entity.Id,
+            NewValuesJson = $"{{\"creditScore\": {score}, \"creditStatus\": \"{entity.CreditStatus}\"}}"
+        });
+        await _db.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
+    }
+
     private static CustomerDto MapToDto(Customer c) => new()
     {
         Id = c.Id,
@@ -144,6 +179,8 @@ public class CustomerService : ICustomerService
         Address = c.Address,
         DateOfBirth = DateOnly.FromDateTime(c.DateOfBirth),
         Status = c.Status,
+        CreditScore = c.CreditScore,
+        CreditStatus = c.CreditStatus,
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt
     };

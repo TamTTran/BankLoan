@@ -9,6 +9,8 @@ public class Customer
     public string Address { get; set; } = default!;
     public DateTime DateOfBirth { get; set; }
     public string Status { get; set; } = "Active";          // Active | Inactive
+    public int? CreditScore { get; set; }
+    public string? CreditStatus { get; set; }
     public int CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

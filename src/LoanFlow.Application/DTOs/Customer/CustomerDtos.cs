@@ -9,6 +9,8 @@ public class CustomerDto
     public string Address { get; set; } = default!;
     public DateOnly DateOfBirth { get; set; }
     public string Status { get; set; } = default!;
+    public int? CreditScore { get; set; }
+    public string? CreditStatus { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

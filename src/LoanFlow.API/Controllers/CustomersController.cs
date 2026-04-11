@@ -52,4 +52,14 @@ public class CustomersController : ControllerBase
         if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
         return Ok(new { success = true, data = result.Value });
     }
+
+    /// <summary>POST /customers/{id}/check-credit — CUS-005</summary>
+    [HttpPost("{id:int}/check-credit")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer}")]
+    public async Task<IActionResult> CheckCreditStatus(int id)
+    {
+        var result = await _service.CheckCreditStatusAsync(id);
+        if (!result.IsSuccess) return NotFound(new { success = false, error = new { message = result.Error } });
+        return Ok(new { success = true, data = result.Value });
+    }
 }

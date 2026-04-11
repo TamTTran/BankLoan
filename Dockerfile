@@ -11,16 +11,13 @@ COPY src/LoanFlow.Application/LoanFlow.Application.csproj   src/LoanFlow.Applica
 COPY src/LoanFlow.Infrastructure/LoanFlow.Infrastructure.csproj src/LoanFlow.Infrastructure/
 COPY src/LoanFlow.API/LoanFlow.API.csproj                   src/LoanFlow.API/
 
-RUN dotnet restore
-
 # Copy all source code
 COPY src/ src/
 
-# Publish in Release mode
+# Restore + Publish in one step (avoids NuGet asset cache hash mismatch)
 RUN dotnet publish src/LoanFlow.API/LoanFlow.API.csproj \
     -c Release \
-    -o /app/publish \
-    --no-restore
+    -o /app/publish
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Stage 2 — Runtime image
