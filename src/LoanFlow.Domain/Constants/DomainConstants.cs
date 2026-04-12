@@ -156,4 +156,36 @@ public static class AuditActions
     public const string CollateralCreated = "COLLATERAL_CREATED";
     public const string CollateralUpdated = "COLLATERAL_UPDATED";
     public const string CreditCheckPerformed = "CREDIT_CHECK_PERFORMED";
+    public const string CustomerAssigned = "CUSTOMER_ASSIGNED";
+    public const string CareNoteAdded = "CARE_NOTE_ADDED";
+}
+
+// ── Customer Care Interaction Types ─────────────────────────────────────────
+public static class InteractionType
+{
+    public const string Call = "Call";
+    public const string Email = "Email";
+    public const string Zalo = "Zalo";
+    public const string SMS = "SMS";
+    public const string Meeting = "Meeting";
+    public const string Other = "Other";
+
+    public static readonly string[] All = [Call, Email, Zalo, SMS, Meeting, Other];
+}
+
+// ── Lead Scoring Priority ───────────────────────────────────────────────────
+public static class LeadPriority
+{
+    public const string Hot = "Hot";           // Score 70-100 — liên hệ ngay
+    public const string Warm = "Warm";         // Score 40-69  — theo dõi sát
+    public const string Cold = "Cold";         // Score 10-39  — nurture
+    public const string Dormant = "Dormant";   // Score <10    — khách ngủ đông / overdue
+
+    public static string FromScore(int score) => score switch
+    {
+        >= 70 => Hot,
+        >= 40 => Warm,
+        >= 10 => Cold,
+        _ => Dormant
+    };
 }

@@ -10,16 +10,16 @@ services:
     container_name: loanflow-db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-LoanFlow@2026!}"
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD}"
       MYSQL_DATABASE: LoanFlowLite
       MYSQL_USER: loanflow
-      MYSQL_PASSWORD: "${DB_PASSWORD:-LoanFlow@2026!}"
+      MYSQL_PASSWORD: "${DB_PASSWORD}"
     ports:
       - "3306:3306"
     volumes:
       - mysqldata:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "loanflow", "-p${DB_PASSWORD:-LoanFlow@2026!}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "loanflow", "-p${DB_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -44,12 +44,12 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: >-
         Server=db;Port=3306;Database=LoanFlowLite;
-        User=loanflow;Password=${DB_PASSWORD:-LoanFlow@2026!};
-      Jwt__Key: "${JWT_KEY:-LoanFlow-Super-Secret-Key-2026-Min32Chars!!}"
+        User=loanflow;Password=${DB_PASSWORD};
+      Jwt__Key: "${JWT_KEY}"
       Jwt__Issuer: "LoanFlow.API"
       Jwt__Audience: "LoanFlow.Client"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/swagger/index.html || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5

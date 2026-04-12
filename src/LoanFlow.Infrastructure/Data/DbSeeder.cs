@@ -11,12 +11,37 @@ public static class DbSeeder
     {
         if (await db.Users.AnyAsync()) return; // Already seeded
 
-        // ── Users (§22 seed data + roles from §5) ──────────────────────────────
-        var adminHash    = BCrypt.Net.BCrypt.HashPassword("Admin@123");
-        var officerHash  = BCrypt.Net.BCrypt.HashPassword("Officer@123");
-        var approverHash = BCrypt.Net.BCrypt.HashPassword("Approver@123");
-        var collectorHash= BCrypt.Net.BCrypt.HashPassword("Collector@123");
-        var managerHash  = BCrypt.Net.BCrypt.HashPassword("Manager@123");
+        // ── Users — passwords from env vars or generated at first run ─────────
+        static string ResolvePassword(string envKey)
+        {
+            var fromEnv = Environment.GetEnvironmentVariable(envKey);
+            if (!string.IsNullOrWhiteSpace(fromEnv)) return fromEnv;
+            // Generate a cryptographically random 16-char password
+            var bytes = new byte[12];
+            System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+            return Convert.ToBase64String(bytes); // ~16 printable chars
+        }
+
+        var adminPass    = ResolvePassword("SEED_ADMIN_PASSWORD");
+        var officerPass  = ResolvePassword("SEED_OFFICER_PASSWORD");
+        var approverPass = ResolvePassword("SEED_APPROVER_PASSWORD");
+        var collectorPass= ResolvePassword("SEED_COLLECTOR_PASSWORD");
+        var managerPass  = ResolvePassword("SEED_MANAGER_PASSWORD");
+
+        var adminHash    = BCrypt.Net.BCrypt.HashPassword(adminPass);
+        var officerHash  = BCrypt.Net.BCrypt.HashPassword(officerPass);
+        var approverHash = BCrypt.Net.BCrypt.HashPassword(approverPass);
+        var collectorHash= BCrypt.Net.BCrypt.HashPassword(collectorPass);
+        var managerHash  = BCrypt.Net.BCrypt.HashPassword(managerPass);
+
+        Console.WriteLine("[Seeder] ============================================");
+        Console.WriteLine($"[Seeder] admin       password: {adminPass}");
+        Console.WriteLine($"[Seeder] officer01   password: {officerPass}");
+        Console.WriteLine($"[Seeder] approver01  password: {approverPass}");
+        Console.WriteLine($"[Seeder] collector01 password: {collectorPass}");
+        Console.WriteLine($"[Seeder] manager01   password: {managerPass}");
+        Console.WriteLine("[Seeder] ============================================");
+        Console.WriteLine("[Seeder] Save the above passwords — they are hashed and cannot be recovered.");
 
         var admin     = new User { Username = "admin",       PasswordHash = adminHash,     FullName = "Quản trị hệ thống", Role = Roles.Admin };
         var officer   = new User { Username = "officer01",   PasswordHash = officerHash,   FullName = "Nguyễn Văn An",     Role = Roles.LoanOfficer };

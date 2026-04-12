@@ -15,8 +15,8 @@ namespace LoanFlow.Application.Services;
 public interface IAuthService
 {
     Task<Result<LoginResponse>> LoginAsync(LoginRequest request);
-    Task<Result<LoginResponse>> RefreshAsync(string refreshToken);
-    Task<Result> LogoutAsync(string refreshToken);
+    Task<Result<LoginResponse>> RefreshAsync(string plainRefreshToken);
+    Task<Result> LogoutAsync(int userId, string plainRefreshToken);
     Task<Result> LogoutAllAsync(int userId);
     Task<IEnumerable<SessionDto>> GetSessionsAsync(int userId);
 }
@@ -34,6 +34,13 @@ public class AuthService : IAuthService
     {
         _db = db;
         _config = config;
+    }
+
+    // ── SHA-256 one-way hash for DB storage ─────────────────────────────────
+    internal static string ComputeSha256Hash(string plainToken)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(plainToken));
+        return Convert.ToHexString(bytes); // 64-char hex, safe for VARCHAR(500)
     }
 
     public async Task<Result<LoginResponse>> LoginAsync(LoginRequest request)
@@ -59,7 +66,7 @@ public class AuthService : IAuthService
             if (user.FailedLoginAttempts >= MaxFailedAttempts)
             {
                 user.LockoutEnd = DateTime.UtcNow.AddMinutes(LockoutMinutes);
-                user.FailedLoginAttempts = 0; // reset counter after locking
+                user.FailedLoginAttempts = 0;
                 await _db.SaveChangesAsync();
                 return Result.Failure<LoginResponse>($"Account locked for {LockoutMinutes} minutes due to too many failed attempts.");
             }
@@ -78,11 +85,12 @@ public class AuthService : IAuthService
         return await GenerateAuthResponseAsync(user, request.DeviceId, request.DeviceName);
     }
 
-    public async Task<Result<LoginResponse>> RefreshAsync(string refreshToken)
+    public async Task<Result<LoginResponse>> RefreshAsync(string plainRefreshToken)
     {
+        var hash = ComputeSha256Hash(plainRefreshToken);
         var existingToken = await _db.RefreshTokens
             .Include(t => t.User)
-            .FirstOrDefaultAsync(t => t.Token == refreshToken);
+            .FirstOrDefaultAsync(t => t.TokenHash == hash);
 
         if (existingToken is null || !existingToken.IsActive || existingToken.User.Status != "Active")
             return Result.Failure<LoginResponse>("Invalid or expired refresh token.");
@@ -90,13 +98,15 @@ public class AuthService : IAuthService
         // Revoke current token (Refresh Token Rotation)
         existingToken.IsRevoked = true;
 
-        // Generate new session using same device info
         return await GenerateAuthResponseAsync(existingToken.User, existingToken.DeviceId, existingToken.DeviceName);
     }
 
-    public async Task<Result> LogoutAsync(string refreshToken)
+    public async Task<Result> LogoutAsync(int userId, string plainRefreshToken)
     {
-        var token = await _db.RefreshTokens.FirstOrDefaultAsync(t => t.Token == refreshToken);
+        // Scope to caller's own tokens only — prevents cross-user session denial
+        var hash = ComputeSha256Hash(plainRefreshToken);
+        var token = await _db.RefreshTokens
+            .FirstOrDefaultAsync(t => t.TokenHash == hash && t.UserId == userId);
         if (token != null)
         {
             token.IsRevoked = true;
@@ -136,10 +146,9 @@ public class AuthService : IAuthService
         // Enforce Max concurrent devices
         var activeTokens = await _db.RefreshTokens
             .Where(t => t.UserId == user.Id && !t.IsRevoked && t.ExpiresAt > DateTime.UtcNow)
-            .OrderBy(t => t.CreatedAt) // ascending to revoke oldest first if needed
+            .OrderBy(t => t.CreatedAt)
             .ToListAsync();
 
-        // If we are about to exceed max devices, revoke the oldest
         if (activeTokens.Count >= MaxConcurrentDevices)
         {
             int toRevoke = activeTokens.Count - MaxConcurrentDevices + 1;
@@ -147,25 +156,28 @@ public class AuthService : IAuthService
                 activeTokens[i].IsRevoked = true;
         }
 
-        // Generate tokens
+        // Generate plain token (returned to client via HttpOnly cookie)
+        var plainToken = GeneratePlainRefreshToken();
+        var tokenHash = ComputeSha256Hash(plainToken);
+
         var lifetimeMinutes = int.TryParse(_config["Jwt:TokenLifetimeMinutes"], out var parsed) ? parsed : 60;
         var accessToken = GenerateJwtToken(user, lifetimeMinutes);
-        var refreshTokenString = GenerateRefreshTokenString();
 
         var refreshTokenEntity = new RefreshToken
         {
             UserId = user.Id,
-            Token = refreshTokenString,
+            TokenHash = tokenHash, // only hash stored in DB
             DeviceId = dId,
             DeviceName = dName,
             ExpiresAt = DateTime.UtcNow.AddDays(7)
         };
 
         _db.RefreshTokens.Add(refreshTokenEntity);
-        await _db.SaveChangesAsync(); // Save user lockout reset and new token
+        await _db.SaveChangesAsync();
 
         var expiresAt = DateTime.UtcNow.AddMinutes(lifetimeMinutes);
-        return Result.Success(new LoginResponse(accessToken, refreshTokenString, user.Username, user.FullName, user.Role, user.Id, expiresAt));
+        // PlainRefreshToken is passed to controller to set as HttpOnly cookie
+        return Result.Success(new LoginResponse(accessToken, plainToken, user.Username, user.FullName, user.Role, user.Id, expiresAt));
     }
 
     private string GenerateJwtToken(User user, int lifetimeMinutes)
@@ -193,7 +205,7 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static string GenerateRefreshTokenString()
+    private static string GeneratePlainRefreshToken()
     {
         var randomBytes = new byte[64];
         using var rng = RandomNumberGenerator.Create();

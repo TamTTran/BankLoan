@@ -300,6 +300,9 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("varchar(255)");
 
+                    b.Property<int>("AssignedToUserId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -342,6 +345,8 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AssignedToUserId");
+
                     b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("IdNumber")
@@ -351,6 +356,48 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Customers");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.CustomerCareNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("InteractionDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("InteractionType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTime?>("NextFollowUpDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("CustomerCareNotes");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.LateFee", b =>
@@ -859,7 +906,7 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<bool>("IsRevoked")
                         .HasColumnType("tinyint(1)");
 
-                    b.Property<string>("Token")
+                    b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
@@ -869,7 +916,7 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Token")
+                    b.HasIndex("TokenHash")
                         .IsUnique();
 
                     b.HasIndex("UserId");
@@ -1066,13 +1113,40 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.Customer", b =>
                 {
+                    b.HasOne("LoanFlow.Domain.Entities.User", "AssignedToUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedToUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
                     b.HasOne("LoanFlow.Domain.Entities.User", "CreatedBy")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("AssignedToUser");
+
                     b.Navigation("CreatedBy");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.CustomerCareNote", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("LoanFlow.Domain.Entities.Customer", "Customer")
+                        .WithMany("CareNotes")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.LateFee", b =>
@@ -1252,6 +1326,8 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.Customer", b =>
                 {
+                    b.Navigation("CareNotes");
+
                     b.Navigation("Collaterals");
 
                     b.Navigation("CreditChecks");

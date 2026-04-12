@@ -14,6 +14,11 @@ public interface ICustomerService
     Task<Result<CustomerDto>> CreateAsync(CreateCustomerRequest request, int createdByUserId);
     Task<Result<CustomerDto>> UpdateAsync(int id, UpdateCustomerRequest request);
     Task<Result<CustomerDto>> CheckCreditStatusAsync(int id, int checkedByUserId);
+
+    // ── Customer Intelligence ────────────────────────────────────────────────
+    Task<Result<CustomerDto>> AssignAsync(int customerId, AssignCustomerRequest req, int actorUserId);
+    Task<Result<CustomerCareNoteDto>> AddCareNoteAsync(int customerId, CreateCareNoteRequest req, int actorUserId);
+    Task<IEnumerable<CustomerCareNoteDto>> GetCareNotesAsync(int customerId);
 }
 
 public class CustomerService : ICustomerService
@@ -29,7 +34,7 @@ public class CustomerService : ICustomerService
 
     public async Task<PagedResult<CustomerListItemDto>> GetListAsync(CustomerFilterRequest filter)
     {
-        var query = _db.Customers.AsQueryable();
+        var query = _db.Customers.Include(c => c.AssignedToUser).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
@@ -54,6 +59,7 @@ public class CustomerService : ICustomerService
                 Status = c.Status,
                 CreditScore = c.CreditScore,
                 CreditStatus = c.CreditStatus,
+                AssignedToFullName = c.AssignedToUser != null ? c.AssignedToUser.FullName : null,
                 CreatedAt = c.CreatedAt
             })
             .ToListAsync();
@@ -69,7 +75,9 @@ public class CustomerService : ICustomerService
 
     public async Task<Result<CustomerDto>> GetByIdAsync(int id)
     {
-        var c = await _db.Customers.FirstOrDefaultAsync(x => x.Id == id);
+        var c = await _db.Customers
+            .Include(x => x.AssignedToUser)
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (c is null) return Result.Failure<CustomerDto>("Customer not found.");
         return Result.Success(MapToDto(c));
     }
@@ -92,7 +100,8 @@ public class CustomerService : ICustomerService
             Address = req.Address,
             DateOfBirth = req.DateOfBirth.ToDateTime(TimeOnly.MinValue),
             Status = "Active",
-            CreatedByUserId = createdByUserId
+            CreatedByUserId = createdByUserId,
+            AssignedToUserId = createdByUserId  // mặc định: người tạo = người phụ trách
         };
         _db.Customers.Add(entity);
         await _db.SaveChangesAsync();
@@ -148,6 +157,92 @@ public class CustomerService : ICustomerService
         return await GetByIdAsync(id);
     }
 
+    // ── Customer Assignment ─────────────────────────────────────────────────
+    public async Task<Result<CustomerDto>> AssignAsync(int customerId, AssignCustomerRequest req, int actorUserId)
+    {
+        var customer = await _db.Customers.FindAsync(customerId);
+        if (customer is null) return Result.Failure<CustomerDto>("Customer not found.");
+
+        var targetUser = await _db.Users.FindAsync(req.AssignedToUserId);
+        if (targetUser is null) return Result.Failure<CustomerDto>("Target user not found.");
+
+        var oldAssigned = customer.AssignedToUserId;
+        customer.AssignedToUserId = req.AssignedToUserId;
+        customer.UpdatedAt = DateTime.UtcNow;
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = actorUserId,
+            ActionCode = AuditActions.CustomerAssigned,
+            EntityType = "Customer",
+            EntityId = customerId,
+            OldValuesJson = AuditHelper.ToJson(new { assignedToUserId = oldAssigned }),
+            NewValuesJson = AuditHelper.ToJson(new { assignedToUserId = req.AssignedToUserId, assignedToName = targetUser.FullName })
+        });
+        await _db.SaveChangesAsync();
+
+        return await GetByIdAsync(customerId);
+    }
+
+    // ── Care Notes ──────────────────────────────────────────────────────────
+    public async Task<Result<CustomerCareNoteDto>> AddCareNoteAsync(int customerId, CreateCareNoteRequest req, int actorUserId)
+    {
+        if (!await _db.Customers.AnyAsync(c => c.Id == customerId))
+            return Result.Failure<CustomerCareNoteDto>("Customer not found.");
+
+        var note = new CustomerCareNote
+        {
+            CustomerId = customerId,
+            InteractionType = req.InteractionType,
+            InteractionDate = req.InteractionDate,
+            Note = req.Note,
+            NextFollowUpDate = req.NextFollowUpDate,
+            CreatedByUserId = actorUserId
+        };
+        _db.CustomerCareNotes.Add(note);
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = actorUserId,
+            ActionCode = AuditActions.CareNoteAdded,
+            EntityType = "CustomerCareNote",
+            EntityId = customerId,
+            NewValuesJson = AuditHelper.ToJson(new { interactionType = req.InteractionType, note = req.Note })
+        });
+        await _db.SaveChangesAsync();
+
+        var createdBy = await _db.Users.FindAsync(actorUserId);
+        return Result.Success(new CustomerCareNoteDto
+        {
+            Id = note.Id,
+            InteractionType = note.InteractionType,
+            InteractionDate = note.InteractionDate,
+            Note = note.Note,
+            NextFollowUpDate = note.NextFollowUpDate,
+            CreatedByFullName = createdBy?.FullName ?? "Unknown",
+            CreatedAt = note.CreatedAt
+        });
+    }
+
+    public async Task<IEnumerable<CustomerCareNoteDto>> GetCareNotesAsync(int customerId)
+    {
+        return await _db.CustomerCareNotes
+            .Where(n => n.CustomerId == customerId)
+            .Include(n => n.CreatedBy)
+            .OrderByDescending(n => n.InteractionDate)
+            .Select(n => new CustomerCareNoteDto
+            {
+                Id = n.Id,
+                InteractionType = n.InteractionType,
+                InteractionDate = n.InteractionDate,
+                Note = n.Note,
+                NextFollowUpDate = n.NextFollowUpDate,
+                CreatedByFullName = n.CreatedBy.FullName,
+                CreatedAt = n.CreatedAt
+            })
+            .ToListAsync();
+    }
+
     private static CustomerDto MapToDto(Customer c) => new()
     {
         Id = c.Id,
@@ -159,6 +254,8 @@ public class CustomerService : ICustomerService
         Status = c.Status,
         CreditScore = c.CreditScore,
         CreditStatus = c.CreditStatus,
+        AssignedToUserId = c.AssignedToUserId,
+        AssignedToFullName = c.AssignedToUser?.FullName,
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt
     };

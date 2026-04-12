@@ -4,7 +4,7 @@ public class RefreshToken
 {
     public int Id { get; set; }
     public int UserId { get; set; }
-    public string Token { get; set; } = default!;
+    public string TokenHash { get; set; } = default!;
     public string DeviceId { get; set; } = default!;
     public string DeviceName { get; set; } = default!;
     public bool IsRevoked { get; set; } = false;

@@ -27,6 +27,7 @@ public class LoanFlowDbContext : DbContext
     public DbSet<LoanCollateral> LoanCollaterals => Set<LoanCollateral>();
     public DbSet<ApprovalRule> ApprovalRules => Set<ApprovalRule>();
     public DbSet<CreditCheck> CreditChecks => Set<CreditCheck>();
+    public DbSet<CustomerCareNote> CustomerCareNotes => Set<CustomerCareNote>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

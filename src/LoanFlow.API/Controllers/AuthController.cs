@@ -12,7 +12,39 @@ namespace LoanFlow.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _service;
+    private const string RefreshTokenCookieName = "refreshToken";
+
     public AuthController(IAuthService service) => _service = service;
+
+    // ── Cookie helpers ───────────────────────────────────────────────────────
+
+    private void SetRefreshTokenCookie(string plainToken)
+    {
+        Response.Cookies.Append(RefreshTokenCookieName, plainToken, new CookieOptions
+        {
+            HttpOnly = true,                     // not accessible to JS
+            Secure   = true,                     // HTTPS only
+            SameSite = SameSiteMode.Strict,      // CSRF protection
+            Expires  = DateTimeOffset.UtcNow.AddDays(7),
+            Path     = "/api/auth"               // scope to auth routes only
+        });
+    }
+
+    private void ClearRefreshTokenCookie()
+    {
+        Response.Cookies.Delete(RefreshTokenCookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure   = true,
+            SameSite = SameSiteMode.Strict,
+            Path     = "/api/auth"
+        });
+    }
+
+    private string? ReadRefreshTokenCookie() =>
+        Request.Cookies.TryGetValue(RefreshTokenCookieName, out var val) ? val : null;
+
+    // ── Endpoints ────────────────────────────────────────────────────────────
 
     /// <summary>POST /auth/login — AUTH-001</summary>
     [HttpPost("login")]
@@ -21,26 +53,57 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var result = await _service.LoginAsync(request);
-        if (!result.IsSuccess) return Unauthorized(new { success = false, error = new { code = "AUTH-001", message = result.Error } });
-        return Ok(new { success = true, data = result.Value });
+        if (!result.IsSuccess)
+            return Unauthorized(new { success = false, error = new { code = "AUTH-001", message = result.Error } });
+
+        // RefreshToken → HttpOnly cookie; AccessToken → JSON body
+        SetRefreshTokenCookie(result.Value.RefreshToken);
+
+        var publicResponse = new PublicLoginResponse(
+            result.Value.AccessToken, result.Value.Username, result.Value.FullName,
+            result.Value.Role, result.Value.UserId, result.Value.ExpiresAt);
+
+        return Ok(new { success = true, data = publicResponse });
     }
 
-    /// <summary>POST /auth/refresh — AUTH-002</summary>
+    /// <summary>POST /auth/refresh — AUTH-002 (token via HttpOnly cookie)</summary>
     [HttpPost("refresh")]
     [AllowAnonymous]
-    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request)
+    public async Task<IActionResult> Refresh()
     {
-        var result = await _service.RefreshAsync(request.RefreshToken);
-        if (!result.IsSuccess) return Unauthorized(new { success = false, error = new { code = "AUTH-002", message = result.Error } });
-        return Ok(new { success = true, data = result.Value });
+        var plainToken = ReadRefreshTokenCookie();
+        if (string.IsNullOrEmpty(plainToken))
+            return Unauthorized(new { success = false, error = new { code = "AUTH-002", message = "Refresh token missing." } });
+
+        var result = await _service.RefreshAsync(plainToken);
+        if (!result.IsSuccess)
+        {
+            ClearRefreshTokenCookie();
+            return Unauthorized(new { success = false, error = new { code = "AUTH-002", message = result.Error } });
+        }
+
+        SetRefreshTokenCookie(result.Value.RefreshToken);
+
+        var publicResponse = new PublicLoginResponse(
+            result.Value.AccessToken, result.Value.Username, result.Value.FullName,
+            result.Value.Role, result.Value.UserId, result.Value.ExpiresAt);
+
+        return Ok(new { success = true, data = publicResponse });
     }
 
-    /// <summary>POST /auth/logout — AUTH-003</summary>
+    /// <summary>POST /auth/logout — AUTH-003 (revokes cookie token, scoped to caller)</summary>
     [HttpPost("logout")]
     [Authorize]
-    public async Task<IActionResult> Logout([FromBody] LogoutRequest request)
+    public async Task<IActionResult> Logout()
     {
-        await _service.LogoutAsync(request.RefreshToken);
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(userIdString, out int userId)) return Unauthorized();
+
+        var plainToken = ReadRefreshTokenCookie();
+        if (!string.IsNullOrEmpty(plainToken))
+            await _service.LogoutAsync(userId, plainToken);
+
+        ClearRefreshTokenCookie();
         return NoContent();
     }
 
@@ -53,6 +116,7 @@ public class AuthController : ControllerBase
         if (!int.TryParse(userIdString, out int userId)) return Unauthorized();
 
         await _service.LogoutAllAsync(userId);
+        ClearRefreshTokenCookie();
         return NoContent();
     }
 

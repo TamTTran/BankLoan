@@ -32,6 +32,8 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(x => x.Status).IsRequired().HasMaxLength(20).HasDefaultValue("Active");
         builder.HasOne(x => x.CreatedBy).WithMany().HasForeignKey(x => x.CreatedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.AssignedToUser).WithMany().HasForeignKey(x => x.AssignedToUserId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }
 
@@ -285,11 +287,25 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
     public void Configure(EntityTypeBuilder<RefreshToken> builder)
     {
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Token).IsRequired().HasMaxLength(500);
-        builder.HasIndex(x => x.Token).IsUnique();
+        builder.Property(x => x.TokenHash).IsRequired().HasMaxLength(500);
+        builder.HasIndex(x => x.TokenHash).IsUnique();
         builder.Property(x => x.DeviceId).IsRequired().HasMaxLength(100);
         builder.Property(x => x.DeviceName).HasMaxLength(200);
         builder.HasOne(x => x.User).WithMany(u => u.RefreshTokens)
             .HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class CustomerCareNoteConfiguration : IEntityTypeConfiguration<CustomerCareNote>
+{
+    public void Configure(EntityTypeBuilder<CustomerCareNote> builder)
+    {
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.InteractionType).IsRequired().HasMaxLength(30);
+        builder.Property(x => x.Note).IsRequired().HasMaxLength(2000);
+        builder.HasOne(x => x.Customer).WithMany(c => c.CareNotes)
+            .HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(x => x.CreatedBy).WithMany().HasForeignKey(x => x.CreatedByUserId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

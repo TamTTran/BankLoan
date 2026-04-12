@@ -15,15 +15,22 @@ public class CustomersController : ControllerBase
     private readonly ICustomerService _service;
     private readonly ICollateralService _collateralService;
     private readonly ICreditCheckService _creditCheckService;
+    private readonly ICustomerLeadService _leadService;
 
-    public CustomersController(ICustomerService service, ICollateralService collateralService, ICreditCheckService creditCheckService)
+    public CustomersController(
+        ICustomerService service,
+        ICollateralService collateralService,
+        ICreditCheckService creditCheckService,
+        ICustomerLeadService leadService)
     {
         _service = service;
         _collateralService = collateralService;
         _creditCheckService = creditCheckService;
+        _leadService = leadService;
     }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private string CurrentRole => User.FindFirstValue(ClaimTypes.Role)!;
 
     /// <summary>GET /customers — CUS-003</summary>
     [HttpGet]
@@ -87,5 +94,61 @@ public class CustomersController : ControllerBase
     {
         var history = await _creditCheckService.GetHistoryAsync(id);
         return Ok(new { success = true, data = history });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Customer Intelligence Endpoints
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>POST /customers/{id}/assign — Chuyển giao nhân viên phụ trách</summary>
+    [HttpPost("{id:int}/assign")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Manager}")]
+    public async Task<IActionResult> Assign(int id, [FromBody] AssignCustomerRequest request)
+    {
+        var result = await _service.AssignAsync(id, request, CurrentUserId);
+        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
+        return Ok(new { success = true, data = result.Value });
+    }
+
+    /// <summary>POST /customers/{id}/care-notes — Thêm ghi chú chăm sóc</summary>
+    [HttpPost("{id:int}/care-notes")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Collector},{Roles.Manager}")]
+    public async Task<IActionResult> AddCareNote(int id, [FromBody] CreateCareNoteRequest request)
+    {
+        var result = await _service.AddCareNoteAsync(id, request, CurrentUserId);
+        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
+        return CreatedAtAction(nameof(GetCareNotes), new { id }, new { success = true, data = result.Value });
+    }
+
+    /// <summary>GET /customers/{id}/care-notes — Xem lịch sử chăm sóc</summary>
+    [HttpGet("{id:int}/care-notes")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Collector},{Roles.Manager}")]
+    public async Task<IActionResult> GetCareNotes(int id)
+    {
+        var notes = await _service.GetCareNotesAsync(id);
+        return Ok(new { success = true, data = notes });
+    }
+
+    /// <summary>GET /customers/leads — Lead Board cho nhân viên hiện tại</summary>
+    [HttpGet("leads")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Manager}")]
+    public async Task<IActionResult> GetMyLeads()
+    {
+        // Manager/Admin sees all; LoanOfficer sees only their assigned customers
+        int? scopeUserId = (CurrentRole == Roles.Admin || CurrentRole == Roles.Manager)
+            ? null
+            : CurrentUserId;
+
+        var leads = await _leadService.GetLeadBoardAsync(scopeUserId);
+        return Ok(new { success = true, data = leads });
+    }
+
+    /// <summary>GET /customers/leads/all — Lead Board toàn bộ (Manager/Admin only)</summary>
+    [HttpGet("leads/all")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Manager}")]
+    public async Task<IActionResult> GetAllLeads()
+    {
+        var leads = await _leadService.GetLeadBoardAsync(null);
+        return Ok(new { success = true, data = leads });
     }
 }

@@ -27,6 +27,7 @@ builder.Services.AddScoped<ILoanService, LoanService>();
 builder.Services.AddScoped<ICreditCheckService, CreditCheckService>();
 builder.Services.AddScoped<IApprovalRuleService, ApprovalRuleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<ICustomerLeadService, CustomerLeadService>();
 
 // === JWT Auth ===
 var jwtKey = builder.Configuration["Jwt:Key"]!;

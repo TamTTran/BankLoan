@@ -12,12 +12,15 @@ public class Customer
     public int? CreditScore { get; set; }
     public string? CreditStatus { get; set; }
     public int CreatedByUserId { get; set; }
+    public int AssignedToUserId { get; set; }             // nhân viên đang phụ trách
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public User? CreatedBy { get; set; }
+    public User? AssignedToUser { get; set; }
     public ICollection<LoanApplication> LoanApplications { get; set; } = new List<LoanApplication>();
     public ICollection<Loan> Loans { get; set; } = new List<Loan>();
     public ICollection<Collateral> Collaterals { get; set; } = new List<Collateral>();
     public ICollection<CreditCheck> CreditChecks { get; set; } = new List<CreditCheck>();
+    public ICollection<CustomerCareNote> CareNotes { get; set; } = new List<CustomerCareNote>();
 }

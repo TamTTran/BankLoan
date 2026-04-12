@@ -192,7 +192,7 @@ Mở `src/LoanFlow.API/appsettings.json` và cập nhật:
     "DefaultConnection": "Server=localhost;Database=LoanFlowLite;Trusted_Connection=True;TrustServerCertificate=True;"
   },
   "Jwt": {
-    "Key": "LoanFlow-Super-Secret-Key-2026-Min32Chars!!",
+    "Key": "<set via env var JWT__KEY — min 32 chars, use openssl rand -base64 48>",
     "Issuer": "LoanFlow.API",
     "Audience": "LoanFlow.Client"
   }
@@ -220,12 +220,18 @@ Mở `frontend/index.html` trực tiếp bằng trình duyệt hoặc dùng Live
 
 ### 5. Tài khoản mặc định (seed data)
 
-| Username | Password | Role |
-|---|---|---|
-| `admin` | `Admin@123` | Admin |
-| `officer1` | `Officer@123` | Loan Officer |
-| `approver1` | `Approver@123` | Approver |
-| `collector1` | `Collector@123` | Collector |
+Khi chạy ở môi trường `Development`, hệ thống sẽ tự động seed tài khoản demo.
+Mật khẩu sẽ được **in ra Console** lúc khởi động lần đầu, hoặc bạn có thể đặt trước qua biến môi trường:
+
+```bash
+export SEED_ADMIN_PASSWORD=YourAdminPass@123
+export SEED_OFFICER_PASSWORD=YourOfficerPass@123
+export SEED_APPROVER_PASSWORD=YourApproverPass@123
+export SEED_COLLECTOR_PASSWORD=YourCollectorPass@123
+export SEED_MANAGER_PASSWORD=YourManagerPass@123
+```
+
+> ⚠️ **Không bao giờ dùng mật khẩu demo cho staging hoặc production.**
 
 ---
 
