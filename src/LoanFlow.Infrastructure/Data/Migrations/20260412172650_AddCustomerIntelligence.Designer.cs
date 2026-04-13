@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LoanFlow.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(LoanFlowDbContext))]
-    [Migration("20260412071302_AddCustomerIntelligence")]
+    [Migration("20260412172650_AddCustomerIntelligence")]
     partial class AddCustomerIntelligence
     {
         /// <inheritdoc />
