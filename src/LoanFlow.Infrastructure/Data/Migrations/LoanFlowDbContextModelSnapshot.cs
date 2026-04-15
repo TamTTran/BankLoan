@@ -400,6 +400,26 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.ToTable("CustomerCareNotes");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.IdempotencyRecord", b =>
+                {
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ResponseBody")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("StatusCode")
+                        .HasColumnType("int");
+
+                    b.HasKey("IdempotencyKey");
+
+                    b.ToTable("IdempotencyRecords");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.LateFee", b =>
                 {
                     b.Property<int>("Id")

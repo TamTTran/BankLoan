@@ -1,3 +1,4 @@
+using LoanFlow.API.Middleware;
 using LoanFlow.Application.Services;
 using LoanFlow.API.BackgroundJobs;
 using LoanFlow.Infrastructure.Data;
@@ -11,11 +12,21 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// === Startup Validation ===
+var connString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connString))
+{
+    throw new InvalidOperationException("FATAL: 'DefaultConnection' is missing from configuration.");
+}
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
+{
+    throw new InvalidOperationException("FATAL: 'Jwt:Key' is missing or too short (requires at least 32 characters for HMACSHA256).");
+}
+
 // === Database ===
 builder.Services.AddDbContext<LoanFlowDbContext>(options =>
-    options.UseMySql(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))));
+    options.UseMySql(connString, ServerVersion.AutoDetect(connString)));
 
 // === Services ===
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -30,12 +41,12 @@ builder.Services.AddScoped<IApprovalRuleService, ApprovalRuleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<ICustomerLeadService, CustomerLeadService>();
 builder.Services.AddScoped<IOverdueJobService, OverdueJobService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
 
 // === Background Jobs ===
 builder.Services.AddHostedService<DailyOverdueBackgroundService>();
 
 // === JWT Auth ===
-var jwtKey = builder.Configuration["Jwt:Key"]!;
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -112,6 +123,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // === Middleware ===
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 

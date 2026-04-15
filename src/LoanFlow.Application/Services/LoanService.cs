@@ -219,44 +219,54 @@ public class LoanService : ILoanService
         if (req.DisbursedAmount != loan.ApprovedAmount)
             return Result.Failure<LoanDto>($"DISB-VAL-002: Disbursed amount must equal approved amount ({loan.ApprovedAmount:N0}).");
 
-        // §12.5 Rule 4: loan becomes ACTIVE
-        loan.DisbursementDate = req.DisbursementDate;
-        loan.MaturityDate = req.DisbursementDate.AddMonths(loan.TenorMonths);
-        loan.Status = LoanStatus.Active;
-        loan.UpdatedAt = DateTime.UtcNow;
-
-        _db.LoanDisbursements.Add(new LoanDisbursement
+        await using var tx = await _db.Database.BeginTransactionAsync();
+        try
         {
-            LoanId = loanId,
-            DisbursedAmount = req.DisbursedAmount,
-            DisbursementDate = req.DisbursementDate,
-            RecordedByUserId = userId
-        });
+            // §12.5 Rule 4: loan becomes ACTIVE
+            loan.DisbursementDate = req.DisbursementDate;
+            loan.MaturityDate = req.DisbursementDate.AddMonths(loan.TenorMonths);
+            loan.Status = LoanStatus.Active;
+            loan.UpdatedAt = DateTime.UtcNow;
 
-        _db.LoanTransactions.Add(new LoanTransaction
+            _db.LoanDisbursements.Add(new LoanDisbursement
+            {
+                LoanId = loanId,
+                DisbursedAmount = req.DisbursedAmount,
+                DisbursementDate = req.DisbursementDate,
+                RecordedByUserId = userId
+            });
+
+            _db.LoanTransactions.Add(new LoanTransaction
+            {
+                LoanId = loanId,
+                TransactionType = "Disbursement",
+                Amount = req.DisbursedAmount
+            });
+
+            // §12.5 Rule 5 + §13.2: Generate repayment schedule — Flat or ReducingBalance
+            if (loan.InterestMethod == Domain.Constants.InterestMethod.ReducingBalance)
+                GenerateReducingBalanceSchedule(loan, req.DisbursementDate);
+            else
+                GenerateSchedule(loan, req.DisbursementDate);
+
+            _db.AuditLogs.Add(new AuditLog
+            {
+                ActorUserId = userId,
+                ActionCode = AuditActions.LoanDisbursed,
+                EntityType = "Loan",
+                EntityId = loanId,
+                NewValuesJson = AuditHelper.ToJson(new { disbursedAmount = req.DisbursedAmount, disbursementDate = req.DisbursementDate })
+            });
+
+            await _db.SaveChangesAsync();
+            await tx.CommitAsync();
+            return await GetByIdAsync(loanId);
+        }
+        catch
         {
-            LoanId = loanId,
-            TransactionType = "Disbursement",
-            Amount = req.DisbursedAmount
-        });
-
-        // §12.5 Rule 5 + §13.2: Generate repayment schedule — Flat or ReducingBalance
-        if (loan.InterestMethod == Domain.Constants.InterestMethod.ReducingBalance)
-            GenerateReducingBalanceSchedule(loan, req.DisbursementDate);
-        else
-            GenerateSchedule(loan, req.DisbursementDate);
-
-        _db.AuditLogs.Add(new AuditLog
-        {
-            ActorUserId = userId,
-            ActionCode = AuditActions.LoanDisbursed,
-            EntityType = "Loan",
-            EntityId = loanId,
-            NewValuesJson = AuditHelper.ToJson(new { disbursedAmount = req.DisbursedAmount, disbursementDate = req.DisbursementDate })
-        });
-
-        await _db.SaveChangesAsync();
-        return await GetByIdAsync(loanId);
+            await tx.RollbackAsync();
+            throw;
+        }
     }
 
     // ── POST /loans/{id}/payments (§PAY-001) ─────────────────────────────────

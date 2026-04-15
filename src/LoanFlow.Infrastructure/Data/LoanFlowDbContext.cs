@@ -19,6 +19,7 @@ public class LoanFlowDbContext : DbContext
     public DbSet<LoanTransaction> LoanTransactions => Set<LoanTransaction>();
     public DbSet<CollectionNote> CollectionNotes => Set<CollectionNote>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     // ── Bank-grade entities ─────────────────────────────────────────────────
@@ -33,6 +34,13 @@ public class LoanFlowDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<IdempotencyRecord>(b =>
+        {
+            b.HasKey(x => x.IdempotencyKey);
+            b.Property(x => x.IdempotencyKey).HasMaxLength(128);
+        });
+
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoanFlowDbContext).Assembly);
     }
 }

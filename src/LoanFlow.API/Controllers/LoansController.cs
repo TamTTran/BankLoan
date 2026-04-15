@@ -3,6 +3,7 @@ using LoanFlow.Application.Services;
 using LoanFlow.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using LoanFlow.API.Filters;
 using System.Security.Claims;
 
 namespace LoanFlow.API.Controllers;
@@ -60,6 +61,7 @@ public class LoansController : ControllerBase
     /// <summary>POST /loans/{id}/disburse — LOAN-002</summary>
     [HttpPost("loans/{id:int}/disburse")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer}")]
+    [IdempotencyFilter]
     public async Task<IActionResult> Disburse(int id, [FromBody] DisburseRequest request)
     {
         var result = await _service.DisburseAsync(id, request, CurrentUserId);
@@ -80,6 +82,7 @@ public class LoansController : ControllerBase
     /// <summary>POST /loans/{id}/payments — PAY-001</summary>
     [HttpPost("loans/{id:int}/payments")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer}")]
+    [IdempotencyFilter]
     public async Task<IActionResult> RecordPayment(int id, [FromBody] RecordPaymentRequest request)
     {
         var result = await _service.RecordPaymentAsync(id, request, CurrentUserId);

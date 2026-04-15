@@ -240,34 +240,45 @@ public class LoanApplicationService : ILoanApplicationService
             return Result.Failure("Application is already fully approved.");
         }
 
-        _db.ApplicationDecisions.Add(new ApplicationDecision
-        {
-            ApplicationId = id,
-            Decision = "Approved",
-            DecidedByUserId = approverUserId,
-            DecisionReason = currentRule != null ? $"Approved Level {currentLevel}" : "Approved"
-        });
+        await using var tx = await _db.Database.BeginTransactionAsync();
 
-        bool isFullyApproved = requiredRules.Count == 0 || currentLevel >= requiredRules.Max(r => r.RequiredLevel);
-
-        if (isFullyApproved)
+        try
         {
-            entity.Status = ApplicationStatus.Approved;
+            _db.ApplicationDecisions.Add(new ApplicationDecision
+            {
+                ApplicationId = id,
+                Decision = "Approved",
+                DecidedByUserId = approverUserId,
+                DecisionReason = currentRule != null ? $"Approved Level {currentLevel}" : "Approved"
+            });
+
+            bool isFullyApproved = requiredRules.Count == 0 || currentLevel >= requiredRules.Max(r => r.RequiredLevel);
+
+            if (isFullyApproved)
+            {
+                entity.Status = ApplicationStatus.Approved;
+            }
+            
+            entity.UpdatedAt = DateTime.UtcNow;
+
+            _db.AuditLogs.Add(new AuditLog
+            {
+                ActorUserId = approverUserId,
+                ActionCode = AuditActions.ApplicationApproved,
+                EntityType = "Application",
+                EntityId = entity.Id,
+                NewValuesJson = AuditHelper.ToJson(new { level = currentLevel, fullyApproved = isFullyApproved })
+            });
+
+            await _db.SaveChangesAsync();
+            await tx.CommitAsync();
+            return Result.Success();
         }
-        
-        entity.UpdatedAt = DateTime.UtcNow;
-
-        _db.AuditLogs.Add(new AuditLog
+        catch (Exception ex)
         {
-            ActorUserId = approverUserId,
-            ActionCode = AuditActions.ApplicationApproved,
-            EntityType = "Application",
-            EntityId = entity.Id,
-            NewValuesJson = AuditHelper.ToJson(new { level = currentLevel, fullyApproved = isFullyApproved })
-        });
-
-        await _db.SaveChangesAsync();
-        return Result.Success();
+            await tx.RollbackAsync();
+            throw;
+        }
     }
 
     public async Task<Result> RejectAsync(int id, RejectApplicationRequest req, int approverUserId)
