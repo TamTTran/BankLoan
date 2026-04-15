@@ -17,7 +17,7 @@ export function Layout({ children, pendingCount = 0 }) {
   const handleLogout = () => { logout(); navigate('/'); };
 
   const visible = NAV.filter(n => {
-    if (n.to === '/products' && !can.manageProducts && user?.role !== 'LoanOfficer' && user?.role !== 'Approver' && user?.role !== 'Manager') return false;
+    if (n.to === '/products' && !can.viewProductsNav) return false;
     return true;
   });
 

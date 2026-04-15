@@ -1,10 +1,12 @@
 # docker-compose.override.yml
 # ──────────────────────────────────────────────────────────────────────────────
-# Dùng cho LOCAL DEVELOPMENT:
-#   - SQL Server chạy trong Docker (port 1433 exposed ra host)
-#   - API chạy trong Visual Studio / dotnet watch (KHÔNG build container API)
+# LOCAL DEVELOPMENT override:
+#   - MySQL runs in Docker (port 3306 exposed to host)
+#   - API & Frontend run outside Docker (VS / npm run dev) → NOT in containers
 #
-# Chạy: docker compose up db -d
+# Usage:
+#   Start DB only:        docker compose up db -d
+#   Start full stack:     docker compose --profile full up --build
 # ──────────────────────────────────────────────────────────────────────────────
 
 name: loanflow
@@ -12,16 +14,19 @@ name: loanflow
 services:
   db:
     ports:
-      - "3306:3306"    # Expose ra localhost để VS kết nối trực tiếp
+      - "3306:3306"    # Expose to localhost so VS can connect directly
     environment:
       MYSQL_PASSWORD: "LoanFlow@2026!"
       MYSQL_ROOT_PASSWORD: "LoanFlow@2026!"
 
-  # Tắt container api và frontend khi dev local (chạy bằng VS)
+  # API runs in Visual Studio / dotnet watch locally — disable container version
   api:
     profiles:
-      - full            # chỉ start khi: docker compose --profile full up
+      - full            # Only start when: docker compose --profile full up
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development   # Enables Swagger, hot-reload logs
 
+  # Frontend runs via: cd frontend && npm run dev
   frontend:
     profiles:
       - full

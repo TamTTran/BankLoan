@@ -1,0 +1,37 @@
+# ── Git ──
+.git
+.gitignore
+.github
+
+# ── IDE / OS ──
+.vs
+.vscode
+*.user
+*.suo
+*.DotSettings
+**/.DS_Store
+Thumbs.db
+
+# ── .NET build output ──
+**/bin
+**/obj
+**/out
+
+# ── Frontend (built in separate container) ──
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# ── Docker (avoid recursive copy) ──
+**/Dockerfile
+**/.dockerignore
+docker-compose*.yml
+
+# ── Docs / misc ──
+md/
+claudekit-engineer/
+*.md
+!README.md
+.env
+.env.*
+!.env.example

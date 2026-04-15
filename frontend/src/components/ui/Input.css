@@ -1,0 +1,61 @@
+.input-u-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.input-u-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.input-u-field {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  padding: 0.78rem 1rem;
+  transition: all 0.18s var(--ease);
+  font-family: inherit;
+  font-size: 0.9rem;
+  outline: none;
+  width: 100%;
+}
+
+.input-u-field:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 4px var(--border-glow);
+  background: #fff;
+}
+
+.input-u-select {
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237a8da5' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+}
+
+.input-u-textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+
+.input-u-field.input-u-error {
+  border-color: var(--red);
+  background: var(--red-bg);
+}
+.input-u-field.input-u-error:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+.input-u-error-text {
+  font-size: 0.75rem;
+  color: var(--red);
+  margin-top: 0.2rem;
+}

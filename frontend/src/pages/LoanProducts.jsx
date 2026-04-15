@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '../api';
+import { productApi } from '../features/products/api/productApi';
 import { formatCurrency, formatPercent, parseTenors } from '../utils/format';
 import { StatusBadge } from '../components/Badge';
 
@@ -8,7 +8,7 @@ export default function LoanProducts() {
   const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
-    api.products.list().then(d => setProducts(Array.isArray(d) ? d : [])).catch(console.error).finally(() => setLoading(false));
+    productApi.list().then(d => setProducts(Array.isArray(d) ? d : [])).catch(console.error).finally(() => setLoading(false));
   }, []);
 
   const COLORS = ['#3B82F6','#8B5CF6','#10B981'];

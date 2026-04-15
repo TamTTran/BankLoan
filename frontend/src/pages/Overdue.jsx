@@ -1,38 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '../api';
+import { overdueApi } from '../features/overdue/api/overdueApi';
+import { loanApi } from '../features/loans/api/loanApi';
+import { mapOverdueList } from '../features/overdue/mappers/overdueMapper';
 import { formatCurrency, formatDate, today } from '../utils/format';
 import { DpdBadge } from '../components/Badge';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
 import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
-function CollectionNoteModal({ loanId, onClose, onDone }) {
-  const { toast } = useToast();
-  const [noteText, setNoteText] = useState('');
-  const [noteDate, setNoteDate] = useState(today());
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
-
-  const submit = async () => {
-    if (!noteText.trim()) { setError('Vui lòng nhập nội dung ghi chú'); return; }
-    setError(''); setLoading(true);
-    try { await api.loans.addNote(loanId, { noteText, noteDate }); toast('Đã thêm ghi chú thu hồi!'); onDone(); }
-    catch(e) { setError(e.message); }
-    finally { setLoading(false); }
-  };
-
-  return (
-    <Modal title="📝 Ghi chú thu hồi" onClose={onClose}
-      actions={<><button className="btn btn-ghost" onClick={onClose}>Hủy</button><button className="btn btn-primary" onClick={submit} disabled={loading}>{loading?<><span className="spinner"/>...</>:'📝 Lưu'}</button></>}>
-      <div className="form-group"><label>Ngày ghi chú <span className="required">*</span></label><input type="date" value={noteDate} onChange={e=>setNoteDate(e.target.value)}/></div>
-      <div className="form-group">
-        <label>Nội dung <span className="required">*</span></label>
-        <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} rows={4} placeholder="Khách hàng hứa thanh toán vào... / Đã liên hệ qua sđt... / Gặp trực tiếp tại..."/>
-      </div>
-      {error && <div className="error-msg">{error}</div>}
-    </Modal>
-  );
-}
+import { CollectionNoteModal } from '../features/overdue/components/CollectionNoteModal';
 
 export default function Overdue() {
   const { can } = useAuth();
@@ -44,8 +22,9 @@ export default function Overdue() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.loans.overdue();
-      setItems(Array.isArray(res) ? res : (res?.items || []));
+      const res = await overdueApi.list();
+      const mapped = mapOverdueList(res);
+      setItems(Array.isArray(mapped) ? mapped : (mapped?.items || []));
     } catch(e) { toast(e.message,'error'); }
     finally { setLoading(false); }
   }, []);
@@ -70,7 +49,7 @@ export default function Overdue() {
         </div>
       )}
 
-      <div className="card">
+      <Card>
         <table className="data-table">
           <thead><tr><th>Mã KV</th><th>Khách hàng</th><th>Dư nợ</th><th>Số tiền QH</th><th>Số ngày QH</th><th>DPD</th><th>Ghi chú gần nhất</th><th>Thao tác</th></tr></thead>
           <tbody>
@@ -87,14 +66,14 @@ export default function Overdue() {
                 <td><span className="cell-sub">{item.lastCollectionNote||'—'}</span></td>
                 <td>
                   <div className="action-btns">
-                    {can.addCollectionNote && <button className="btn btn-sm btn-ghost" onClick={()=>setNoteId(item.loanId||item.id)}>📝 Ghi chú</button>}
+                    {can.addCollectionNote && <Button size="sm" variant="ghost" onClick={()=>setNoteId(item.loanId||item.id)}>📝 Ghi chú</Button>}
                   </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       {noteId && <CollectionNoteModal loanId={noteId} onClose={()=>setNoteId(null)} onDone={()=>{setNoteId(null);load();}}/>}
     </div>

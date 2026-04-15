@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '../api';
+import { customerApi } from '../features/customers/api/customerApi';
 import { formatDate, today } from '../utils/format';
 import { StatusBadge } from '../components/Badge';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -22,8 +25,8 @@ function CustomerModal({ customer, onClose, onSaved }) {
   const handleSubmit = async () => {
     setError(''); setLoading(true);
     try {
-      if (customer) await api.customers.update(customer.id, form);
-      else          await api.customers.create(form);
+      if (customer) await customerApi.update(customer.id, form);
+      else          await customerApi.create(form);
       toast(customer ? 'Cập nhật thành công!' : 'Tạo khách hàng thành công!');
       onSaved();
     } catch (e) { setError(e.message); }
@@ -35,38 +38,21 @@ function CustomerModal({ customer, onClose, onSaved }) {
       title={customer ? '✏️ Cập nhật khách hàng' : '👤 Thêm khách hàng mới'}
       onClose={onClose}
       actions={<>
-        <button className="btn btn-ghost" onClick={onClose}>Hủy</button>
-        <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
-          {loading ? <><span className="spinner" /> Đang lưu...</> : '💾 Lưu'}
-        </button>
+        <Button variant="ghost" onClick={onClose}>Hủy</Button>
+        <Button variant="primary" onClick={handleSubmit} loading={loading}>💾 Lưu</Button>
       </>}
     >
       <div className="form-row">
-        <div className="form-group">
-          <label>Họ và tên <span className="required">*</span></label>
-          <input value={form.fullName} onChange={e => set('fullName', e.target.value)} placeholder="Nguyễn Văn A" />
-        </div>
-        <div className="form-group">
-          <label>CCCD / CMND <span className="required">*</span></label>
-          <input value={form.idNumber} onChange={e => set('idNumber', e.target.value)} placeholder="079100000001" disabled={!!customer} />
-        </div>
+        <Input label="Họ và tên *" value={form.fullName} onChange={e => set('fullName', e.target.value)} placeholder="Nguyễn Văn A" />
+        <Input label="CCCD / CMND *" value={form.idNumber} onChange={e => set('idNumber', e.target.value)} placeholder="079100000001" disabled={!!customer} />
       </div>
       <div className="form-row">
-        <div className="form-group">
-          <label>Điện thoại <span className="required">*</span></label>
-          <input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="0901234567" />
-        </div>
-        <div className="form-group">
-          <label>Ngày sinh</label>
-          <input type="date" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} />
-        </div>
+        <Input label="Điện thoại *" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="0901234567" />
+        <Input type="date" label="Ngày sinh" value={form.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)} />
       </div>
-      <div className="form-group">
-        <label>Địa chỉ</label>
-        <input value={form.address} onChange={e => set('address', e.target.value)} placeholder="123 Nguyễn Huệ, Q1, TP.HCM" />
-      </div>
+      <Input label="Địa chỉ" value={form.address} onChange={e => set('address', e.target.value)} placeholder="123 Nguyễn Huệ, Q1, TP.HCM" />
       {customer?.creditScore && (
-        <div className="form-group" style={{marginTop:'0.5rem', padding:'0.75rem', background:'var(--surface-50)', borderRadius:'var(--radius)'}}>
+        <div className="form-group" style={{marginTop:'0.5rem', padding:'0.75rem', background:'var(--bg-elevated)', borderRadius:'var(--radius)'}}>
            <div style={{fontSize:'0.85rem', color:'var(--text-muted)'}}>Điểm tín dụng CIC</div>
            <div style={{fontWeight:600, color: customer.creditStatus==='Poor'?'var(--red)':customer.creditStatus==='Excellent'?'var(--green)':'var(--amber)'}}>
              {customer.creditScore} — {customer.creditStatus}
@@ -91,9 +77,11 @@ export default function Customers() {
   const load = useCallback(async (p = page, q = search) => {
     setLoading(true);
     try {
-      const res = await api.customers.list({ page: p, pageSize: 15, search: q });
+      const res = await customerApi.list({ page: p, pageSize: 15, search: q });
       setData(res.items ? res : { items: Array.isArray(res) ? res : [], totalPages:1, page:1 });
-    } catch {}
+    } catch (e) {
+      toast(e.message || 'Không thể tải dữ liệu', 'error');
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -108,7 +96,7 @@ export default function Customers() {
       msg: `Kiểm tra tín dụng CIC cho ${c.fullName}?`,
       action: async () => {
         try {
-          await api.customers.checkCredit(c.id);
+          await customerApi.checkCredit(c.id);
           toast('Đã cập nhật tình trạng tín dụng!');
           load(page, search);
         } catch(e) {
@@ -127,16 +115,18 @@ export default function Customers() {
     <div className="page">
       <div className="page-header">
         <h2>👥 Khách hàng</h2>
-        {can.createCustomer && <button className="btn btn-primary" onClick={() => setModal({})}>+ Thêm khách hàng</button>}
+        {can.createCustomer && <Button variant="primary" onClick={() => setModal({})}>+ Thêm khách hàng</Button>}
       </div>
 
       <div className="filter-bar">
-        <input className="search-input" placeholder="🔍  Tìm theo tên, CCCD, điện thoại..."
-          value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} />
-        <button className="btn btn-outline" onClick={handleSearch}>Tìm kiếm</button>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <Input placeholder="🔍 Tìm theo tên, CCCD, điện thoại..."
+            value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} />
+        </div>
+        <Button variant="outline" onClick={handleSearch}>Tìm kiếm</Button>
       </div>
 
-      <div className="card">
+      <Card>
         <table className="data-table">
           <thead>
             <tr><th>ID</th><th>Họ tên</th><th>CCCD/CMND</th><th>Điện thoại</th><th>Tín dụng</th><th>Trạng thái</th><th>Thao tác</th></tr>
@@ -161,8 +151,8 @@ export default function Customers() {
                 <td>
                   {can.createCustomer && (
                     <div className="action-btns">
-                      <button className="btn btn-sm btn-outline" onClick={() => handleCheckCredit(c)}>🔍 CIC</button>
-                      <button className="btn btn-sm btn-outline" onClick={() => setModal({ customer: c })}>✏️ Sửa</button>
+                      <Button size="sm" variant="outline" onClick={() => handleCheckCredit(c)}>🔍 CIC</Button>
+                      <Button size="sm" variant="outline" onClick={() => setModal({ customer: c })}>✏️ Sửa</Button>
                     </div>
                   )}
                 </td>
@@ -171,7 +161,7 @@ export default function Customers() {
           </tbody>
         </table>
         <Pagination paged={data} onPage={handlePage} />
-      </div>
+      </Card>
 
       {modal && (
         <CustomerModal

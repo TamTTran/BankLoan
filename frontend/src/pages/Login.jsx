@@ -1,26 +1,27 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 
 const QUICK = [
-  { label: '👑 admin',       user: 'admin',       pass: 'Admin@123' },
-  { label: '📋 officer01',   user: 'officer01',   pass: 'Officer@123' },
-  { label: '✅ approver01',  user: 'approver01',  pass: 'Approver@123' },
-  { label: '🔍 collector01', user: 'collector01', pass: 'Collector@123' },
+  { label: 'Admin', user: 'admin', pass: 'Admin@123' },
+  { label: 'Officer', user: 'officer01', pass: 'Officer@123' },
+  { label: 'Approver', user: 'approver01', pass: 'Approver@123' },
+  { label: 'Collector', user: 'collector01', pass: 'Collector@123' },
 ];
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError]       = useState('');
-  const [loading, setLoading]   = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const handleSubmit = async (u = username, p = password) => {
-    setError(''); setLoading(true);
+    setError('');
+    setLoading(true);
     try {
       await login(u, p);
       navigate('/dashboard');
@@ -33,39 +34,70 @@ export default function Login() {
 
   return (
     <div className="login-bg">
-      <div className="login-card">
-        <div className="brand-login">
-          <div className="brand-login-icon">💳</div>
-          <h1>LoanFlow <span>Lite</span></h1>
-          <p>Hệ thống quản lý khoản vay</p>
-        </div>
+      <div className="login-shell">
+        <section className="login-hero">
+          <div className="login-hero-mark">LF</div>
+          <p className="login-eyebrow">Loan operations workspace</p>
+          <h1>Control the full lending cycle from one console.</h1>
+          <p className="login-lead">
+            Review applications, track active portfolio, watch delinquency signals,
+            and keep branch operations aligned with a clean daily workflow.
+          </p>
 
-        <form className="login-form" style={{ display:'flex', flexDirection:'column', gap:'1.1rem' }}
-              onSubmit={e => { e.preventDefault(); handleSubmit(); }}>
-          <div className="form-group">
-            <label>Tên đăng nhập</label>
-            <input value={username} onChange={e => setUsername(e.target.value)} placeholder="officer01" autoComplete="username" />
+          <div className="login-highlights">
+            <div className="login-highlight-card">
+              <span className="login-highlight-value">Applications</span>
+              <span className="login-highlight-label">From intake to approval, disbursement and repayment tracking.</span>
+            </div>
+            <div className="login-highlight-card">
+              <span className="login-highlight-value">Collections</span>
+              <span className="login-highlight-label">Overdue visibility, portfolio movement and daily branch discipline.</span>
+            </div>
           </div>
-          <div className="form-group">
-            <label>Mật khẩu</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
-          </div>
-          {error && <div className="error-msg">{error}</div>}
-          <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-            {loading ? <><span className="spinner" /> Đang đăng nhập...</> : 'Đăng nhập'}
-          </button>
-        </form>
+        </section>
 
-        <div className="login-hints">
-          <p>Tài khoản demo — click để đăng nhập nhanh:</p>
-          <div className="hint-grid">
-            {QUICK.map(q => (
-              <button key={q.user} className="quick-btn" onClick={() => handleSubmit(q.user, q.pass)}>
-                {q.label}
-              </button>
-            ))}
+        <section className="login-card">
+          <div className="brand-login">
+            <div className="brand-login-icon">LF</div>
+            <p className="login-card-kicker">Secure sign in</p>
+            <h1>LoanFlow <span>Lite</span></h1>
+            <p>Sign in to continue to the lending workspace.</p>
           </div>
-        </div>
+
+          <form className="login-form" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+            <Input
+              label="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="officer01"
+              autoComplete="username"
+            />
+            <Input
+              type="password"
+              label="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+            />
+            {error && <div className="error-msg">{error}</div>}
+            <Button type="submit" variant="primary" block loading={loading}>
+              Sign in
+            </Button>
+          </form>
+
+          <div className="login-hints">
+            <p>Demo accounts for quick access:</p>
+            <div className="hint-grid">
+              {QUICK.map((q) => (
+                <button key={q.user} className="quick-btn" onClick={() => handleSubmit(q.user, q.pass)}>
+                  <span className="quick-btn-role">{q.label}</span>
+                  <span className="quick-btn-user">{q.user}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

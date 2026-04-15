@@ -55,6 +55,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 
+// === Health Checks (used by Docker healthcheck) ===
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<LoanFlowDbContext>("database");
+
 // === Rate Limiting ===
 builder.Services.AddRateLimiter(options =>
 {
@@ -127,6 +131,9 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Health endpoint for Docker / load-balancer probes (no auth required)
+app.MapHealthChecks("/health");
 
 // === Migrate + Seed (with retry for Docker) ===
 await MigrateWithRetryAsync(app);

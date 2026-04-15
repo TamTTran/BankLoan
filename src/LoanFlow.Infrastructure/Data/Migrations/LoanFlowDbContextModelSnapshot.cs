@@ -837,6 +837,56 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.ToTable("LoanTransactions");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.OverdueDailySnapshot", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Bucket")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("Dpd")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("LateFeeAccrued")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("LoanId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("OutstandingAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OverdueAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("OverdueInstallments")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("SnapshotDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SnapshotDate");
+
+                    b.HasIndex("LoanId", "SnapshotDate")
+                        .IsUnique();
+
+                    b.ToTable("OverdueDailySnapshots");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.Payment", b =>
                 {
                     b.Property<int>("Id")
@@ -1276,6 +1326,17 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Navigation("Loan");
 
                     b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.OverdueDailySnapshot", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.Loan", "Loan")
+                        .WithMany()
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Loan");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.Payment", b =>

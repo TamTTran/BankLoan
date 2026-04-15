@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
-import { Layout } from './components/Layout';
-import Login        from './pages/Login';
-import Dashboard    from './pages/Dashboard';
-import Customers    from './pages/Customers';
-import LoanProducts from './pages/LoanProducts';
-import Applications from './pages/Applications';
-import Loans        from './pages/Loans';
-import Overdue      from './pages/Overdue';
+import { useAuth } from '../context/AuthContext';
+import { Layout } from '../components/Layout';
+import Login        from '../pages/Login';
+import Dashboard    from '../pages/Dashboard';
+import Customers    from '../pages/Customers';
+import LoanProducts from '../pages/LoanProducts';
+import Applications from '../pages/Applications';
+import Loans        from '../pages/Loans';
+import Overdue      from '../pages/Overdue';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -32,7 +32,7 @@ function AppShell() {
   );
 }
 
-export default function App() {
+export function AppRouter() {
   const { user } = useAuth();
   return (
     <Routes>

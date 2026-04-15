@@ -1,44 +1,83 @@
-import { STATUS_LABELS, DPD_LABELS } from '../utils/format';
-
-const STATUS_CLS = {
-  Draft:'draft', Submitted:'submitted', Approved:'approved', Rejected:'rejected',
-  PendingDisbursement:'pending', Active:'active', Overdue:'overdue', Closed:'closed',
-  Unpaid:'pending', Partial:'partial', Paid:'approved', Inactive:'closed',
-};
-const DPD_CLS = { Current:'dpd-current', DPD1_7:'dpd-1-7', DPD8_30:'dpd-8-30', DPD31Plus:'dpd-31plus' };
-
 export function StatusBadge({ status }) {
-  const label = STATUS_LABELS[status] || status;
-  const cls   = STATUS_CLS[status] || 'draft';
-  return <span className={`badge badge-${cls}`}>{label}</span>;
+  const mapping = {
+    Draft: { label: 'Nhap', color: 'var(--text-muted)', bg: 'rgba(122,141,165,0.12)', glow: 'transparent' },
+    Submitted: { label: 'Cho duyet', color: 'var(--amber)', bg: 'var(--amber-bg)', glow: 'rgba(201,138,27,0.14)' },
+    Pending: { label: 'Cho duyet', color: 'var(--amber)', bg: 'var(--amber-bg)', glow: 'rgba(201,138,27,0.14)' },
+    Approved: { label: 'Da duyet', color: 'var(--blue)', bg: 'var(--blue-bg)', glow: 'rgba(31,95,191,0.14)' },
+    Rejected: { label: 'Tu choi', color: 'var(--red)', bg: 'var(--red-bg)', glow: 'rgba(195,79,79,0.14)' },
+
+    PendingDisbursement: { label: 'Cho giai ngan', color: 'var(--teal)', bg: 'rgba(29,143,151,0.12)', glow: 'rgba(29,143,151,0.14)' },
+    Active: { label: 'Dang vay', color: 'var(--green)', bg: 'var(--green-bg)', glow: 'rgba(30,155,105,0.14)' },
+    Overdue: { label: 'Qua han', color: 'var(--red)', bg: 'var(--red-bg)', glow: 'rgba(195,79,79,0.16)' },
+    Closed: { label: 'Da dong', color: 'var(--text-muted)', bg: 'rgba(122,141,165,0.12)', glow: 'transparent' },
+    Paid: { label: 'Da tat toan', color: 'var(--teal)', bg: 'rgba(29,143,151,0.12)', glow: 'rgba(29,143,151,0.14)' },
+    BadDebt: { label: 'No xau', color: 'var(--purple)', bg: 'rgba(93,124,226,0.12)', glow: 'rgba(93,124,226,0.14)' },
+
+    Unpaid: { label: 'Chua tra', color: 'var(--amber)', bg: 'var(--amber-bg)', glow: 'rgba(201,138,27,0.14)' },
+    Partial: { label: 'Tra mot phan', color: 'var(--gold)', bg: 'var(--gold-bg)', glow: 'rgba(217,164,65,0.14)' },
+    Inactive: { label: 'Khong HD', color: 'var(--text-muted)', bg: 'rgba(122,141,165,0.1)', glow: 'transparent' },
+  };
+
+  const current = mapping[status] || {
+    label: status,
+    color: 'var(--text-secondary)',
+    bg: 'rgba(255,255,255,0.84)',
+    glow: 'transparent'
+  };
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        whiteSpace: 'nowrap',
+        padding: '0.32rem 0.7rem',
+        borderRadius: '999px',
+        backgroundColor: current.bg,
+        color: current.color,
+        border: `1px solid ${current.color}22`,
+        boxShadow: `0 8px 20px ${current.glow}`,
+        fontSize: '0.75rem',
+        fontWeight: '800',
+        backdropFilter: 'blur(8px)'
+      }}
+    >
+      {current.label}
+    </span>
+  );
 }
 
 export function DpdBadge({ bucket }) {
-  const label = DPD_LABELS[bucket] || bucket;
-  const cls   = DPD_CLS[bucket] || 'dpd-current';
-  return <span className={`badge ${cls}`}>{label}</span>;
-}
+  const mapping = {
+    B0: { color: 'var(--green)', bg: 'var(--green-bg)', shadow: 'rgba(30,155,105,0.15)' },
+    B1: { color: 'var(--amber)', bg: 'var(--amber-bg)', shadow: 'rgba(201,138,27,0.15)' },
+    B2: { color: 'var(--gold)', bg: 'var(--gold-bg)', shadow: 'rgba(217,164,65,0.15)' },
+    B3: { color: 'var(--red)', bg: 'var(--red-bg)', shadow: 'rgba(195,79,79,0.15)' },
+    B4: { color: 'var(--purple)', bg: 'rgba(93,124,226,0.12)', shadow: 'rgba(93,124,226,0.15)' }
+  };
 
-// Inject badge CSS once
-const badgeCSS = `
-.badge { display:inline-flex;align-items:center;padding:.22rem .65rem;border-radius:999px;font-size:.68rem;font-weight:700;letter-spacing:.02em;white-space:nowrap; }
-.badge-draft     { background:var(--bg-elevated);color:var(--text-muted); }
-.badge-submitted { background:var(--blue-bg);color:var(--blue);border:1px solid rgba(59,130,246,.3); }
-.badge-pending   { background:var(--amber-bg);color:var(--amber);border:1px solid rgba(245,158,11,.3); }
-.badge-approved  { background:var(--green-bg);color:var(--green);border:1px solid rgba(16,185,129,.3); }
-.badge-rejected  { background:var(--red-bg);color:var(--red);border:1px solid rgba(239,68,68,.3); }
-.badge-active    { background:var(--green-bg);color:var(--green);border:1px solid rgba(16,185,129,.3); }
-.badge-overdue   { background:var(--red-bg);color:var(--red);border:1px solid rgba(239,68,68,.3); }
-.badge-closed    { background:var(--bg-elevated);color:var(--text-muted); }
-.badge-partial   { background:var(--amber-bg);color:var(--amber);border:1px solid rgba(245,158,11,.3); }
-.dpd-current  { background:var(--green-bg);color:var(--green); }
-.dpd-1-7      { background:var(--amber-bg);color:var(--amber); }
-.dpd-8-30     { background:rgba(249,115,22,.12);color:var(--orange); }
-.dpd-31plus   { background:var(--red-bg);color:var(--red); }
-`;
-if (!document.getElementById('badge-styles')) {
-  const s = document.createElement('style');
-  s.id = 'badge-styles';
-  s.textContent = badgeCSS;
-  document.head.appendChild(s);
+  const current = mapping[bucket] || {
+    color: 'var(--text-secondary)',
+    bg: 'rgba(255,255,255,0.84)',
+    shadow: 'transparent'
+  };
+
+  return (
+    <span
+      style={{
+        backgroundColor: current.bg,
+        color: current.color,
+        border: `1px solid ${current.color}24`,
+        boxShadow: `0 8px 18px ${current.shadow}`,
+        padding: '0.25rem 0.65rem',
+        borderRadius: '999px',
+        fontSize: '0.75rem',
+        fontWeight: '800',
+        fontFamily: "'Courier New', monospace",
+        backdropFilter: 'blur(8px)'
+      }}
+    >
+      {bucket}
+    </span>
+  );
 }

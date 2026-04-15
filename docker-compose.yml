@@ -3,10 +3,10 @@ name: loanflow
 services:
 
   # ────────────────────────────────────────────────────
-  # MySQL 8
+  # MySQL 8 — Persistent database
   # ────────────────────────────────────────────────────
   db:
-    image: mysql:8
+    image: mysql:8.4
     container_name: loanflow-db
     restart: unless-stopped
     environment:
@@ -14,6 +14,8 @@ services:
       MYSQL_DATABASE: LoanFlowLite
       MYSQL_USER: loanflow
       MYSQL_PASSWORD: "${DB_PASSWORD}"
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
     ports:
       - "3306:3306"
     volumes:
@@ -24,6 +26,10 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   # ────────────────────────────────────────────────────
   # LoanFlow API  (.NET 8)
@@ -32,6 +38,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: loanflow-api:latest
     container_name: loanflow-api
     restart: unless-stopped
     depends_on:
@@ -42,26 +49,37 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
+      DOTNET_RUNNING_IN_CONTAINER: "true"
       ConnectionStrings__DefaultConnection: >-
         Server=db;Port=3306;Database=LoanFlowLite;
         User=loanflow;Password=${DB_PASSWORD};
+        CharSet=utf8mb4;AllowPublicKeyRetrieval=true;SslMode=None
       Jwt__Key: "${JWT_KEY}"
       Jwt__Issuer: "LoanFlow.API"
       Jwt__Audience: "LoanFlow.Client"
+      # Daily overdue background job (UTC+7 = 01:00 UTC)
+      BackgroundJobs__DailyOverdue__RunHourUtc: "18"
+      BackgroundJobs__DailyOverdue__RunMinuteUtc: "0"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   # ────────────────────────────────────────────────────
   # Frontend (React + Vite → Nginx)
+  # Build context is repo root to access nginx.conf
   # ────────────────────────────────────────────────────
   frontend:
     build:
-      context: .                         # root để access nginx.conf
+      context: .
       dockerfile: frontend/Dockerfile
+    image: loanflow-frontend:latest
     container_name: loanflow-frontend
     restart: unless-stopped
     depends_on:
@@ -69,6 +87,16 @@ services:
         condition: service_healthy
     ports:
       - "80:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128m
 
 
 volumes:
