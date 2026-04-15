@@ -158,6 +158,8 @@ public static class AuditActions
     public const string CreditCheckPerformed = "CREDIT_CHECK_PERFORMED";
     public const string CustomerAssigned = "CUSTOMER_ASSIGNED";
     public const string CareNoteAdded = "CARE_NOTE_ADDED";
+    public const string DailyOverdueJobCompleted = "DAILY_OVERDUE_JOB_COMPLETED";
+    public const string OverdueStatusUpdated = "OVERDUE_STATUS_UPDATED";
 }
 
 // ── Customer Care Interaction Types ─────────────────────────────────────────

@@ -1,4 +1,5 @@
 using LoanFlow.Application.Services;
+using LoanFlow.API.BackgroundJobs;
 using LoanFlow.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -28,6 +29,10 @@ builder.Services.AddScoped<ICreditCheckService, CreditCheckService>();
 builder.Services.AddScoped<IApprovalRuleService, ApprovalRuleService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<ICustomerLeadService, CustomerLeadService>();
+builder.Services.AddScoped<IOverdueJobService, OverdueJobService>();
+
+// === Background Jobs ===
+builder.Services.AddHostedService<DailyOverdueBackgroundService>();
 
 // === JWT Auth ===
 var jwtKey = builder.Configuration["Jwt:Key"]!;
