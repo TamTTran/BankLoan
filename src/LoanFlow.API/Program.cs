@@ -42,6 +42,9 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<ICustomerLeadService, CustomerLeadService>();
 builder.Services.AddScoped<IOverdueJobService, OverdueJobService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IReversalService, ReversalService>();
+builder.Services.AddScoped<IReconciliationService, ReconciliationService>();
+builder.Services.AddScoped<IEndOfDayService, EndOfDayService>();
 
 // === Background Jobs ===
 builder.Services.AddHostedService<DailyOverdueBackgroundService>();

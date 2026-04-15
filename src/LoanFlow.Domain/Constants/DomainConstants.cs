@@ -160,6 +160,48 @@ public static class AuditActions
     public const string CareNoteAdded = "CARE_NOTE_ADDED";
     public const string DailyOverdueJobCompleted = "DAILY_OVERDUE_JOB_COMPLETED";
     public const string OverdueStatusUpdated = "OVERDUE_STATUS_UPDATED";
+
+    // ── Wave 2: Reversal & Reconciliation ───────────────────────────────
+    public const string ReversalRequested = "REVERSAL_REQUESTED";
+    public const string ReversalApproved = "REVERSAL_APPROVED";
+    public const string ReversalRejected = "REVERSAL_REJECTED";
+    public const string PaymentReversed = "PAYMENT_REVERSED";
+    public const string FeeAdjusted = "FEE_ADJUSTED";
+    public const string ReconciliationRun = "RECONCILIATION_RUN";
+    public const string ReconciliationExceptionResolved = "RECONCILIATION_EXCEPTION_RESOLVED";
+    public const string EodCompleted = "EOD_COMPLETED";
+}
+
+// ── Reversal Type ───────────────────────────────────────────────────────────
+public static class ReversalType
+{
+    public const string PaymentReversal = "PaymentReversal";
+    public const string DisbursementCorrection = "DisbursementCorrection";
+    public const string FeeAdjustment = "FeeAdjustment";
+}
+
+// ── Reversal Status ─────────────────────────────────────────────────────────
+public static class ReversalStatus
+{
+    public const string Pending = "Pending";
+    public const string Approved = "Approved";
+    public const string Rejected = "Rejected";
+}
+
+// ── Reconciliation Status ───────────────────────────────────────────────────
+public static class ReconciliationStatus
+{
+    public const string Open = "Open";
+    public const string Resolved = "Resolved";
+    public const string Acknowledged = "Acknowledged";
+}
+
+// ── Reconciliation Exception Type ───────────────────────────────────────────
+public static class ReconciliationExceptionType
+{
+    public const string PaymentMismatch = "PaymentMismatch";
+    public const string DisbursementMismatch = "DisbursementMismatch";
+    public const string OutstandingMismatch = "OutstandingMismatch";
 }
 
 // ── Customer Care Interaction Types ─────────────────────────────────────────

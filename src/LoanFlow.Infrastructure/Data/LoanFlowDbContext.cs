@@ -31,6 +31,10 @@ public class LoanFlowDbContext : DbContext
     public DbSet<CustomerCareNote> CustomerCareNotes => Set<CustomerCareNote>();
     public DbSet<OverdueDailySnapshot> OverdueDailySnapshots => Set<OverdueDailySnapshot>();
 
+    // ── Wave 2: Reversal & Reconciliation ────────────────────────────────────
+    public DbSet<TransactionReversal> TransactionReversals => Set<TransactionReversal>();
+    public DbSet<ReconciliationException> ReconciliationExceptions => Set<ReconciliationException>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -39,6 +43,29 @@ public class LoanFlowDbContext : DbContext
         {
             b.HasKey(x => x.IdempotencyKey);
             b.Property(x => x.IdempotencyKey).HasMaxLength(128);
+        });
+
+        modelBuilder.Entity<TransactionReversal>(b =>
+        {
+            b.HasOne(r => r.OriginalTransaction)
+                .WithMany()
+                .HasForeignKey(r => r.OriginalTransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(r => r.ReversalTransaction)
+                .WithMany()
+                .HasForeignKey(r => r.ReversalTransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(r => r.RequestedBy)
+                .WithMany()
+                .HasForeignKey(r => r.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(r => r.ApprovedBy)
+                .WithMany()
+                .HasForeignKey(r => r.ApprovedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoanFlowDbContext).Assembly);

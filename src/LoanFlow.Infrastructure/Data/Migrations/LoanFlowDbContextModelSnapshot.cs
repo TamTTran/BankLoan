@@ -949,6 +949,64 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.ToTable("Payments");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.ReconciliationException", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("ActualAmount")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal>("Difference")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<string>("ExceptionType")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal>("ExpectedAmount")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<int?>("LoanId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Resolution")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ResolvedById")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ResolvedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoanId");
+
+                    b.HasIndex("ResolvedById");
+
+                    b.ToTable("ReconciliationExceptions");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
@@ -1046,6 +1104,68 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.HasIndex("LoanId");
 
                     b.ToTable("RepaymentSchedules");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.TransactionReversal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ApprovedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("LoanId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("OriginalAmount")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<int>("OriginalTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("RequestedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReversalTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReversalType")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal>("ReversedAmount")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedByUserId");
+
+                    b.HasIndex("LoanId");
+
+                    b.HasIndex("OriginalTransactionId");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("ReversalTransactionId");
+
+                    b.ToTable("TransactionReversals");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.User", b =>
@@ -1378,6 +1498,21 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Navigation("Loan");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.ReconciliationException", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.Loan", "Loan")
+                        .WithMany()
+                        .HasForeignKey("LoanId");
+
+                    b.HasOne("LoanFlow.Domain.Entities.User", "ResolvedBy")
+                        .WithMany()
+                        .HasForeignKey("ResolvedById");
+
+                    b.Navigation("Loan");
+
+                    b.Navigation("ResolvedBy");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("LoanFlow.Domain.Entities.User", "User")
@@ -1398,6 +1533,47 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Loan");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.TransactionReversal", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.User", "ApprovedBy")
+                        .WithMany()
+                        .HasForeignKey("ApprovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("LoanFlow.Domain.Entities.Loan", "Loan")
+                        .WithMany()
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LoanFlow.Domain.Entities.LoanTransaction", "OriginalTransaction")
+                        .WithMany()
+                        .HasForeignKey("OriginalTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanFlow.Domain.Entities.User", "RequestedBy")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanFlow.Domain.Entities.LoanTransaction", "ReversalTransaction")
+                        .WithMany()
+                        .HasForeignKey("ReversalTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ApprovedBy");
+
+                    b.Navigation("Loan");
+
+                    b.Navigation("OriginalTransaction");
+
+                    b.Navigation("RequestedBy");
+
+                    b.Navigation("ReversalTransaction");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.Collateral", b =>
