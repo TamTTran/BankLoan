@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { NotificationBell } from '../features/notifications/components/NotificationBell';
 
 const NAV = [
   { to: '/dashboard',    icon: '📊', label: 'Dashboard',         id: 'nav-dashboard'    },
@@ -57,7 +58,10 @@ export function Layout({ children, pendingCount = 0 }) {
             <p className="user-name">{user?.fullName || user?.username}</p>
             <p className="user-role">{roleLabel}</p>
           </div>
-          <button className="btn-logout" onClick={handleLogout} title="Đăng xuất">⏻</button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <button className="btn-logout" onClick={handleLogout} title="Đăng xuất">⏻</button>
+          </div>
         </div>
       </nav>
 

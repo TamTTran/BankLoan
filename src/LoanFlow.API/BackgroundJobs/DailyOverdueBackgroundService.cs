@@ -83,8 +83,8 @@ public class DailyOverdueBackgroundService : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var jobService = scope.ServiceProvider.GetRequiredService<IEndOfDayService>();
 
-        // System user ID = 0 (or a dedicated service account ID if we had one)
-        var result = await jobService.RunAsync(businessDate, 0, ct);
+        // System user ID = null inside background job
+        var result = await jobService.RunAsync(businessDate, null, ct);
 
         if (result.Errors > 0)
         {

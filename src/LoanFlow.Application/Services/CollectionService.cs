@@ -315,15 +315,22 @@ public class CollectionService : ICollectionService
                      && a.PromiseDate.Value < businessDate)
             .ToListAsync();
 
+        if (brokenActions.Count == 0) return 0;
+
+        // C6 Fix: Batch-fetch all loan IDs that received payments after their promise dates
+        var loanIds = brokenActions.Select(a => a.LoanId).Distinct().ToList();
+        var paymentsAfterPromise = await _db.Payments
+            .Where(p => loanIds.Contains(p.LoanId) && p.Amount > 0)
+            .GroupBy(p => p.LoanId)
+            .Select(g => new { LoanId = g.Key, MinPayDate = g.Min(p => p.PaymentDate) })
+            .ToDictionaryAsync(x => x.LoanId);
+
         foreach (var action in brokenActions)
         {
-            // Check if a payment was received on or after the promise date
-            var paymentReceived = await _db.Payments
-                .AnyAsync(p => p.LoanId == action.LoanId
-                            && p.PaymentDate >= action.PromiseDate!.Value
-                            && p.Amount > 0);
+            var hasPayment = paymentsAfterPromise.TryGetValue(action.LoanId, out var payInfo)
+                          && payInfo.MinPayDate >= action.PromiseDate!.Value;
 
-            if (paymentReceived)
+            if (hasPayment)
             {
                 action.PromiseStatus = Domain.Constants.PromiseStatus.Kept;
             }
@@ -333,7 +340,7 @@ public class CollectionService : ICollectionService
 
                 _db.AuditLogs.Add(new AuditLog
                 {
-                    ActorUserId = 0, // system
+                    ActorUserId = null, // system action
                     ActionCode = AuditActions.PromiseBroken,
                     EntityType = "Loan",
                     EntityId = action.LoanId,
@@ -342,8 +349,7 @@ public class CollectionService : ICollectionService
             }
         }
 
-        if (brokenActions.Count > 0)
-            await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync();
 
         return brokenActions.Count(a => a.PromiseStatus == Domain.Constants.PromiseStatus.Broken);
     }

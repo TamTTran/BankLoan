@@ -27,7 +27,11 @@ export function PaymentModal({ loanId, onClose, onDone }) {
     <Modal title="💰 Thu tiền trả nợ" onClose={onClose}
       actions={<><button className="btn btn-ghost" onClick={onClose}>Hủy</button><button className="btn btn-success" onClick={submit} disabled={loading}>{loading?<><span className="spinner"/>...</>:'✅ Ghi nhận'}</button></>}>
       <div className="form-row">
-        <div className="form-group"><label>Số tiền (VNĐ) <span className="required">*</span></label><input type="number" value={form.amount} onChange={e=>set('amount',e.target.value)} placeholder="0"/></div>
+        <div className="form-group">
+          <label>Số tiền (VNĐ) <span className="required">*</span></label>
+          <input type="number" value={form.amount} onChange={e=>set('amount',e.target.value)} placeholder="0"/>
+          <p className="text-xs text-blue-400 mt-1">Ghi chú: Nếu thu thừa, số tiền vượt mức sẽ tự động được chuyển vào tài khoản treo (Suspense) chờ xử lý.</p>
+        </div>
         <div className="form-group"><label>Ngày thu <span className="required">*</span></label><input type="date" value={form.paymentDate} onChange={e=>set('paymentDate',e.target.value)}/></div>
       </div>
       <div className="form-group">

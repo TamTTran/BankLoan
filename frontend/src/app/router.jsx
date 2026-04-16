@@ -11,6 +11,7 @@ import Loans        from '../pages/Loans';
 import Overdue      from '../pages/Overdue';
 import Collections  from '../pages/Collections';
 import Reports      from '../pages/Reports';
+import Notifications from '../pages/Notifications';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -30,6 +31,7 @@ function AppShell() {
         <Route path="/overdue"      element={<Overdue />} />
         <Route path="/collections"  element={<Collections />} />
         <Route path="/reports"      element={<Reports />} />
+        <Route path="/notifications" element={<Notifications />} />
         <Route path="*"             element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Layout>

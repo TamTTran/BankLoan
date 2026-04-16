@@ -39,6 +39,11 @@ public class LoanFlowDbContext : DbContext
     public DbSet<CollectionAction> CollectionActions => Set<CollectionAction>();
     public DbSet<CollectorAssignment> CollectorAssignments => Set<CollectorAssignment>();
 
+    // ── Wave 4: Overpayment & Notifications ──────────────────────────────────
+    public DbSet<SuspenseTransaction> SuspenseTransactions => Set<SuspenseTransaction>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<EmailOtp> EmailOtps => Set<EmailOtp>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -86,6 +91,62 @@ public class LoanFlowDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(a => a.CollectorUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SuspenseTransaction>(b =>
+        {
+            b.Property(s => s.Amount).HasPrecision(18, 2);
+            b.HasOne(s => s.AppliedToSchedule)
+                .WithMany()
+                .HasForeignKey(s => s.AppliedToRepaymentScheduleId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── H5: Performance indexes for 100K+ scale ─────────────────────────
+        modelBuilder.Entity<Loan>(b =>
+        {
+            b.HasIndex(l => l.Status).HasDatabaseName("IX_Loans_Status");
+            b.HasIndex(l => l.LoanAccountNo).IsUnique().HasDatabaseName("IX_Loans_LoanAccountNo");
+        });
+
+        modelBuilder.Entity<RepaymentSchedule>(b =>
+        {
+            b.HasIndex(s => new { s.DueDate, s.Status }).HasDatabaseName("IX_RepaymentSchedules_DueDate_Status");
+            b.HasIndex(s => s.LoanId).HasDatabaseName("IX_RepaymentSchedules_LoanId");
+        });
+
+        modelBuilder.Entity<Notification>(b =>
+        {
+            b.HasIndex(n => new { n.UserId, n.IsRead }).HasDatabaseName("IX_Notifications_UserId_IsRead");
+            b.HasIndex(n => new { n.Type, n.LoanId }).HasDatabaseName("IX_Notifications_Type_LoanId");
+        });
+
+        modelBuilder.Entity<Payment>(b =>
+        {
+            b.HasIndex(p => p.PaymentDate).HasDatabaseName("IX_Payments_PaymentDate");
+            b.HasIndex(p => p.LoanId).HasDatabaseName("IX_Payments_LoanId");
+        });
+
+        modelBuilder.Entity<EmailOtp>(b =>
+        {
+            b.HasIndex(o => o.DeeplinkToken).HasDatabaseName("IX_EmailOtps_DeeplinkToken");
+            b.HasIndex(o => new { o.UserId, o.CreatedAt }).HasDatabaseName("IX_EmailOtps_UserId_CreatedAt");
+        });
+
+        modelBuilder.Entity<AuditLog>(b =>
+        {
+            b.HasIndex(a => new { a.EntityType, a.EntityId }).HasDatabaseName("IX_AuditLogs_EntityType_EntityId");
+        });
+
+        modelBuilder.Entity<CollectorAssignment>(b =>
+        {
+            b.HasIndex(a => new { a.CollectorUserId, a.Status }).HasDatabaseName("IX_CollectorAssignments_Collector_Status");
+        });
+
+        modelBuilder.Entity<Customer>(b =>
+        {
+            b.HasIndex(c => c.Phone).IsUnique().HasDatabaseName("IX_Customers_Phone");
+            b.HasIndex(c => c.IdNumber).IsUnique().HasDatabaseName("IX_Customers_IdNumber");
         });
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoanFlowDbContext).Assembly);

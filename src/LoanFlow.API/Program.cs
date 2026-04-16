@@ -46,6 +46,9 @@ builder.Services.AddScoped<IReversalService, ReversalService>();
 builder.Services.AddScoped<IReconciliationService, ReconciliationService>();
 builder.Services.AddScoped<ICollectionService, CollectionService>();
 builder.Services.AddScoped<IReportingService, ReportingService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ISmsService, NullSmsService>();
 builder.Services.AddScoped<IEndOfDayService, EndOfDayService>();
 
 // === Background Jobs ===
@@ -125,12 +128,15 @@ builder.Services.AddCors(options =>
          .AllowAnyHeader()
          .AllowAnyMethod()));
 
+
+
 var app = builder.Build();
 
 // === Middleware ===
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
+app.UseRateLimiter();
 
 // Swagger — Development only
 if (app.Environment.IsDevelopment())

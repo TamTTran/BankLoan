@@ -21,6 +21,8 @@ public interface ILoanService
     // Phase 2
     Task<Result<EarlySettlePreviewDto>> PreviewEarlySettleAsync(int loanId, DateOnly settlementDate);
     Task<Result> EarlySettleAsync(int loanId, EarlySettleRequest request, int userId);
+    // Wave 4
+    Task<Result> ApplySuspenseAsync(int suspenseId, int userId);
 }
 
 public class LoanService : ILoanService
@@ -167,17 +169,16 @@ public class LoanService : ILoanService
             ProductType = product.ProductType
         };
         _db.Loans.Add(loan);
-        await _db.SaveChangesAsync();
 
         _db.AuditLogs.Add(new AuditLog
         {
             ActorUserId = userId,
             ActionCode = AuditActions.LoanCreated,
             EntityType = "Loan",
-            EntityId = loan.Id,
+            EntityId = 0, // will be updated after save
             NewValuesJson = AuditHelper.ToJson(new { loanAccountNo = loanNo, applicationId })
         });
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(); // single roundtrip — EF resolves loan.Id
 
         return await GetByIdAsync(loan.Id);
     }
@@ -287,6 +288,10 @@ public class LoanService : ILoanService
         if (req.Amount <= 0)
             return Result.Failure("PAY-VAL-002: Payment amount must be greater than zero.");
 
+        await using var tx = await _db.Database.BeginTransactionAsync();
+        try
+        {
+
         // Make sure late fees are calculated up to payment date
         await _lateFeeService.CalculateLateFeesAsync(loanId, req.PaymentDate);
 
@@ -298,12 +303,11 @@ public class LoanService : ILoanService
         var lateFeeDue = loan.LateFees.Where(f => f.Status == LateFeeStatus.Pending).Sum(f => f.FeeAmount);
         var totalDue = scheduleDue + lateFeeDue;
 
-        // Allowing overpayment can be complex, so we limit it for now.
-        if (req.Amount > totalDue)
-            return Result.Failure($"PAY-VAL-003: Payment amount exceeds current outstanding due ({totalDue:N2}).");
+        var overpayment = req.Amount > totalDue ? req.Amount - totalDue : 0;
+        var amountToAllocate = req.Amount > totalDue ? totalDue : req.Amount;
 
         // §13.6 Payment allocation: LateFee → Interest → Principal
-        var remaining = req.Amount;
+        var remaining = amountToAllocate;
         
         // 1. Pay pending Late Fees first
         var pendingFees = loan.LateFees.Where(f => f.Status == LateFeeStatus.Pending).ToList();
@@ -405,8 +409,76 @@ public class LoanService : ILoanService
             NewValuesJson = AuditHelper.ToJson(new { amount = req.Amount, loanId })
         });
 
+        // Wave 4: Create SuspenseTransaction if there is overpayment
+        if (overpayment > 0)
+        {
+            var suspense = new SuspenseTransaction
+            {
+                LoanId = loanId,
+                Amount = overpayment,
+                Reason = "Overpayment"
+            };
+            _db.SuspenseTransactions.Add(suspense);
+            
+            _db.AuditLogs.Add(new AuditLog
+            {
+                ActorUserId = userId,
+                ActionCode = AuditActions.SuspenseCreated,
+                EntityType = "Loan",
+                EntityId = loanId,
+                NewValuesJson = AuditHelper.ToJson(new { amount = overpayment })
+            });
+        }
+
         await _db.SaveChangesAsync();
+        await tx.CommitAsync();
         return Result.Success();
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
+    }
+
+    // ── POST /loans/suspense/{id}/apply ─────────────────────────────────────
+    public async Task<Result> ApplySuspenseAsync(int suspenseId, int userId)
+    {
+        var suspense = await _db.SuspenseTransactions
+            .Include(s => s.Loan)
+            .FirstOrDefaultAsync(s => s.Id == suspenseId);
+
+        if (suspense == null) return Result.Failure("Suspense transaction not found.");
+        if (suspense.Status != SuspenseStatus.Pending) return Result.Failure("Suspense is not pending.");
+
+        // Here we simulate applying suspense by recording a new payment
+        var applyReq = new RecordPaymentRequest
+        {
+            PaymentDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            Amount = suspense.Amount,
+            PaymentMethod = "SuspenseAccount",
+            Remarks = "Applied from Suspense Account"
+        };
+
+        var result = await RecordPaymentAsync(suspense.LoanId, applyReq, userId);
+        if (result.IsSuccess)
+        {
+            suspense.Status = SuspenseStatus.Applied;
+            suspense.AppliedAt = DateOnly.FromDateTime(DateTime.UtcNow);
+            suspense.AppliedByUserId = userId;
+
+            _db.AuditLogs.Add(new AuditLog
+            {
+                ActorUserId = userId,
+                ActionCode = AuditActions.SuspenseApplied,
+                EntityType = "SuspenseTransaction",
+                EntityId = suspenseId,
+                NewValuesJson = AuditHelper.ToJson(new { amount = suspense.Amount, loanId = suspense.LoanId })
+            });
+
+            await _db.SaveChangesAsync();
+        }
+        return result;
     }
 
     // ── EARLY SETTLEMENT (Phase 2) ──────────────────────────────────────────
@@ -610,62 +682,42 @@ public class LoanService : ILoanService
         return Result.Success();
     }
 
-    // ── GET /overdue (§OD-002) — query-time overdue calculation ─────────────
+    // ── GET /overdue (§OD-002) — DB-side overdue projection ──────────────────
     public async Task<IEnumerable<OverdueItemDto>> GetOverdueListAsync()
     {
         var today = BusinessDate();
 
-        var activeLoans = await _db.Loans
-            .Include(l => l.Customer)
-            .Include(l => l.RepaymentSchedules)
-            .Include(l => l.CollectionNotes)
+        // C1 Fix: DB-side projection — no full entity load
+        var overdueData = await _db.Loans
             .Where(l => l.Status == LoanStatus.Active || l.Status == LoanStatus.Overdue)
-            .ToListAsync();
-
-        var result = new List<OverdueItemDto>();
-
-        foreach (var loan in activeLoans)
-        {
-            // §12.8 Rule 3: overdue if due_date < business_date AND remaining > 0
-            var overdueSchedules = loan.RepaymentSchedules
-                .Where(s => s.DueDate < today && s.RemainingDueAmount > 0)
-                .ToList();
-
-            if (overdueSchedules.Count == 0) continue;
-
-            // §13.5 DPD = business_date - oldest overdue due_date
-            var oldestDue = overdueSchedules.Min(s => s.DueDate);
-            int dpd = today.DayNumber - oldestDue.DayNumber;
-            var overdueAmount = overdueSchedules.Sum(s => s.RemainingDueAmount);
-
-            // Update loan status to OVERDUE if still Active
-            if (loan.Status == LoanStatus.Active)
+            .Where(l => l.RepaymentSchedules.Any(s => s.DueDate < today && s.RemainingDueAmount > 0))
+            .Select(l => new OverdueItemDto
             {
-                loan.Status = LoanStatus.Overdue;
-                loan.UpdatedAt = DateTime.UtcNow;
-            }
-
-            result.Add(new OverdueItemDto
-            {
-                LoanId = loan.Id,
-                LoanAccountNo = loan.LoanAccountNo,
-                CustomerId = loan.CustomerId,
-                CustomerName = loan.Customer.FullName,
-                CustomerPhone = loan.Customer.Phone,
-                OutstandingAmount = loan.OutstandingAmount,
-                OverdueDueAmount = overdueAmount,
-                Dpd = dpd,
-                Bucket = DpdBucket.Calculate(dpd),
-                LastCollectionNote = loan.CollectionNotes
+                LoanId = l.Id,
+                LoanAccountNo = l.LoanAccountNo,
+                CustomerId = l.CustomerId,
+                CustomerName = l.Customer.FullName,
+                CustomerPhone = l.Customer.Phone,
+                OutstandingAmount = l.OutstandingAmount,
+                OverdueDueAmount = l.RepaymentSchedules
+                    .Where(s => s.DueDate < today && s.RemainingDueAmount > 0)
+                    .Sum(s => s.RemainingDueAmount),
+                Dpd = today.DayNumber - l.RepaymentSchedules
+                    .Where(s => s.DueDate < today && s.RemainingDueAmount > 0)
+                    .Min(s => s.DueDate).DayNumber,
+                LastCollectionNote = l.CollectionNotes
                     .OrderByDescending(n => n.CreatedAt)
                     .Select(n => n.NoteText)
                     .FirstOrDefault()
-            });
-        }
+            })
+            .OrderByDescending(x => x.Dpd)
+            .ToListAsync();
 
-        await _db.SaveChangesAsync(); // persist any status updates
+        // Set bucket on client side (simple string calc, not worth doing in SQL)
+        foreach (var item in overdueData)
+            item.Bucket = DpdBucket.Calculate(item.Dpd);
 
-        return result.OrderByDescending(x => x.Dpd);
+        return overdueData;
     }
 
     // ── Schedule generation (§13.2 — flat interest model) ────────────────────
@@ -774,18 +826,13 @@ public class LoanService : ILoanService
     {
         var year = DateTime.Now.Year;
         var prefix = $"LN-{year}-";
-        var last = await _db.Loans
-            .Where(l => l.LoanAccountNo.StartsWith(prefix))
-            .OrderByDescending(l => l.LoanAccountNo)
-            .Select(l => l.LoanAccountNo)
+
+        // Use raw SQL with locking to prevent race condition on concurrent CreateLoan
+        var maxSeq = await _db.Database
+            .SqlQueryRaw<int?>($"SELECT MAX(CAST(SUBSTRING(LoanAccountNo, {prefix.Length + 1}) AS UNSIGNED)) AS Value FROM Loans WHERE LoanAccountNo LIKE '{prefix}%' FOR UPDATE")
             .FirstOrDefaultAsync();
 
-        int seq = 1;
-        if (last is not null)
-        {
-            var parts = last.Split('-');
-            if (parts.Length >= 3 && int.TryParse(parts[^1], out var n)) seq = n + 1;
-        }
+        int seq = (maxSeq ?? 0) + 1;
         return $"{prefix}{seq:D4}";
     }
 

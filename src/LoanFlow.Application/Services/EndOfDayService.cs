@@ -33,7 +33,7 @@ public class EodReportDto
 // ── Interface ───────────────────────────────────────────────────────────────
 public interface IEndOfDayService
 {
-    Task<EodReportDto> RunAsync(DateOnly businessDate, int userId = 0, CancellationToken ct = default);
+    Task<EodReportDto> RunAsync(DateOnly businessDate, int? userId = null, CancellationToken ct = default);
 }
 
 // ── Implementation ──────────────────────────────────────────────────────────
@@ -42,6 +42,7 @@ public class EndOfDayService : IEndOfDayService
     private readonly IOverdueJobService _overdueService;
     private readonly IReconciliationService _reconciliationService;
     private readonly ICollectionService _collectionService;
+    private readonly INotificationService _notificationService;
     private readonly LoanFlowDbContext _db;
     private readonly ILogger<EndOfDayService> _logger;
 
@@ -49,17 +50,19 @@ public class EndOfDayService : IEndOfDayService
         IOverdueJobService overdueService,
         IReconciliationService reconciliationService,
         ICollectionService collectionService,
+        INotificationService notificationService,
         LoanFlowDbContext db,
         ILogger<EndOfDayService> logger)
     {
         _overdueService = overdueService;
         _reconciliationService = reconciliationService;
         _collectionService = collectionService;
+        _notificationService = notificationService;
         _db = db;
         _logger = logger;
     }
 
-    public async Task<EodReportDto> RunAsync(DateOnly businessDate, int userId = 0, CancellationToken ct = default)
+    public async Task<EodReportDto> RunAsync(DateOnly businessDate, int? userId = null, CancellationToken ct = default)
     {
         var report = new EodReportDto
         {
@@ -131,6 +134,20 @@ public class EndOfDayService : IEndOfDayService
             report.Errors++;
             report.ErrorMessages.Add($"Step 3 (Portfolio Summary): {ex.Message}");
             _logger.LogError(ex, "EOD Step 3 failed");
+        }
+
+        // ── Step 4: Notifications & Reminders ───────────────────────────────
+        try
+        {
+            await _notificationService.GenerateDueRemindersAsync(businessDate);
+            await _notificationService.GenerateOverdueRemindersAsync(businessDate);
+            _logger.LogInformation("EOD Step 4 (Notifications) completed.");
+        }
+        catch (Exception ex)
+        {
+            report.Errors++;
+            report.ErrorMessages.Add($"Step 4 (Notifications): {ex.Message}");
+            _logger.LogError(ex, "EOD Step 4 failed");
         }
 
         report.CompletedAt = DateTime.UtcNow;

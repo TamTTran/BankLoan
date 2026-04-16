@@ -178,4 +178,16 @@ public class LoansController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Collector},{Roles.Manager}")]
     public async Task<IActionResult> GetOverdueList()
         => Ok(new { success = true, data = await _service.GetOverdueListAsync() });
+
+    // ── Wave 4: Overpayment Suspense ─────────────────────────────────────────
+
+    /// <summary>POST /loans/suspense/{id}/apply</summary>
+    [HttpPost("suspense/{id:int}/apply")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer}")]
+    public async Task<IActionResult> ApplySuspense(int id)
+    {
+        var result = await _service.ApplySuspenseAsync(id, CurrentUserId);
+        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
+        return Ok(new { success = true, data = new { message = "Suspense applied successfully." } });
+    }
 }

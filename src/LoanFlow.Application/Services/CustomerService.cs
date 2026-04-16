@@ -104,17 +104,16 @@ public class CustomerService : ICustomerService
             AssignedToUserId = createdByUserId  // mặc định: người tạo = người phụ trách
         };
         _db.Customers.Add(entity);
-        await _db.SaveChangesAsync();
 
         _db.AuditLogs.Add(new AuditLog
         {
             ActorUserId = createdByUserId,
             ActionCode = AuditActions.CustomerCreated,
             EntityType = "Customer",
-            EntityId = entity.Id,
+            EntityId = 0, // EF resolves after save
             NewValuesJson = AuditHelper.ToJson(new { fullName = entity.FullName, phone = entity.Phone })
         });
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(); // single roundtrip
 
         return await GetByIdAsync(entity.Id);
     }
@@ -134,7 +133,6 @@ public class CustomerService : ICustomerService
         entity.Address = req.Address;
         entity.DateOfBirth = req.DateOfBirth.ToDateTime(TimeOnly.MinValue);
         entity.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
 
         _db.AuditLogs.Add(new AuditLog
         {
@@ -144,7 +142,7 @@ public class CustomerService : ICustomerService
             OldValuesJson = AuditHelper.ToJson(new { phone = oldPhone }),
             NewValuesJson = AuditHelper.ToJson(new { phone = entity.Phone })
         });
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(); // single roundtrip
 
         return await GetByIdAsync(id);
     }

@@ -176,6 +176,11 @@ public static class AuditActions
     public const string CollectorAssigned = "COLLECTOR_ASSIGNED";
     public const string PromiseRecorded = "PROMISE_RECORDED";
     public const string PromiseBroken = "PROMISE_BROKEN";
+    // ── Wave 4: Overpayment & Notifications ─────────────────────────────
+    public const string SuspenseCreated = "SUSPENSE_CREATED";
+    public const string SuspenseApplied = "SUSPENSE_APPLIED";
+    public const string SuspenseRefunded = "SUSPENSE_REFUNDED";
+    public const string NotificationSent = "NOTIFICATION_SENT";
 }
 
 // ── Reversal Type ───────────────────────────────────────────────────────────
@@ -291,4 +296,28 @@ public static class LeadPriority
         _ => Dormant
     };
 }
+
+// ── Wave 4: Overpayment & Notifications ──────────────────────────────────────
+
+public static class SuspenseStatus
+{
+    public const string Pending = "Pending";
+    public const string Applied = "Applied";
+    public const string Refunded = "Refunded";
+}
+
+public static class NotificationType
+{
+    public const string DueReminder = "DueReminder";
+    public const string OverdueReminder = "OverdueReminder";
+    public const string PromiseDue = "PromiseDue";
+    public const string System = "System";
+}
+
+public static class OtpPurpose
+{
+    public const string Login = "Login";
+    public const string VerifyOverpayment = "VerifyOverpayment";
+}
+
 
