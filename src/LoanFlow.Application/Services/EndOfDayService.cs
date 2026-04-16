@@ -26,6 +26,7 @@ public class EodReportDto
     public decimal TotalDisbursedToday { get; set; }
     public decimal TotalPaymentsToday { get; set; }
     public int Errors { get; set; }
+    public int BrokenPromises { get; set; }
     public List<string> ErrorMessages { get; set; } = [];
 }
 
@@ -40,17 +41,20 @@ public class EndOfDayService : IEndOfDayService
 {
     private readonly IOverdueJobService _overdueService;
     private readonly IReconciliationService _reconciliationService;
+    private readonly ICollectionService _collectionService;
     private readonly LoanFlowDbContext _db;
     private readonly ILogger<EndOfDayService> _logger;
 
     public EndOfDayService(
         IOverdueJobService overdueService,
         IReconciliationService reconciliationService,
+        ICollectionService collectionService,
         LoanFlowDbContext db,
         ILogger<EndOfDayService> logger)
     {
         _overdueService = overdueService;
         _reconciliationService = reconciliationService;
+        _collectionService = collectionService;
         _db = db;
         _logger = logger;
     }
@@ -77,6 +81,20 @@ public class EndOfDayService : IEndOfDayService
             report.Errors++;
             report.ErrorMessages.Add($"Step 1 (Overdue): {ex.Message}");
             _logger.LogError(ex, "EOD Step 1 failed");
+        }
+
+        // ── Step 1.5: Check Broken Promises ────────────────────────────────
+        try
+        {
+            report.BrokenPromises = await _collectionService.CheckBrokenPromisesAsync(businessDate);
+            _logger.LogInformation("EOD Step 1.5 (Broken Promises) completed: {Broken} broken",
+                report.BrokenPromises);
+        }
+        catch (Exception ex)
+        {
+            report.Errors++;
+            report.ErrorMessages.Add($"Step 1.5 (Broken Promises): {ex.Message}");
+            _logger.LogError(ex, "EOD Step 1.5 failed");
         }
 
         // ── Step 2: Reconciliation ──────────────────────────────────────────

@@ -193,6 +193,58 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.ToTable("Collaterals");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.CollectionAction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly>("ActionDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ActionType")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("CollectorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("LoanId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly?>("NextFollowUpDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<decimal?>("PromiseAmount")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<DateOnly?>("PromiseDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("PromiseStatus")
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectorUserId");
+
+                    b.HasIndex("LoanId");
+
+                    b.ToTable("CollectionActions");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.CollectionNote", b =>
                 {
                     b.Property<int>("Id")
@@ -224,6 +276,43 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.HasIndex("LoanId");
 
                     b.ToTable("CollectionNotes");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.CollectorAssignment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("CollectorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LoanId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("UnassignedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectorUserId");
+
+                    b.HasIndex("LoanId");
+
+                    b.ToTable("CollectorAssignments");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.CreditCheck", b =>
@@ -1263,6 +1352,25 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Navigation("Customer");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.CollectionAction", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.User", "Collector")
+                        .WithMany()
+                        .HasForeignKey("CollectorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanFlow.Domain.Entities.Loan", "Loan")
+                        .WithMany()
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Collector");
+
+                    b.Navigation("Loan");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.CollectionNote", b =>
                 {
                     b.HasOne("LoanFlow.Domain.Entities.User", "CreatedBy")
@@ -1278,6 +1386,25 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("CreatedBy");
+
+                    b.Navigation("Loan");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.CollectorAssignment", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.User", "Collector")
+                        .WithMany()
+                        .HasForeignKey("CollectorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanFlow.Domain.Entities.Loan", "Loan")
+                        .WithMany()
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Collector");
 
                     b.Navigation("Loan");
                 });

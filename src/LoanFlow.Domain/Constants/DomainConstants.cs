@@ -170,6 +170,12 @@ public static class AuditActions
     public const string ReconciliationRun = "RECONCILIATION_RUN";
     public const string ReconciliationExceptionResolved = "RECONCILIATION_EXCEPTION_RESOLVED";
     public const string EodCompleted = "EOD_COMPLETED";
+
+    // ── Wave 3: Collections ─────────────────────────────────────────────
+    public const string CollectionActionAdded = "COLLECTION_ACTION_ADDED";
+    public const string CollectorAssigned = "COLLECTOR_ASSIGNED";
+    public const string PromiseRecorded = "PROMISE_RECORDED";
+    public const string PromiseBroken = "PROMISE_BROKEN";
 }
 
 // ── Reversal Type ───────────────────────────────────────────────────────────
@@ -204,6 +210,58 @@ public static class ReconciliationExceptionType
     public const string OutstandingMismatch = "OutstandingMismatch";
 }
 
+// ── Wave 3: Collection Workflow ─────────────────────────────────────────────
+
+public static class CollectionActionType
+{
+    public const string Call = "Call";
+    public const string Visit = "Visit";
+    public const string SMS = "SMS";
+    public const string Letter = "Letter";
+    public const string Legal = "Legal";
+
+    public static readonly string[] All = [Call, Visit, SMS, Letter, Legal];
+}
+
+public static class CollectionOutcome
+{
+    public const string Contacted = "Contacted";
+    public const string NoAnswer = "NoAnswer";
+    public const string PromiseToPay = "PromiseToPay";
+    public const string Refused = "Refused";
+    public const string Escalated = "Escalated";
+
+    public static readonly string[] All = [Contacted, NoAnswer, PromiseToPay, Refused, Escalated];
+}
+
+public static class PromiseStatus
+{
+    public const string Pending = "Pending";
+    public const string Kept = "Kept";
+    public const string Broken = "Broken";
+}
+
+public static class CollectorAssignmentStatus
+{
+    public const string Active = "Active";
+    public const string Completed = "Completed";
+    public const string Transferred = "Transferred";
+}
+
+public static class CollectionPriority
+{
+    public const string High = "High";       // DPD31Plus
+    public const string Medium = "Medium";   // DPD8_30
+    public const string Low = "Low";         // DPD1_7
+
+    public static string FromBucket(string bucket) => bucket switch
+    {
+        DpdBucket.Dpd31Plus => High,
+        DpdBucket.Dpd8To30 => Medium,
+        _ => Low
+    };
+}
+
 // ── Customer Care Interaction Types ─────────────────────────────────────────
 public static class InteractionType
 {
@@ -233,3 +291,4 @@ public static class LeadPriority
         _ => Dormant
     };
 }
+

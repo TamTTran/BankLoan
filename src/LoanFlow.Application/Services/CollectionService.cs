@@ -1,0 +1,373 @@
+using LoanFlow.Application.Common;
+using LoanFlow.Domain.Constants;
+using LoanFlow.Domain.Entities;
+using LoanFlow.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
+
+namespace LoanFlow.Application.Services;
+
+// ── DTOs ────────────────────────────────────────────────────────────────────
+public class CollectionActionDto
+{
+    public string ActionType { get; set; } = "";
+    public DateOnly ActionDate { get; set; }
+    public DateOnly? NextFollowUpDate { get; set; }
+    public string Outcome { get; set; } = "";
+    public DateOnly? PromiseDate { get; set; }
+    public decimal? PromiseAmount { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class CollectionActionItemDto
+{
+    public int Id { get; set; }
+    public int LoanId { get; set; }
+    public string CollectorName { get; set; } = "";
+    public string ActionType { get; set; } = "";
+    public DateOnly ActionDate { get; set; }
+    public DateOnly? NextFollowUpDate { get; set; }
+    public string Outcome { get; set; } = "";
+    public DateOnly? PromiseDate { get; set; }
+    public decimal? PromiseAmount { get; set; }
+    public string? PromiseStatus { get; set; }
+    public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class CollectionQueueItemDto
+{
+    public int LoanId { get; set; }
+    public string LoanAccountNo { get; set; } = "";
+    public int CustomerId { get; set; }
+    public string CustomerName { get; set; } = "";
+    public string CustomerPhone { get; set; } = "";
+    public decimal OutstandingAmount { get; set; }
+    public decimal OverdueAmount { get; set; }
+    public int Dpd { get; set; }
+    public string Bucket { get; set; } = "";
+    public string Priority { get; set; } = "";
+    public string? AssignedCollector { get; set; }
+    public int? AssignmentId { get; set; }
+    public DateOnly? NextFollowUpDate { get; set; }
+    public DateOnly? LastPromiseDate { get; set; }
+    public string? LastPromiseStatus { get; set; }
+    public string? LastActionOutcome { get; set; }
+    public int TotalActions { get; set; }
+}
+
+public class CollectionSummaryDto
+{
+    public int TotalOverdueLoans { get; set; }
+    public int TotalAssigned { get; set; }
+    public int TotalUnassigned { get; set; }
+    public int ActionsToday { get; set; }
+    public int PromisesPending { get; set; }
+    public int PromisesBroken { get; set; }
+    public decimal TotalOverdueAmount { get; set; }
+}
+
+public class AssignCollectorDto
+{
+    public int CollectorUserId { get; set; }
+}
+
+// ── Interface ───────────────────────────────────────────────────────────────
+public interface ICollectionService
+{
+    Task<IEnumerable<CollectionQueueItemDto>> GetCollectorQueueAsync(int collectorUserId);
+    Task<IEnumerable<CollectionQueueItemDto>> GetAllCollectionQueueAsync();
+    Task<Result> AssignCollectorAsync(int loanId, int collectorUserId, int assignedByUserId);
+    Task<Result> AddCollectionActionAsync(int loanId, CollectionActionDto dto, int userId);
+    Task<IEnumerable<CollectionActionItemDto>> GetCollectionHistoryAsync(int loanId);
+    Task<int> CheckBrokenPromisesAsync(DateOnly businessDate);
+    Task<CollectionSummaryDto> GetCollectionSummaryAsync();
+}
+
+// ── Implementation ──────────────────────────────────────────────────────────
+public class CollectionService : ICollectionService
+{
+    private readonly LoanFlowDbContext _db;
+
+    public CollectionService(LoanFlowDbContext db)
+    {
+        _db = db;
+    }
+
+    public async Task<IEnumerable<CollectionQueueItemDto>> GetCollectorQueueAsync(int collectorUserId)
+    {
+        var assignedLoanIds = await _db.CollectorAssignments
+            .Where(a => a.CollectorUserId == collectorUserId && a.Status == CollectorAssignmentStatus.Active)
+            .Select(a => a.LoanId)
+            .ToListAsync();
+
+        return await BuildQueueAsync(l => assignedLoanIds.Contains(l.Id));
+    }
+
+    public async Task<IEnumerable<CollectionQueueItemDto>> GetAllCollectionQueueAsync()
+    {
+        return await BuildQueueAsync(l => l.Status == LoanStatus.Overdue);
+    }
+
+    private async Task<IEnumerable<CollectionQueueItemDto>> BuildQueueAsync(
+        System.Linq.Expressions.Expression<Func<Loan, bool>> filter)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var loans = await _db.Loans
+            .Include(l => l.Customer)
+            .Include(l => l.RepaymentSchedules)
+            .Where(filter)
+            .ToListAsync();
+
+        var loanIds = loans.Select(l => l.Id).ToList();
+
+        var assignments = await _db.CollectorAssignments
+            .Include(a => a.Collector)
+            .Where(a => loanIds.Contains(a.LoanId) && a.Status == CollectorAssignmentStatus.Active)
+            .ToDictionaryAsync(a => a.LoanId);
+
+        var lastActions = await _db.CollectionActions
+            .Where(a => loanIds.Contains(a.LoanId))
+            .GroupBy(a => a.LoanId)
+            .Select(g => new
+            {
+                LoanId = g.Key,
+                Count = g.Count(),
+                Last = g.OrderByDescending(a => a.CreatedAt).FirstOrDefault()
+            })
+            .ToDictionaryAsync(x => x.LoanId);
+
+        var result = new List<CollectionQueueItemDto>();
+
+        foreach (var loan in loans)
+        {
+            var overdueSchedules = loan.RepaymentSchedules
+                .Where(s => s.DueDate < today && s.RemainingDueAmount > 0)
+                .ToList();
+
+            if (overdueSchedules.Count == 0 && loan.Status != LoanStatus.Overdue) continue;
+
+            var oldestDue = overdueSchedules.Count > 0 ? overdueSchedules.Min(s => s.DueDate) : today;
+            int dpd = today.DayNumber - oldestDue.DayNumber;
+            var bucket = DpdBucket.Calculate(dpd);
+
+            assignments.TryGetValue(loan.Id, out var assignment);
+            lastActions.TryGetValue(loan.Id, out var actionInfo);
+
+            result.Add(new CollectionQueueItemDto
+            {
+                LoanId = loan.Id,
+                LoanAccountNo = loan.LoanAccountNo,
+                CustomerId = loan.CustomerId,
+                CustomerName = loan.Customer.FullName,
+                CustomerPhone = loan.Customer.Phone,
+                OutstandingAmount = loan.OutstandingAmount,
+                OverdueAmount = overdueSchedules.Sum(s => s.RemainingDueAmount),
+                Dpd = dpd,
+                Bucket = bucket,
+                Priority = CollectionPriority.FromBucket(bucket),
+                AssignedCollector = assignment?.Collector?.FullName,
+                AssignmentId = assignment?.Id,
+                NextFollowUpDate = actionInfo?.Last?.NextFollowUpDate,
+                LastPromiseDate = actionInfo?.Last?.PromiseDate,
+                LastPromiseStatus = actionInfo?.Last?.PromiseStatus,
+                LastActionOutcome = actionInfo?.Last?.Outcome,
+                TotalActions = actionInfo?.Count ?? 0
+            });
+        }
+
+        return result.OrderByDescending(x => x.Dpd);
+    }
+
+    public async Task<Result> AssignCollectorAsync(int loanId, int collectorUserId, int assignedByUserId)
+    {
+        var loan = await _db.Loans.FindAsync(loanId);
+        if (loan is null) return Result.Failure("Loan not found.");
+
+        var collector = await _db.Users.FindAsync(collectorUserId);
+        if (collector is null || collector.Role != Roles.Collector)
+            return Result.Failure("User is not a valid collector.");
+
+        // Deactivate any existing assignment
+        var existing = await _db.CollectorAssignments
+            .FirstOrDefaultAsync(a => a.LoanId == loanId && a.Status == CollectorAssignmentStatus.Active);
+
+        if (existing != null)
+        {
+            existing.Status = CollectorAssignmentStatus.Transferred;
+            existing.UnassignedAt = DateTime.UtcNow;
+        }
+
+        // Compute priority from current DPD
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var overdueSchedules = await _db.RepaymentSchedules
+            .Where(s => s.LoanId == loanId && s.DueDate < today && s.RemainingDueAmount > 0)
+            .ToListAsync();
+        var dpd = overdueSchedules.Count > 0 ? today.DayNumber - overdueSchedules.Min(s => s.DueDate).DayNumber : 0;
+
+        _db.CollectorAssignments.Add(new CollectorAssignment
+        {
+            LoanId = loanId,
+            CollectorUserId = collectorUserId,
+            Priority = CollectionPriority.FromBucket(DpdBucket.Calculate(dpd))
+        });
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = assignedByUserId,
+            ActionCode = AuditActions.CollectorAssigned,
+            EntityType = "Loan",
+            EntityId = loanId,
+            NewValuesJson = AuditHelper.ToJson(new { collectorUserId, collectorName = collector.FullName })
+        });
+
+        await _db.SaveChangesAsync();
+        return Result.Success();
+    }
+
+    public async Task<Result> AddCollectionActionAsync(int loanId, CollectionActionDto dto, int userId)
+    {
+        var loan = await _db.Loans.FindAsync(loanId);
+        if (loan is null) return Result.Failure("Loan not found.");
+
+        if (!CollectionActionType.All.Contains(dto.ActionType))
+            return Result.Failure($"Invalid action type: {dto.ActionType}");
+
+        if (!CollectionOutcome.All.Contains(dto.Outcome))
+            return Result.Failure($"Invalid outcome: {dto.Outcome}");
+
+        var action = new CollectionAction
+        {
+            LoanId = loanId,
+            CollectorUserId = userId,
+            ActionType = dto.ActionType,
+            ActionDate = dto.ActionDate,
+            NextFollowUpDate = dto.NextFollowUpDate,
+            Outcome = dto.Outcome,
+            Notes = dto.Notes
+        };
+
+        // Handle promise-to-pay
+        if (dto.Outcome == CollectionOutcome.PromiseToPay)
+        {
+            if (!dto.PromiseDate.HasValue || !dto.PromiseAmount.HasValue)
+                return Result.Failure("Promise date and amount are required for PromiseToPay outcome.");
+
+            action.PromiseDate = dto.PromiseDate;
+            action.PromiseAmount = dto.PromiseAmount;
+            action.PromiseStatus = Domain.Constants.PromiseStatus.Pending;
+
+            _db.AuditLogs.Add(new AuditLog
+            {
+                ActorUserId = userId,
+                ActionCode = AuditActions.PromiseRecorded,
+                EntityType = "Loan",
+                EntityId = loanId,
+                NewValuesJson = AuditHelper.ToJson(new { promiseDate = dto.PromiseDate, promiseAmount = dto.PromiseAmount })
+            });
+        }
+
+        _db.CollectionActions.Add(action);
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = userId,
+            ActionCode = AuditActions.CollectionActionAdded,
+            EntityType = "Loan",
+            EntityId = loanId,
+            NewValuesJson = AuditHelper.ToJson(new { dto.ActionType, dto.Outcome })
+        });
+
+        await _db.SaveChangesAsync();
+        return Result.Success();
+    }
+
+    public async Task<IEnumerable<CollectionActionItemDto>> GetCollectionHistoryAsync(int loanId)
+    {
+        return await _db.CollectionActions
+            .Include(a => a.Collector)
+            .Where(a => a.LoanId == loanId)
+            .OrderByDescending(a => a.CreatedAt)
+            .Select(a => new CollectionActionItemDto
+            {
+                Id = a.Id,
+                LoanId = a.LoanId,
+                CollectorName = a.Collector.FullName,
+                ActionType = a.ActionType,
+                ActionDate = a.ActionDate,
+                NextFollowUpDate = a.NextFollowUpDate,
+                Outcome = a.Outcome,
+                PromiseDate = a.PromiseDate,
+                PromiseAmount = a.PromiseAmount,
+                PromiseStatus = a.PromiseStatus,
+                Notes = a.Notes,
+                CreatedAt = a.CreatedAt
+            })
+            .ToListAsync();
+    }
+
+    public async Task<int> CheckBrokenPromisesAsync(DateOnly businessDate)
+    {
+        // Find all pending promises where PromiseDate < today
+        var brokenActions = await _db.CollectionActions
+            .Where(a => a.PromiseStatus == Domain.Constants.PromiseStatus.Pending
+                     && a.PromiseDate.HasValue
+                     && a.PromiseDate.Value < businessDate)
+            .ToListAsync();
+
+        foreach (var action in brokenActions)
+        {
+            // Check if a payment was received on or after the promise date
+            var paymentReceived = await _db.Payments
+                .AnyAsync(p => p.LoanId == action.LoanId
+                            && p.PaymentDate >= action.PromiseDate!.Value
+                            && p.Amount > 0);
+
+            if (paymentReceived)
+            {
+                action.PromiseStatus = Domain.Constants.PromiseStatus.Kept;
+            }
+            else
+            {
+                action.PromiseStatus = Domain.Constants.PromiseStatus.Broken;
+
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    ActorUserId = 0, // system
+                    ActionCode = AuditActions.PromiseBroken,
+                    EntityType = "Loan",
+                    EntityId = action.LoanId,
+                    NewValuesJson = AuditHelper.ToJson(new { promiseDate = action.PromiseDate, promiseAmount = action.PromiseAmount })
+                });
+            }
+        }
+
+        if (brokenActions.Count > 0)
+            await _db.SaveChangesAsync();
+
+        return brokenActions.Count(a => a.PromiseStatus == Domain.Constants.PromiseStatus.Broken);
+    }
+
+    public async Task<CollectionSummaryDto> GetCollectionSummaryAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var overdueLoans = await _db.Loans.CountAsync(l => l.Status == LoanStatus.Overdue);
+        var totalAssigned = await _db.CollectorAssignments.CountAsync(a => a.Status == CollectorAssignmentStatus.Active);
+        var actionsToday = await _db.CollectionActions.CountAsync(a => a.ActionDate == today);
+        var promisesPending = await _db.CollectionActions.CountAsync(a => a.PromiseStatus == Domain.Constants.PromiseStatus.Pending);
+        var promisesBroken = await _db.CollectionActions.CountAsync(a => a.PromiseStatus == Domain.Constants.PromiseStatus.Broken);
+        var totalOverdueAmount = await _db.Loans.Where(l => l.Status == LoanStatus.Overdue).SumAsync(l => l.OutstandingAmount);
+
+        return new CollectionSummaryDto
+        {
+            TotalOverdueLoans = overdueLoans,
+            TotalAssigned = totalAssigned,
+            TotalUnassigned = overdueLoans - totalAssigned,
+            ActionsToday = actionsToday,
+            PromisesPending = promisesPending,
+            PromisesBroken = promisesBroken,
+            TotalOverdueAmount = totalOverdueAmount
+        };
+    }
+}

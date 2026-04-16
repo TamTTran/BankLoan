@@ -35,6 +35,10 @@ public class LoanFlowDbContext : DbContext
     public DbSet<TransactionReversal> TransactionReversals => Set<TransactionReversal>();
     public DbSet<ReconciliationException> ReconciliationExceptions => Set<ReconciliationException>();
 
+    // ── Wave 3: Collections ───────────────────────────────────────────────────
+    public DbSet<CollectionAction> CollectionActions => Set<CollectionAction>();
+    public DbSet<CollectorAssignment> CollectorAssignments => Set<CollectorAssignment>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -65,6 +69,22 @@ public class LoanFlowDbContext : DbContext
             b.HasOne(r => r.ApprovedBy)
                 .WithMany()
                 .HasForeignKey(r => r.ApprovedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CollectorAssignment>(b =>
+        {
+            b.HasOne(a => a.Collector)
+                .WithMany()
+                .HasForeignKey(a => a.CollectorUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CollectionAction>(b =>
+        {
+            b.HasOne(a => a.Collector)
+                .WithMany()
+                .HasForeignKey(a => a.CollectorUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

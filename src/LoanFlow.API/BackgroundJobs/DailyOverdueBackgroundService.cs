@@ -81,15 +81,16 @@ public class DailyOverdueBackgroundService : BackgroundService
     {
         // Create a scope because IOverdueJobService is scoped (depends on DbContext)
         using var scope = _serviceProvider.CreateScope();
-        var jobService = scope.ServiceProvider.GetRequiredService<IOverdueJobService>();
+        var jobService = scope.ServiceProvider.GetRequiredService<IEndOfDayService>();
 
-        var result = await jobService.RunDailyOverdueProcessingAsync(businessDate, batchSize, ct);
+        // System user ID = 0 (or a dedicated service account ID if we had one)
+        var result = await jobService.RunAsync(businessDate, 0, ct);
 
         if (result.Errors > 0)
         {
             _logger.LogWarning(
-                "Daily overdue job for {Date} completed WITH ERRORS: {Errors} errors out of {Total} loans",
-                businessDate, result.Errors, result.TotalLoansProcessed);
+                "EOD job for {Date} completed WITH ERRORS: {Errors} errors out of {Total} active loans",
+                businessDate, result.Errors, result.TotalActiveLoans);
         }
     }
 

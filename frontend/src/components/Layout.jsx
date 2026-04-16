@@ -8,6 +8,8 @@ const NAV = [
   { to: '/applications',icon: '📋', label: 'Hồ sơ vay',         id: 'nav-applications',badge: true },
   { to: '/loans',       icon: '💰', label: 'Khoản vay',         id: 'nav-loans'       },
   { to: '/overdue',     icon: '⚠️', label: 'Quá hạn',           id: 'nav-overdue'     },
+  { to: '/collections', icon: '🔔', label: 'Thu hồi nợ',        id: 'nav-collections' },
+  { to: '/reports',     icon: '📈', label: 'Báo cáo',           id: 'nav-reports'     },
 ];
 
 export function Layout({ children, pendingCount = 0 }) {
@@ -18,6 +20,8 @@ export function Layout({ children, pendingCount = 0 }) {
 
   const visible = NAV.filter(n => {
     if (n.to === '/products' && !can.viewProductsNav) return false;
+    if (n.to === '/collections' && !can.viewCollectionQueue) return false;
+    if (n.to === '/reports' && !can.viewReports) return false;
     return true;
   });
 
