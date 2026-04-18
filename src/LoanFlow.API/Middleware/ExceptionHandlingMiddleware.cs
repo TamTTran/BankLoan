@@ -1,3 +1,4 @@
+using LoanFlow.Application.Common;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
@@ -42,7 +43,15 @@ public class ExceptionHandlingMiddleware
         };
 
         // Here we could add logic to catch Specific domain exceptions like InvalidOperationException or NotFoundException
-        if (ex is InvalidOperationException || ex is ArgumentException)
+        if (ex is ConcurrencyConflictException)
+        {
+            statusCode = StatusCodes.Status409Conflict;
+            problemDetails.Status = statusCode;
+            problemDetails.Title = "Conflict";
+            problemDetails.Type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.8";
+            problemDetails.Detail = ex.Message;
+        }
+        else if (ex is InvalidOperationException || ex is ArgumentException)
         {
             statusCode = StatusCodes.Status400BadRequest;
             problemDetails.Status = statusCode;
@@ -58,7 +67,6 @@ public class ExceptionHandlingMiddleware
             problemDetails.Type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.3";
             problemDetails.Detail = "You do not have permission to perform this action.";
         }
-
         context.Response.StatusCode = statusCode;
         
         var result = JsonSerializer.Serialize(problemDetails, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });

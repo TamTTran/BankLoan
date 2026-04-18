@@ -52,15 +52,20 @@ public interface IReconciliationService
 public class ReconciliationService : IReconciliationService
 {
     private readonly LoanFlowDbContext _db;
+    private readonly IBusinessCalendarService _businessCalendar;
+    private readonly IBusinessClock _businessClock;
 
-    public ReconciliationService(LoanFlowDbContext db)
+    public ReconciliationService(LoanFlowDbContext db, IBusinessCalendarService businessCalendar, IBusinessClock businessClock)
     {
         _db = db;
+        _businessCalendar = businessCalendar;
+        _businessClock = businessClock;
     }
 
     public async Task<ReconciliationReportDto> RunReconciliationAsync(DateOnly businessDate, int? userId)
     {
         var report = new ReconciliationReportDto { BusinessDate = businessDate };
+        var (startUtc, endUtc) = _businessCalendar.GetBusinessDayUtcRange(businessDate);
 
         // ── 1. Payment reconciliation ────────────────────────────────────
         // Sum payments on date
@@ -70,7 +75,7 @@ public class ReconciliationService : IReconciliationService
 
         // Sum payment transactions on date
         var totalPaymentTx = await _db.LoanTransactions
-            .Where(t => t.TransactionType == "Payment" && t.CreatedAt.Date == businessDate.ToDateTime(TimeOnly.MinValue))
+            .Where(t => t.TransactionType == "Payment" && t.CreatedAt >= startUtc && t.CreatedAt < endUtc)
             .SumAsync(t => t.Amount);
 
         report.TotalPaymentsAmount = totalPayments;
@@ -97,7 +102,7 @@ public class ReconciliationService : IReconciliationService
             .SumAsync(d => d.DisbursedAmount);
 
         var totalDisbTx = await _db.LoanTransactions
-            .Where(t => t.TransactionType == "Disbursement" && t.CreatedAt.Date == businessDate.ToDateTime(TimeOnly.MinValue))
+            .Where(t => t.TransactionType == "Disbursement" && t.CreatedAt >= startUtc && t.CreatedAt < endUtc)
             .SumAsync(t => t.Amount);
 
         report.TotalDisbursementsAmount = totalDisb;
@@ -199,7 +204,7 @@ public class ReconciliationService : IReconciliationService
 
         exc.Status = ReconciliationStatus.Resolved;
         exc.ResolvedByUserId = userId;
-        exc.ResolvedAt = DateTime.UtcNow;
+        exc.ResolvedAt = _businessClock.UtcNow;
         exc.Resolution = request.Resolution;
 
         _db.AuditLogs.Add(new AuditLog

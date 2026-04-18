@@ -87,10 +87,12 @@ public interface ICollectionService
 public class CollectionService : ICollectionService
 {
     private readonly LoanFlowDbContext _db;
+    private readonly IBusinessClock _businessClock;
 
-    public CollectionService(LoanFlowDbContext db)
+    public CollectionService(LoanFlowDbContext db, IBusinessClock businessClock)
     {
         _db = db;
+        _businessClock = businessClock;
     }
 
     public async Task<IEnumerable<CollectionQueueItemDto>> GetCollectorQueueAsync(int collectorUserId)
@@ -111,7 +113,7 @@ public class CollectionService : ICollectionService
     private async Task<IEnumerable<CollectionQueueItemDto>> BuildQueueAsync(
         System.Linq.Expressions.Expression<Func<Loan, bool>> filter)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = _businessClock.TodayBusinessDate();
 
         var loans = await _db.Loans
             .Include(l => l.Customer)
@@ -195,11 +197,11 @@ public class CollectionService : ICollectionService
         if (existing != null)
         {
             existing.Status = CollectorAssignmentStatus.Transferred;
-            existing.UnassignedAt = DateTime.UtcNow;
+            existing.UnassignedAt = _businessClock.UtcNow;
         }
 
         // Compute priority from current DPD
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = _businessClock.TodayBusinessDate();
         var overdueSchedules = await _db.RepaymentSchedules
             .Where(s => s.LoanId == loanId && s.DueDate < today && s.RemainingDueAmount > 0)
             .ToListAsync();
@@ -356,7 +358,7 @@ public class CollectionService : ICollectionService
 
     public async Task<CollectionSummaryDto> GetCollectionSummaryAsync()
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = _businessClock.TodayBusinessDate();
 
         var overdueLoans = await _db.Loans.CountAsync(l => l.Status == LoanStatus.Overdue);
         var totalAssigned = await _db.CollectorAssignments.CountAsync(a => a.Status == CollectorAssignmentStatus.Active);

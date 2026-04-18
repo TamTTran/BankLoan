@@ -33,6 +33,7 @@ public class TransactionReversal
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ApprovedAt { get; set; }
+    public byte[]? RowVersion { get; set; }
 
     // Navigation
     public Loan Loan { get; set; } = default!;

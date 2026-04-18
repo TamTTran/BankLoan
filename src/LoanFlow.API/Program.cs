@@ -28,6 +28,10 @@ if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
 builder.Services.AddDbContext<LoanFlowDbContext>(options =>
     options.UseMySql(connString, ServerVersion.AutoDetect(connString)));
 
+builder.Services.Configure<BusinessDateOptions>(builder.Configuration.GetSection("BusinessDate"));
+builder.Services.AddSingleton<IBusinessCalendarService, BusinessCalendarService>();
+builder.Services.AddSingleton<IBusinessClock, BusinessClock>();
+
 // === Services ===
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();

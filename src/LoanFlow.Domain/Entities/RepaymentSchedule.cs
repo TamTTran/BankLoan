@@ -13,6 +13,7 @@ public class RepaymentSchedule
     public decimal RemainingDueAmount { get; set; }         // = (PrincipalDue - PrincipalPaid) + (InterestDue - InterestPaid)
     public string Status { get; set; } = "Unpaid";         // Unpaid | Partial | Paid | Overdue
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 
     public Loan Loan { get; set; } = default!;
 }

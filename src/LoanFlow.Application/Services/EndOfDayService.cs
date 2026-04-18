@@ -45,6 +45,7 @@ public class EndOfDayService : IEndOfDayService
     private readonly INotificationService _notificationService;
     private readonly LoanFlowDbContext _db;
     private readonly ILogger<EndOfDayService> _logger;
+    private readonly IBusinessClock _businessClock;
 
     public EndOfDayService(
         IOverdueJobService overdueService,
@@ -52,7 +53,8 @@ public class EndOfDayService : IEndOfDayService
         ICollectionService collectionService,
         INotificationService notificationService,
         LoanFlowDbContext db,
-        ILogger<EndOfDayService> logger)
+        ILogger<EndOfDayService> logger,
+        IBusinessClock businessClock)
     {
         _overdueService = overdueService;
         _reconciliationService = reconciliationService;
@@ -60,6 +62,7 @@ public class EndOfDayService : IEndOfDayService
         _notificationService = notificationService;
         _db = db;
         _logger = logger;
+        _businessClock = businessClock;
     }
 
     public async Task<EodReportDto> RunAsync(DateOnly businessDate, int? userId = null, CancellationToken ct = default)
@@ -67,7 +70,7 @@ public class EndOfDayService : IEndOfDayService
         var report = new EodReportDto
         {
             BusinessDate = businessDate,
-            StartedAt = DateTime.UtcNow
+            StartedAt = _businessClock.UtcNow
         };
 
         _logger.LogInformation("EOD processing started for {Date}", businessDate);
@@ -150,7 +153,7 @@ public class EndOfDayService : IEndOfDayService
             _logger.LogError(ex, "EOD Step 4 failed");
         }
 
-        report.CompletedAt = DateTime.UtcNow;
+        report.CompletedAt = _businessClock.UtcNow;
 
         // EOD audit log
         _db.AuditLogs.Add(new AuditLog

@@ -17,6 +17,7 @@ public class LateFee
     public string Status { get; set; } = "Pending";    // Pending | Paid | Waived
     public DateTime CalculatedAt { get; set; } = DateTime.UtcNow;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 
     public Loan Loan { get; set; } = default!;
     public RepaymentSchedule Schedule { get; set; } = default!;

@@ -9,14 +9,20 @@ namespace LoanFlow.Application.Services;
 public interface ILateFeeService
 {
     Task<Result> CalculateLateFeesAsync(int loanId, DateOnly calculationDate);
+    Task<Result> CalculateLateFeesAsync(Loan loan, DateOnly calculationDate);
     Task<Result> WaiveLateFeeAsync(int lateFeeId, int userId);
 }
 
 public class LateFeeService : ILateFeeService
 {
     private readonly LoanFlowDbContext _db;
+    private readonly IBusinessClock _businessClock;
 
-    public LateFeeService(LoanFlowDbContext db) => _db = db;
+    public LateFeeService(LoanFlowDbContext db, IBusinessClock businessClock)
+    {
+        _db = db;
+        _businessClock = businessClock;
+    }
 
     public async Task<Result> CalculateLateFeesAsync(int loanId, DateOnly calculationDate)
     {
@@ -26,6 +32,11 @@ public class LateFeeService : ILateFeeService
             .FirstOrDefaultAsync(l => l.Id == loanId);
 
         if (loan is null) return Result.Failure("Loan not found.");
+        return await CalculateLateFeesAsync(loan, calculationDate);
+    }
+
+    public async Task<Result> CalculateLateFeesAsync(Loan loan, DateOnly calculationDate)
+    {
         if (loan.Status == LoanStatus.Closed) return Result.Success();
 
         // Ensure rate exists (> 0). Some products might not have late fee enabled.
@@ -61,26 +72,26 @@ public class LateFeeService : ILateFeeService
                 existingFee.OverdueAmount = overdueAmount;
                 existingFee.DaysOverdue = daysOverdue;
                 existingFee.FeeAmount = calculatedFee;
-                existingFee.CalculatedAt = DateTime.UtcNow;
+                existingFee.CalculatedAt = _businessClock.UtcNow;
             }
             else
             {
                 // Create new pending fee
                 _db.LateFees.Add(new LateFee
                 {
-                    LoanId = loanId,
+                    LoanId = loan.Id,
                     ScheduleId = schedule.Id,
                     OverdueAmount = overdueAmount,
                     DaysOverdue = daysOverdue,
                     FeeRate = loan.LateFeeRate,
                     FeeAmount = calculatedFee,
                     Status = LateFeeStatus.Pending,
-                    CalculatedAt = DateTime.UtcNow
+                    CalculatedAt = _businessClock.UtcNow
                 });
             }
         }
 
-        await _db.SaveChangesAsync();
+        await SaveChangesWithConcurrencyHandlingAsync();
         return Result.Success();
     }
 
@@ -103,7 +114,19 @@ public class LateFeeService : ILateFeeService
             NewValuesJson = AuditHelper.ToJson(new { waivedAmount = lateFee.FeeAmount })
         });
 
-        await _db.SaveChangesAsync();
+        await SaveChangesWithConcurrencyHandlingAsync();
         return Result.Success();
+    }
+
+    private async Task SaveChangesWithConcurrencyHandlingAsync()
+    {
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConcurrencyConflictException("Late fee data was modified by another transaction. Reload and retry.");
+        }
     }
 }

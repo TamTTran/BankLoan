@@ -28,6 +28,7 @@ public class Loan
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public byte[]? RowVersion { get; set; }
 
     public LoanApplication Application { get; set; } = default!;
     public Customer Customer { get; set; } = default!;

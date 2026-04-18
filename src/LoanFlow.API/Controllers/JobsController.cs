@@ -12,13 +12,15 @@ public class JobsController : ControllerBase
 {
     private readonly IOverdueJobService _overdueJobService;
     private readonly IEndOfDayService _eodService;
+    private readonly IBusinessCalendarService _businessCalendar;
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    public JobsController(IOverdueJobService overdueJobService, IEndOfDayService eodService)
+    public JobsController(IOverdueJobService overdueJobService, IEndOfDayService eodService, IBusinessCalendarService businessCalendar)
     {
         _overdueJobService = overdueJobService;
         _eodService = eodService;
+        _businessCalendar = businessCalendar;
     }
 
     /// <summary>
@@ -28,9 +30,7 @@ public class JobsController : ControllerBase
     [HttpPost("overdue/run")]
     public async Task<IActionResult> RunOverdueJob([FromQuery] DateOnly? date, [FromQuery] int batchSize = 100)
     {
-        // Default to today's business date (UTC+7)
-        var tz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
-        var businessDate = date ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz));
+        var businessDate = date ?? _businessCalendar.GetCurrentBusinessDate();
 
         var result = await _overdueJobService.RunDailyOverdueProcessingAsync(businessDate, batchSize);
 
@@ -43,8 +43,8 @@ public class JobsController : ControllerBase
     [HttpGet("overdue/history")]
     public async Task<IActionResult> GetOverdueHistory([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
     {
-        var dateFrom = from ?? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-30));
-        var dateTo = to ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var dateTo = to ?? _businessCalendar.GetCurrentBusinessDate();
+        var dateFrom = from ?? dateTo.AddDays(-30);
 
         var history = await _overdueJobService.GetSnapshotHistoryAsync(dateFrom, dateTo);
 
@@ -58,8 +58,7 @@ public class JobsController : ControllerBase
     [HttpPost("eod")]
     public async Task<IActionResult> RunEndOfDay([FromQuery] DateOnly? date)
     {
-        var tz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
-        var businessDate = date ?? DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz));
+        var businessDate = date ?? _businessCalendar.GetCurrentBusinessDate();
 
         var report = await _eodService.RunAsync(businessDate, CurrentUserId);
 

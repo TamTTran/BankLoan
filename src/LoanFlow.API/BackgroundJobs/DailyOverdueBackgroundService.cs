@@ -50,7 +50,8 @@ public class DailyOverdueBackgroundService : BackgroundService
             try
             {
                 var vnNow = GetVietnamTime();
-                var today = DateOnly.FromDateTime(vnNow);
+                var calendar = _serviceProvider.GetRequiredService<IBusinessCalendarService>();
+                var today = calendar.GetCurrentBusinessDate();
 
                 // Skip if already ran today
                 if (_lastRunDate == today) continue;
@@ -94,9 +95,10 @@ public class DailyOverdueBackgroundService : BackgroundService
         }
     }
 
-    private static DateTime GetVietnamTime()
+    private DateTime GetVietnamTime()
     {
-        var tz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+        var timeZoneId = _configuration["BusinessDate:TimeZoneId"] ?? "SE Asia Standard Time";
+        var tz = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
         return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
     }
 }

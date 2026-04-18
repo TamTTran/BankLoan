@@ -68,10 +68,12 @@ public interface IReversalService
 public class ReversalService : IReversalService
 {
     private readonly LoanFlowDbContext _db;
+    private readonly IBusinessClock _businessClock;
 
-    public ReversalService(LoanFlowDbContext db)
+    public ReversalService(LoanFlowDbContext db, IBusinessClock businessClock)
     {
         _db = db;
+        _businessClock = businessClock;
     }
 
     public async Task<Result<ReversalRequestDto>> RequestPaymentReversalAsync(int loanId, RequestReversalDto request, int userId)
@@ -146,6 +148,7 @@ public class ReversalService : IReversalService
             var loan = await _db.Loans
                 .Include(l => l.RepaymentSchedules)
                 .Include(l => l.LateFees)
+                .AsSplitQuery()
                 .FirstOrDefaultAsync(l => l.Id == reversal.LoanId);
 
             if (loan is null) return Result.Failure<ReversalRequestDto>("Loan not found.");
@@ -162,14 +165,14 @@ public class ReversalService : IReversalService
             var compensatingPayment = new Payment
             {
                 LoanId = reversal.LoanId,
-                PaymentDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                PaymentDate = _businessClock.TodayBusinessDate(),
                 Amount = -reversal.ReversedAmount,
                 PaymentMethod = originalPayment.PaymentMethod,
                 Remarks = $"Reversal of Payment #{originalPayment.Id}: {reversal.Reason}",
                 CreatedByUserId = approverUserId
             };
             _db.Payments.Add(compensatingPayment);
-            await _db.SaveChangesAsync(); // get compensatingPayment.Id
+            await SaveChangesWithConcurrencyHandlingAsync("Reversal approval conflicted with another transaction. Reload and retry."); // get compensatingPayment.Id
 
             // 2. Create compensating transaction
             var compensatingTx = new LoanTransaction
@@ -181,7 +184,7 @@ public class ReversalService : IReversalService
                 ReferenceNo = $"REV-{reversal.Id}"
             };
             _db.LoanTransactions.Add(compensatingTx);
-            await _db.SaveChangesAsync();
+            await SaveChangesWithConcurrencyHandlingAsync("Reversal approval conflicted with another transaction. Reload and retry.");
 
             // 3. Roll back schedule allocations
             //    We need to "undo" what the original payment did.
@@ -236,13 +239,13 @@ public class ReversalService : IReversalService
                 loan.Status = LoanStatus.Active;
             }
 
-            loan.UpdatedAt = DateTime.UtcNow;
+            loan.UpdatedAt = _businessClock.UtcNow;
 
             // 6. Update reversal record
             reversal.ReversalTransactionId = compensatingTx.Id;
             reversal.Status = ReversalStatus.Approved;
             reversal.ApprovedByUserId = approverUserId;
-            reversal.ApprovedAt = DateTime.UtcNow;
+            reversal.ApprovedAt = _businessClock.UtcNow;
 
             _db.AuditLogs.Add(new AuditLog
             {
@@ -262,10 +265,15 @@ public class ReversalService : IReversalService
                 NewValuesJson = AuditHelper.ToJson(new { originalAmount = reversal.OriginalAmount, reversedAmount = reversal.ReversedAmount, newOutstanding = loan.OutstandingAmount })
             });
 
-            await _db.SaveChangesAsync();
+            await SaveChangesWithConcurrencyHandlingAsync("Reversal approval conflicted with another transaction. Reload and retry.");
             await tx.CommitAsync();
 
             return Result.Success(MapToDto(reversal));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await tx.RollbackAsync();
+            throw new ConcurrencyConflictException("Reversal approval conflicted with another transaction. Reload and retry.");
         }
         catch
         {
@@ -283,7 +291,7 @@ public class ReversalService : IReversalService
 
         reversal.Status = ReversalStatus.Rejected;
         reversal.ApprovedByUserId = approverUserId;
-        reversal.ApprovedAt = DateTime.UtcNow;
+        reversal.ApprovedAt = _businessClock.UtcNow;
         reversal.Reason += $" | Rejected: {reason}";
 
         _db.AuditLogs.Add(new AuditLog
@@ -295,7 +303,7 @@ public class ReversalService : IReversalService
             NewValuesJson = AuditHelper.ToJson(new { reversalId, reason })
         });
 
-        await _db.SaveChangesAsync();
+        await SaveChangesWithConcurrencyHandlingAsync("Reversal rejection conflicted with another transaction. Reload and retry.");
         return Result.Success();
     }
 
@@ -324,7 +332,7 @@ public class ReversalService : IReversalService
             NewValuesJson = AuditHelper.ToJson(new { loanId, oldAmount, newAmount = request.NewAmount, reason = request.Reason })
         });
 
-        await _db.SaveChangesAsync();
+        await SaveChangesWithConcurrencyHandlingAsync("Fee adjustment conflicted with another transaction. Reload and retry.");
         return Result.Success();
     }
 
@@ -370,4 +378,16 @@ public class ReversalService : IReversalService
         CreatedAt = r.CreatedAt,
         ApprovedAt = r.ApprovedAt
     };
+
+    private async Task SaveChangesWithConcurrencyHandlingAsync(string message)
+    {
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConcurrencyConflictException(message);
+        }
+    }
 }

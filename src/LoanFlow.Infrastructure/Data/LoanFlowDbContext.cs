@@ -107,12 +107,14 @@ public class LoanFlowDbContext : DbContext
         {
             b.HasIndex(l => l.Status).HasDatabaseName("IX_Loans_Status");
             b.HasIndex(l => l.LoanAccountNo).IsUnique().HasDatabaseName("IX_Loans_LoanAccountNo");
+            b.Property(l => l.RowVersion).IsRowVersion();
         });
 
         modelBuilder.Entity<RepaymentSchedule>(b =>
         {
             b.HasIndex(s => new { s.DueDate, s.Status }).HasDatabaseName("IX_RepaymentSchedules_DueDate_Status");
             b.HasIndex(s => s.LoanId).HasDatabaseName("IX_RepaymentSchedules_LoanId");
+            b.Property(s => s.RowVersion).IsRowVersion();
         });
 
         modelBuilder.Entity<Notification>(b =>
@@ -125,6 +127,16 @@ public class LoanFlowDbContext : DbContext
         {
             b.HasIndex(p => p.PaymentDate).HasDatabaseName("IX_Payments_PaymentDate");
             b.HasIndex(p => p.LoanId).HasDatabaseName("IX_Payments_LoanId");
+        });
+
+        modelBuilder.Entity<LateFee>(b =>
+        {
+            b.Property(f => f.RowVersion).IsRowVersion();
+        });
+
+        modelBuilder.Entity<TransactionReversal>(b =>
+        {
+            b.Property(r => r.RowVersion).IsRowVersion();
         });
 
         modelBuilder.Entity<EmailOtp>(b =>

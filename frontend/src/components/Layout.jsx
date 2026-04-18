@@ -3,23 +3,26 @@ import { useAuth } from '../context/AuthContext';
 import { NotificationBell } from '../features/notifications/components/NotificationBell';
 
 const NAV = [
-  { to: '/dashboard',    icon: '📊', label: 'Dashboard',         id: 'nav-dashboard'    },
-  { to: '/customers',   icon: '👥', label: 'Khách hàng',        id: 'nav-customers'   },
-  { to: '/products',    icon: '📦', label: 'Sản phẩm vay',      id: 'nav-products'    },
-  { to: '/applications',icon: '📋', label: 'Hồ sơ vay',         id: 'nav-applications',badge: true },
-  { to: '/loans',       icon: '💰', label: 'Khoản vay',         id: 'nav-loans'       },
-  { to: '/overdue',     icon: '⚠️', label: 'Quá hạn',           id: 'nav-overdue'     },
-  { to: '/collections', icon: '🔔', label: 'Thu hồi nợ',        id: 'nav-collections' },
-  { to: '/reports',     icon: '📈', label: 'Báo cáo',           id: 'nav-reports'     },
+  { to: '/dashboard', icon: 'DB', label: 'Dashboard', id: 'nav-dashboard' },
+  { to: '/customers', icon: 'KH', label: 'Khach hang', id: 'nav-customers' },
+  { to: '/products', icon: 'SP', label: 'San pham vay', id: 'nav-products' },
+  { to: '/applications', icon: 'HS', label: 'Ho so vay', id: 'nav-applications', badge: true },
+  { to: '/loans', icon: 'KV', label: 'Khoan vay', id: 'nav-loans' },
+  { to: '/overdue', icon: 'QH', label: 'Qua han', id: 'nav-overdue' },
+  { to: '/collections', icon: 'TH', label: 'Thu hoi no', id: 'nav-collections' },
+  { to: '/reports', icon: 'BC', label: 'Bao cao', id: 'nav-reports' },
 ];
 
 export function Layout({ children, pendingCount = 0 }) {
   const { user, logout, roleLabel, can } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => { logout(); navigate('/'); };
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
-  const visible = NAV.filter(n => {
+  const visible = NAV.filter((n) => {
     if (n.to === '/products' && !can.viewProductsNav) return false;
     if (n.to === '/collections' && !can.viewCollectionQueue) return false;
     if (n.to === '/reports' && !can.viewReports) return false;
@@ -30,23 +33,21 @@ export function Layout({ children, pendingCount = 0 }) {
     <div className="app-layout">
       <nav className="sidebar">
         <div className="sidebar-brand">
-          <div className="brand-icon">💳</div>
+          <div className="brand-icon">LF</div>
           <span className="brand-name">LoanFlow <span>Lite</span></span>
         </div>
 
         <ul className="nav-menu">
-          {visible.map(n => (
+          {visible.map((n) => (
             <li key={n.to}>
               <NavLink
                 to={n.to}
                 id={n.id}
                 className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
               >
-                <i className="nav-icon">{n.icon}</i>
-                <span>{n.label}</span>
-                {n.badge && pendingCount > 0 && (
-                  <span className="badge-nav">{pendingCount}</span>
-                )}
+                <i className="nav-icon nav-icon-glyph">{n.icon}</i>
+                <span className="nav-label">{n.label}</span>
+                {n.badge && pendingCount > 0 && <span className="badge-nav">{pendingCount}</span>}
               </NavLink>
             </li>
           ))}
@@ -54,20 +55,20 @@ export function Layout({ children, pendingCount = 0 }) {
 
         <div className="sidebar-footer">
           <div className="avatar">{(user?.fullName || user?.username || 'U')[0].toUpperCase()}</div>
-          <div>
+          <div className="sidebar-meta">
             <p className="user-name">{user?.fullName || user?.username}</p>
             <p className="user-role">{roleLabel}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="sidebar-actions">
             <NotificationBell />
-            <button className="btn-logout" onClick={handleLogout} title="Đăng xuất">⏻</button>
+            <button className="btn-logout" onClick={handleLogout} title="Dang xuat">
+              OUT
+            </button>
           </div>
         </div>
       </nav>
 
-      <main className="main-content">
-        {children}
-      </main>
+      <main className="main-content">{children}</main>
     </div>
   );
 }

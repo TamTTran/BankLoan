@@ -29,18 +29,13 @@ public class LoanService : ILoanService
 {
     private readonly LoanFlowDbContext _db;
     private readonly ILateFeeService _lateFeeService;
+    private readonly IBusinessClock _businessClock;
 
-    public LoanService(LoanFlowDbContext db, ILateFeeService lateFeeService)
+    public LoanService(LoanFlowDbContext db, ILateFeeService lateFeeService, IBusinessClock businessClock)
     {
         _db = db;
         _lateFeeService = lateFeeService;
-    }
-
-    // ── Timezone helper (§12.8 Business date = Asia/Ho_Chi_Minh) ────────────
-    private static DateOnly BusinessDate()
-    {
-        var tz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time"); // UTC+7
-        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz));
+        _businessClock = businessClock;
     }
 
     // ── GET /loans ──────────────────────────────────────────────────────────
@@ -87,12 +82,13 @@ public class LoanService : ILoanService
             .Include(l => l.RepaymentSchedules)
             .Include(l => l.Payments).ThenInclude(p => p.CreatedBy)
             .Include(l => l.LateFees)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(l => l.Id == id);
 
         if (loan is null) return Result.Failure<LoanDto>("Loan not found.");
 
         var dto = MapToDto(loan);
-        var today = BusinessDate();
+        var today = _businessClock.TodayBusinessDate();
 
         // Query time calculation for late fees
         await _lateFeeService.CalculateLateFeesAsync(loan.Id, today);
@@ -227,7 +223,7 @@ public class LoanService : ILoanService
             loan.DisbursementDate = req.DisbursementDate;
             loan.MaturityDate = req.DisbursementDate.AddMonths(loan.TenorMonths);
             loan.Status = LoanStatus.Active;
-            loan.UpdatedAt = DateTime.UtcNow;
+            loan.UpdatedAt = _businessClock.UtcNow;
 
             _db.LoanDisbursements.Add(new LoanDisbursement
             {
@@ -259,9 +255,14 @@ public class LoanService : ILoanService
                 NewValuesJson = AuditHelper.ToJson(new { disbursedAmount = req.DisbursedAmount, disbursementDate = req.DisbursementDate })
             });
 
-            await _db.SaveChangesAsync();
+            await SaveChangesWithConcurrencyHandlingAsync("Loan was modified while disbursing. Reload the loan and retry.");
             await tx.CommitAsync();
             return await GetByIdAsync(loanId);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            await tx.RollbackAsync();
+            throw new ConcurrencyConflictException("Loan was modified while disbursing. Reload the loan and retry.");
         }
         catch
         {
@@ -276,6 +277,7 @@ public class LoanService : ILoanService
         var loan = await _db.Loans
             .Include(l => l.RepaymentSchedules)
             .Include(l => l.LateFees)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(l => l.Id == loanId);
 
         if (loan is null) return Result.Failure("Loan not found.");
@@ -372,13 +374,13 @@ public class LoanService : ILoanService
         // §11.2: OVERDUE → ACTIVE if all overdue installments paid
         else if (loan.Status == LoanStatus.Overdue)
         {
-            var today = BusinessDate();
+            var today = _businessClock.TodayBusinessDate();
             var hasOverdue = loan.RepaymentSchedules.Any(s =>
                 s.Status != InstallmentStatus.Paid && s.DueDate < today);
             if (!hasOverdue) loan.Status = LoanStatus.Active;
         }
 
-        loan.UpdatedAt = DateTime.UtcNow;
+        loan.UpdatedAt = _businessClock.UtcNow;
 
         var payment = new Payment
         {
@@ -390,7 +392,7 @@ public class LoanService : ILoanService
             CreatedByUserId = userId
         };
         _db.Payments.Add(payment);
-        await _db.SaveChangesAsync();
+        await SaveChangesWithConcurrencyHandlingAsync("Loan was modified by another transaction while recording payment. Reload and retry.");
 
         _db.LoanTransactions.Add(new LoanTransaction
         {
@@ -430,9 +432,14 @@ public class LoanService : ILoanService
             });
         }
 
-        await _db.SaveChangesAsync();
+        await SaveChangesWithConcurrencyHandlingAsync("Loan was modified by another transaction while recording payment. Reload and retry.");
         await tx.CommitAsync();
         return Result.Success();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await tx.RollbackAsync();
+            throw new ConcurrencyConflictException("Loan was modified by another transaction while recording payment. Reload and retry.");
         }
         catch
         {
@@ -454,7 +461,7 @@ public class LoanService : ILoanService
         // Here we simulate applying suspense by recording a new payment
         var applyReq = new RecordPaymentRequest
         {
-            PaymentDate = DateOnly.FromDateTime(DateTime.UtcNow),
+            PaymentDate = _businessClock.TodayBusinessDate(),
             Amount = suspense.Amount,
             PaymentMethod = "SuspenseAccount",
             Remarks = "Applied from Suspense Account"
@@ -464,7 +471,7 @@ public class LoanService : ILoanService
         if (result.IsSuccess)
         {
             suspense.Status = SuspenseStatus.Applied;
-            suspense.AppliedAt = DateOnly.FromDateTime(DateTime.UtcNow);
+            suspense.AppliedAt = _businessClock.TodayBusinessDate();
             suspense.AppliedByUserId = userId;
 
             _db.AuditLogs.Add(new AuditLog
@@ -488,6 +495,7 @@ public class LoanService : ILoanService
         var loan = await _db.Loans
             .Include(l => l.RepaymentSchedules)
             .Include(l => l.LateFees)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(l => l.Id == loanId);
 
         if (loan is null) return Result.Failure<EarlySettlePreviewDto>("Loan not found.");
@@ -570,8 +578,12 @@ public class LoanService : ILoanService
         var loan = await _db.Loans
             .Include(l => l.RepaymentSchedules)
             .Include(l => l.LateFees)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(l => l.Id == loanId);
 
+        await using var tx = await _db.Database.BeginTransactionAsync();
+        try
+        {
         // Mark all late fees as paid
         foreach (var fee in loan!.LateFees.Where(f => f.Status == LateFeeStatus.Pending))
         {
@@ -597,7 +609,7 @@ public class LoanService : ILoanService
 
         loan.OutstandingAmount = 0;
         loan.Status = LoanStatus.Closed;
-        loan.UpdatedAt = DateTime.UtcNow;
+        loan.UpdatedAt = _businessClock.UtcNow;
 
         var payment = new Payment
         {
@@ -609,7 +621,7 @@ public class LoanService : ILoanService
             CreatedByUserId = userId
         };
         _db.Payments.Add(payment);
-        await _db.SaveChangesAsync();
+        await SaveChangesWithConcurrencyHandlingAsync("Loan was modified while settling early. Reload and retry.");
 
         _db.LoanTransactions.Add(new LoanTransaction { LoanId = loanId, PaymentId = payment.Id, TransactionType = "EarlySettlement", Amount = totalAmount });
         if (preview.EarlySettlementFee > 0)
@@ -626,14 +638,26 @@ public class LoanService : ILoanService
             NewValuesJson = AuditHelper.ToJson(new { settlementAmount = totalAmount, feeWaived = request.WaiveFee })
         });
 
-        await _db.SaveChangesAsync();
+        await SaveChangesWithConcurrencyHandlingAsync("Loan was modified while settling early. Reload and retry.");
+        await tx.CommitAsync();
         return Result.Success();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await tx.RollbackAsync();
+            throw new ConcurrencyConflictException("Loan was modified while settling early. Reload and retry.");
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
     }
 
     // ── GET /loans/{id}/schedule ─────────────────────────────────────────────
     public async Task<IEnumerable<ScheduleItemDto>> GetScheduleAsync(int loanId)
     {
-        var today = BusinessDate();
+        var today = _businessClock.TodayBusinessDate();
         return await _db.RepaymentSchedules
             .Where(s => s.LoanId == loanId)
             .OrderBy(s => s.InstallmentNo)
@@ -685,7 +709,7 @@ public class LoanService : ILoanService
     // ── GET /overdue (§OD-002) — DB-side overdue projection ──────────────────
     public async Task<IEnumerable<OverdueItemDto>> GetOverdueListAsync()
     {
-        var today = BusinessDate();
+        var today = _businessClock.TodayBusinessDate();
 
         // C1 Fix: DB-side projection — no full entity load
         var overdueData = await _db.Loans
@@ -824,7 +848,7 @@ public class LoanService : ILoanService
     // ── Loan account number generator (§LOAN-001: unique) ────────────────────
     private async Task<string> GenerateLoanAccountNoAsync()
     {
-        var year = DateTime.Now.Year;
+        var year = _businessClock.LocalNow.Year;
         var prefix = $"LN-{year}-";
 
         // Use raw SQL with locking to prevent race condition on concurrent CreateLoan
@@ -880,4 +904,16 @@ public class LoanService : ILoanService
         CreatedBy = p.CreatedBy?.FullName ?? "",
         CreatedAt = p.CreatedAt
     };
+
+    private async Task SaveChangesWithConcurrencyHandlingAsync(string message)
+    {
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConcurrencyConflictException(message);
+        }
+    }
 }

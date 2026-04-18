@@ -31,21 +31,32 @@ public class NotificationService : INotificationService
 {
     private readonly LoanFlowDbContext _db;
     private readonly ILogger<NotificationService> _logger;
+    private readonly IBusinessClock _businessClock;
+    private readonly IBusinessCalendarService _businessCalendar;
 
-    public NotificationService(LoanFlowDbContext db, ILogger<NotificationService> logger)
+    public NotificationService(
+        LoanFlowDbContext db,
+        ILogger<NotificationService> logger,
+        IBusinessClock businessClock,
+        IBusinessCalendarService businessCalendar)
     {
         _db = db;
         _logger = logger;
+        _businessClock = businessClock;
+        _businessCalendar = businessCalendar;
     }
 
     public async Task GenerateDueRemindersAsync(DateOnly businessDate, int daysBefore = 3)
     {
         var targetDate = businessDate.AddDays(daysBefore);
 
+        var (startUtc, endUtc) = _businessCalendar.GetBusinessDayUtcRange(businessDate);
+
         // C5 Fix: Get IDs of loans that already have a DueReminder for this target date
         var alreadyNotifiedLoanIds = await _db.Notifications
             .Where(n => n.Type == NotificationType.DueReminder
-                     && n.CreatedAt.Date == businessDate.ToDateTime(TimeOnly.MinValue))
+                     && n.CreatedAt >= startUtc
+                     && n.CreatedAt < endUtc)
             .Select(n => n.LoanId)
             .ToListAsync();
 
@@ -87,10 +98,13 @@ public class NotificationService : INotificationService
 
     public async Task GenerateOverdueRemindersAsync(DateOnly businessDate)
     {
+        var (startUtc, endUtc) = _businessCalendar.GetBusinessDayUtcRange(businessDate);
+
         // C5 Fix: Get loan IDs that already have an overdue reminder today
         var alreadyNotifiedLoanIds = await _db.Notifications
             .Where(n => n.Type == NotificationType.OverdueReminder
-                     && n.CreatedAt.Date == businessDate.ToDateTime(TimeOnly.MinValue))
+                     && n.CreatedAt >= startUtc
+                     && n.CreatedAt < endUtc)
             .Select(n => n.LoanId)
             .ToListAsync();
 
@@ -182,7 +196,7 @@ public class NotificationService : INotificationService
         if (notification == null) return Result.Failure("Notification not found.");
 
         notification.IsRead = true;
-        notification.ReadAt = DateTime.UtcNow;
+        notification.ReadAt = _businessClock.UtcNow;
 
         await _db.SaveChangesAsync();
         return Result.Success();

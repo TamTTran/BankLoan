@@ -58,12 +58,14 @@ public class OverdueJobService : IOverdueJobService
     private readonly LoanFlowDbContext _db;
     private readonly ILateFeeService _lateFeeService;
     private readonly ILogger<OverdueJobService> _logger;
+    private readonly IBusinessClock _businessClock;
 
-    public OverdueJobService(LoanFlowDbContext db, ILateFeeService lateFeeService, ILogger<OverdueJobService> logger)
+    public OverdueJobService(LoanFlowDbContext db, ILateFeeService lateFeeService, ILogger<OverdueJobService> logger, IBusinessClock businessClock)
     {
         _db = db;
         _lateFeeService = lateFeeService;
         _logger = logger;
+        _businessClock = businessClock;
     }
 
     public async Task<OverdueJobResultDto> RunDailyOverdueProcessingAsync(
@@ -92,6 +94,7 @@ public class OverdueJobService : IOverdueJobService
                 .OrderBy(l => l.Id)
                 .Skip(skip)
                 .Take(batchSize)
+                .AsSplitQuery()
                 .ToListAsync(ct);
 
             if (loans.Count == 0)
@@ -114,7 +117,7 @@ public class OverdueJobService : IOverdueJobService
             }
 
             // Save after each batch
-            await _db.SaveChangesAsync(ct);
+            await SaveChangesWithConcurrencyHandlingAsync(ct);
 
             skip += batchSize;
             result.TotalLoansProcessed += loans.Count;
@@ -162,7 +165,7 @@ public class OverdueJobService : IOverdueJobService
             if (loan.Status == LoanStatus.Active)
             {
                 loan.Status = LoanStatus.Overdue;
-                loan.UpdatedAt = DateTime.UtcNow;
+                loan.UpdatedAt = _businessClock.UtcNow;
                 result.LoansMarkedOverdue++;
             }
         }
@@ -172,7 +175,7 @@ public class OverdueJobService : IOverdueJobService
             if (loan.Status == LoanStatus.Overdue)
             {
                 loan.Status = LoanStatus.Active;
-                loan.UpdatedAt = DateTime.UtcNow;
+                loan.UpdatedAt = _businessClock.UtcNow;
                 result.LoansRevertedToActive++;
             }
             // No overdue → no snapshot needed for this loan
@@ -180,7 +183,7 @@ public class OverdueJobService : IOverdueJobService
         }
 
         // ── Calculate late fees ──────────────────────────────────────────
-        await _lateFeeService.CalculateLateFeesAsync(loan.Id, businessDate);
+        await _lateFeeService.CalculateLateFeesAsync(loan, businessDate);
         result.LateFeesCalculated++;
 
         // ── Create/update snapshot ───────────────────────────────────────
@@ -245,5 +248,17 @@ public class OverdueJobService : IOverdueJobService
             .ToListAsync();
 
         return snapshots;
+    }
+
+    private async Task SaveChangesWithConcurrencyHandlingAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConcurrencyConflictException("Overdue processing conflicted with concurrent loan updates. Re-run the job for the same business date.");
+        }
     }
 }

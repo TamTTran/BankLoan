@@ -1,21 +1,61 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { collectionsApi } from '../features/collections/api/collectionsApi';
+import Modal from '../components/Modal';
+import { Button } from '../components/ui/Button';
+import { Card, CardBody, CardHeader } from '../components/ui/Card';
 
 const ACTION_TYPES = ['Call', 'Visit', 'SMS', 'Letter', 'Legal'];
 const OUTCOMES = [
-  { value: 'Contacted', label: 'Đã liên hệ' },
-  { value: 'NoAnswer', label: 'Không nghe máy' },
-  { value: 'PromiseToPay', label: 'Hẹn trả nợ' },
-  { value: 'Refused', label: 'Từ chối' },
-  { value: 'Escalated', label: 'Chuyển cấp trên' },
+  { value: 'Contacted', label: 'Da lien he' },
+  { value: 'NoAnswer', label: 'Khong nghe may' },
+  { value: 'PromiseToPay', label: 'Hen tra no' },
+  { value: 'Refused', label: 'Tu choi' },
+  { value: 'Escalated', label: 'Chuyen cap tren' },
 ];
 
-const PRIORITY_COLORS = { High: '#ef4444', Medium: '#f59e0b', Low: '#22c55e' };
-const PRIORITY_LABELS = { High: 'Cao', Medium: 'Trung bình', Low: 'Thấp' };
+const PRIORITY_LABELS = {
+  High: 'Cao',
+  Medium: 'Trung binh',
+  Low: 'Thap',
+};
+
+const PROMISE_LABELS = {
+  Broken: 'That bai',
+  Kept: 'Da tra',
+  Pending: 'Cho',
+};
+
+function PriorityPill({ priority }) {
+  return (
+    <span className={`priority-pill priority-pill-${String(priority || '').toLowerCase()}`}>
+      {PRIORITY_LABELS[priority] || priority || '-'}
+    </span>
+  );
+}
+
+function PromisePill({ date, status }) {
+  if (!date) return '-';
+  const tone = status === 'Broken' ? 'danger' : status === 'Kept' ? 'success' : 'warning';
+
+  return (
+    <span className={`promise-pill promise-pill-${tone}`}>
+      {date} ({PROMISE_LABELS[status] || status || 'Cho'})
+    </span>
+  );
+}
+
+function SummaryMetric({ label, value, alert = false }) {
+  return (
+    <div className={`summary-metric${alert ? ' summary-metric-alert' : ''}`}>
+      <span className="summary-metric-label">{label}</span>
+      <strong className="summary-metric-value">{value}</strong>
+    </div>
+  );
+}
 
 export default function Collections() {
-  const { user, can } = useAuth();
+  const { can } = useAuth();
   const [queue, setQueue] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,11 +63,14 @@ export default function Collections() {
   const [history, setHistory] = useState([]);
   const [showActionModal, setShowActionModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-
-  // Action form
   const [actionForm, setActionForm] = useState({
-    actionType: 'Call', actionDate: new Date().toISOString().split('T')[0],
-    outcome: 'Contacted', nextFollowUpDate: '', promiseDate: '', promiseAmount: '', notes: ''
+    actionType: 'Call',
+    actionDate: new Date().toISOString().split('T')[0],
+    outcome: 'Contacted',
+    nextFollowUpDate: '',
+    promiseDate: '',
+    promiseAmount: '',
+    notes: '',
   });
 
   const isManagerView = can.viewAllCollections;
@@ -41,21 +84,35 @@ export default function Collections() {
       setQueue(data);
 
       if (isManagerView) {
-        const s = await collectionsApi.getSummary();
-        setSummary(s);
+        const nextSummary = await collectionsApi.getSummary();
+        setSummary(nextSummary);
       }
-    } catch (e) { console.error(e); }
-    setLoading(false);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   }, [isManagerView]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const resetActionForm = () => {
+    setActionForm({
+      actionType: 'Call',
+      actionDate: new Date().toISOString().split('T')[0],
+      outcome: 'Contacted',
+      nextFollowUpDate: '',
+      promiseDate: '',
+      promiseAmount: '',
+      notes: '',
+    });
+  };
 
   const openActionModal = (loan) => {
     setSelectedLoan(loan);
-    setActionForm({
-      actionType: 'Call', actionDate: new Date().toISOString().split('T')[0],
-      outcome: 'Contacted', nextFollowUpDate: '', promiseDate: '', promiseAmount: '', notes: ''
-    });
+    resetActionForm();
     setShowActionModal(true);
   };
 
@@ -66,8 +123,9 @@ export default function Collections() {
     setHistory(data);
   };
 
-  const submitAction = async (e) => {
-    e.preventDefault();
+  const submitAction = async (event) => {
+    event.preventDefault();
+
     try {
       const payload = {
         actionType: actionForm.actionType,
@@ -76,185 +134,235 @@ export default function Collections() {
         nextFollowUpDate: actionForm.nextFollowUpDate || null,
         notes: actionForm.notes || null,
       };
+
       if (actionForm.outcome === 'PromiseToPay') {
         payload.promiseDate = actionForm.promiseDate;
         payload.promiseAmount = parseFloat(actionForm.promiseAmount);
       }
+
       await collectionsApi.addAction(selectedLoan.loanId, payload);
       setShowActionModal(false);
+      setSelectedLoan(null);
       load();
-    } catch (err) { alert(err.message || 'Lỗi'); }
+    } catch (error) {
+      alert(error.message || 'Loi');
+    }
   };
 
   const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
 
   return (
-    <div className="page-container">
+    <div className="page">
       <div className="page-header">
-        <h1>🔔 Thu hồi nợ</h1>
-        <p className="page-subtitle">
-          {isManagerView ? 'Quản lý tất cả khoản vay quá hạn' : 'Danh sách khoản vay được giao'}
-        </p>
+        <div>
+          <h2>Thu hoi no</h2>
+          <p className="subtitle">
+            {isManagerView
+              ? 'Quan ly tat ca khoan vay qua han.'
+              : 'Danh sach khoan vay duoc giao.'}
+          </p>
+        </div>
       </div>
 
-      {/* Summary Cards (Manager/Admin only) */}
       {summary && (
-        <div className="stats-grid" style={{ marginBottom: '2rem' }}>
-          <div className="stat-card"><div className="stat-value">{summary.totalOverdueLoans}</div><div className="stat-label">Tổng quá hạn</div></div>
-          <div className="stat-card"><div className="stat-value">{summary.totalAssigned}</div><div className="stat-label">Đã phân công</div></div>
-          <div className="stat-card"><div className="stat-value">{summary.totalUnassigned}</div><div className="stat-label">Chưa phân công</div></div>
-          <div className="stat-card"><div className="stat-value">{summary.actionsToday}</div><div className="stat-label">Liên hệ hôm nay</div></div>
-          <div className="stat-card"><div className="stat-value">{summary.promisesPending}</div><div className="stat-label">Hẹn trả chờ</div></div>
-          <div className="stat-card" style={{ borderColor: '#ef4444' }}><div className="stat-value" style={{ color: '#ef4444' }}>{summary.promisesBroken}</div><div className="stat-label">Hẹn trả thất bại</div></div>
+        <div className="collections-summary">
+          <SummaryMetric label="Tong qua han" value={summary.totalOverdueLoans} />
+          <SummaryMetric label="Da phan cong" value={summary.totalAssigned} />
+          <SummaryMetric label="Chua phan cong" value={summary.totalUnassigned} />
+          <SummaryMetric label="Lien he hom nay" value={summary.actionsToday} />
+          <SummaryMetric label="Hen tra cho" value={summary.promisesPending} />
+          <SummaryMetric label="Hen tra that bai" value={summary.promisesBroken} alert />
         </div>
       )}
 
-      {/* Queue Table */}
-      {loading ? <p>Đang tải...</p> : (
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Mã khoản vay</th>
-                <th>Khách hàng</th>
-                <th>SĐT</th>
-                <th>Dư nợ quá hạn</th>
-                <th>DPD</th>
-                <th>Ưu tiên</th>
-                <th>Collector</th>
-                <th>Kết quả cuối</th>
-                <th>Hẹn trả</th>
-                <th>Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {queue.map(item => (
-                <tr key={item.loanId}>
-                  <td><strong>{item.loanAccountNo}</strong></td>
-                  <td>{item.customerName}</td>
-                  <td>{item.customerPhone}</td>
-                  <td className="text-right">{fmt(item.overdueAmount)}</td>
-                  <td><span className="badge" style={{ backgroundColor: item.dpd > 30 ? '#ef4444' : item.dpd > 7 ? '#f59e0b' : '#3b82f6' }}>{item.dpd} ngày</span></td>
-                  <td><span style={{ color: PRIORITY_COLORS[item.priority], fontWeight: 600 }}>{PRIORITY_LABELS[item.priority]}</span></td>
-                  <td>{item.assignedCollector || <em style={{ opacity: 0.5 }}>Chưa phân</em>}</td>
-                  <td>{OUTCOMES.find(o => o.value === item.lastActionOutcome)?.label || '—'}</td>
-                  <td>
-                    {item.lastPromiseDate && (
-                      <span className={`badge ${item.lastPromiseStatus === 'Broken' ? 'badge-danger' : item.lastPromiseStatus === 'Kept' ? 'badge-success' : 'badge-warning'}`}>
-                        {item.lastPromiseDate} ({item.lastPromiseStatus === 'Broken' ? 'Thất bại' : item.lastPromiseStatus === 'Kept' ? 'Đã trả' : 'Chờ'})
-                      </span>
-                    )}
-                    {!item.lastPromiseDate && '—'}
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      {can.logCollectionAction && (
-                        <button className="btn btn-sm btn-primary" onClick={() => openActionModal(item)}>📞 Ghi nhận</button>
-                      )}
-                      <button className="btn btn-sm btn-ghost" onClick={() => openHistory(item)}>📋 Lịch sử</button>
-                    </div>
-                  </td>
+      <Card hoverable>
+        <CardHeader
+          title="Collection queue"
+          subtitle={isManagerView ? 'Manager view across all overdue loans.' : 'Collector workbench for assigned cases.'}
+          action={<span className="dashboard-date-chip">{queue.length} khoan vay</span>}
+        />
+        <CardBody className="table-shell">
+          {loading ? (
+            <div className="loading-shimmer" />
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Ma khoan vay</th>
+                  <th>Khach hang</th>
+                  <th>SDT</th>
+                  <th>Du no qua han</th>
+                  <th>DPD</th>
+                  <th>Uu tien</th>
+                  <th>Collector</th>
+                  <th>Ket qua cuoi</th>
+                  <th>Hen tra</th>
+                  <th>Thao tac</th>
                 </tr>
-              ))}
-              {queue.length === 0 && <tr><td colSpan="10" style={{ textAlign: 'center', padding: '2rem' }}>Không có khoản vay quá hạn nào.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Action Modal */}
-      {showActionModal && (
-        <div className="modal-backdrop" onClick={() => setShowActionModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '540px' }}>
-            <div className="modal-header">
-              <h3>📞 Ghi nhận liên hệ — {selectedLoan.loanAccountNo}</h3>
-              <button className="btn-close" onClick={() => setShowActionModal(false)}>×</button>
-            </div>
-            <form onSubmit={submitAction}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label>Hình thức liên hệ</label>
-                  <select value={actionForm.actionType} onChange={e => setActionForm(f => ({ ...f, actionType: e.target.value }))}>
-                    {ACTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Ngày liên hệ</label>
-                  <input type="date" value={actionForm.actionDate} onChange={e => setActionForm(f => ({ ...f, actionDate: e.target.value }))} required />
-                </div>
-                <div className="form-group">
-                  <label>Kết quả</label>
-                  <select value={actionForm.outcome} onChange={e => setActionForm(f => ({ ...f, outcome: e.target.value }))}>
-                    {OUTCOMES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-
-                {actionForm.outcome === 'PromiseToPay' && (
-                  <>
-                    <div className="form-group">
-                      <label>Ngày hẹn trả</label>
-                      <input type="date" value={actionForm.promiseDate} onChange={e => setActionForm(f => ({ ...f, promiseDate: e.target.value }))} required />
-                    </div>
-                    <div className="form-group">
-                      <label>Số tiền hẹn trả</label>
-                      <input type="number" value={actionForm.promiseAmount} onChange={e => setActionForm(f => ({ ...f, promiseAmount: e.target.value }))} required />
-                    </div>
-                  </>
-                )}
-
-                <div className="form-group">
-                  <label>Ngày follow-up tiếp</label>
-                  <input type="date" value={actionForm.nextFollowUpDate} onChange={e => setActionForm(f => ({ ...f, nextFollowUpDate: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label>Ghi chú</label>
-                  <textarea rows="3" value={actionForm.notes} onChange={e => setActionForm(f => ({ ...f, notes: e.target.value }))} placeholder="Ghi chú chi tiết..." />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowActionModal(false)}>Hủy</button>
-                <button type="submit" className="btn btn-primary">Lưu</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* History Modal */}
-      {showHistoryModal && (
-        <div className="modal-backdrop" onClick={() => setShowHistoryModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '680px' }}>
-            <div className="modal-header">
-              <h3>📋 Lịch sử thu hồi — {selectedLoan?.loanAccountNo}</h3>
-              <button className="btn-close" onClick={() => setShowHistoryModal(false)}>×</button>
-            </div>
-            <div className="modal-body" style={{ maxHeight: '500px', overflowY: 'auto' }}>
-              {history.length === 0 ? <p style={{ textAlign: 'center', opacity: 0.6 }}>Chưa có lịch sử liên hệ.</p> : (
-                <div className="timeline">
-                  {history.map(h => (
-                    <div key={h.id} className="timeline-item" style={{ borderLeft: '3px solid var(--border-color)', paddingLeft: '1rem', marginBottom: '1.5rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                        <strong>{h.actionType} — {OUTCOMES.find(o => o.value === h.outcome)?.label || h.outcome}</strong>
-                        <small style={{ opacity: 0.6 }}>{h.actionDate}</small>
+              </thead>
+              <tbody>
+                {queue.map((item) => (
+                  <tr key={item.loanId}>
+                    <td><span className="code-badge">{item.loanAccountNo}</span></td>
+                    <td><div className="cell-main">{item.customerName}</div></td>
+                    <td><span className="cell-sub">{item.customerPhone}</span></td>
+                    <td>{fmt(item.overdueAmount)}</td>
+                    <td><span className="code-badge">{item.dpd} ngay</span></td>
+                    <td><PriorityPill priority={item.priority} /></td>
+                    <td>{item.assignedCollector || <span className="cell-sub">Chua phan</span>}</td>
+                    <td>{OUTCOMES.find((o) => o.value === item.lastActionOutcome)?.label || '-'}</td>
+                    <td><PromisePill date={item.lastPromiseDate} status={item.lastPromiseStatus} /></td>
+                    <td>
+                      <div className="collections-actions">
+                        {can.logCollectionAction && (
+                          <Button size="sm" onClick={() => openActionModal(item)}>
+                            Ghi nhan
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={() => openHistory(item)}>
+                          Lich su
+                        </Button>
                       </div>
-                      <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>Collector: {h.collectorName}</div>
-                      {h.promiseDate && (
-                        <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                          🤝 Hẹn trả: {h.promiseDate} — {fmt(h.promiseAmount)} —
-                          <span style={{ color: h.promiseStatus === 'Broken' ? '#ef4444' : h.promiseStatus === 'Kept' ? '#22c55e' : '#f59e0b', fontWeight: 600 }}>
-                            {' '}{h.promiseStatus === 'Broken' ? 'Thất bại' : h.promiseStatus === 'Kept' ? 'Đã trả' : 'Chờ'}
-                          </span>
-                        </div>
-                      )}
-                      {h.notes && <div style={{ fontSize: '0.85rem', marginTop: '0.25rem', fontStyle: 'italic' }}>"{h.notes}"</div>}
-                      {h.nextFollowUpDate && <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>📅 Follow-up: {h.nextFollowUpDate}</div>}
-                    </div>
-                  ))}
-                </div>
-              )}
+                    </td>
+                  </tr>
+                ))}
+                {queue.length === 0 && (
+                  <tr>
+                    <td colSpan="10" className="empty-row">
+                      <div className="empty-state">
+                        <span className="empty-icon">0</span>
+                        <p>Khong co khoan vay qua han nao.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </CardBody>
+      </Card>
+
+      {showActionModal && selectedLoan && (
+        <Modal
+          title={`Ghi nhan lien he - ${selectedLoan.loanAccountNo}`}
+          onClose={() => setShowActionModal(false)}
+          actions={
+            <>
+              <Button variant="ghost" type="button" onClick={() => setShowActionModal(false)}>
+                Huy
+              </Button>
+              <Button type="submit" form="collection-action-form">
+                Luu
+              </Button>
+            </>
+          }
+        >
+          <form id="collection-action-form" onSubmit={submitAction}>
+            <div className="form-group">
+              <label>Hinh thuc lien he</label>
+              <select
+                value={actionForm.actionType}
+                onChange={(e) => setActionForm((current) => ({ ...current, actionType: e.target.value }))}
+              >
+                {ACTION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
             </div>
+            <div className="form-group">
+              <label>Ngay lien he</label>
+              <input
+                type="date"
+                value={actionForm.actionDate}
+                onChange={(e) => setActionForm((current) => ({ ...current, actionDate: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Ket qua</label>
+              <select
+                value={actionForm.outcome}
+                onChange={(e) => setActionForm((current) => ({ ...current, outcome: e.target.value }))}
+              >
+                {OUTCOMES.map((outcome) => (
+                  <option key={outcome.value} value={outcome.value}>{outcome.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {actionForm.outcome === 'PromiseToPay' && (
+              <>
+                <div className="form-group">
+                  <label>Ngay hen tra</label>
+                  <input
+                    type="date"
+                    value={actionForm.promiseDate}
+                    onChange={(e) => setActionForm((current) => ({ ...current, promiseDate: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>So tien hen tra</label>
+                  <input
+                    type="number"
+                    value={actionForm.promiseAmount}
+                    onChange={(e) => setActionForm((current) => ({ ...current, promiseAmount: e.target.value }))}
+                    required
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="form-group">
+              <label>Ngay follow-up tiep</label>
+              <input
+                type="date"
+                value={actionForm.nextFollowUpDate}
+                onChange={(e) => setActionForm((current) => ({ ...current, nextFollowUpDate: e.target.value }))}
+              />
+            </div>
+            <div className="form-group">
+              <label>Ghi chu</label>
+              <textarea
+                rows="3"
+                value={actionForm.notes}
+                onChange={(e) => setActionForm((current) => ({ ...current, notes: e.target.value }))}
+                placeholder="Ghi chu chi tiet..."
+              />
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {showHistoryModal && (
+        <Modal
+          title={`Lich su thu hoi - ${selectedLoan?.loanAccountNo || ''}`}
+          onClose={() => setShowHistoryModal(false)}
+          size="lg"
+        >
+          <div className="collections-history-scroll">
+            {history.length === 0 ? (
+              <p className="history-empty">Chua co lich su lien he.</p>
+            ) : (
+              <div className="timeline">
+                {history.map((item) => (
+                  <div key={item.id} className="timeline-item">
+                    <div className="timeline-header">
+                      <strong>{item.actionType} - {OUTCOMES.find((o) => o.value === item.outcome)?.label || item.outcome}</strong>
+                      <small>{item.actionDate}</small>
+                    </div>
+                    <div className="timeline-meta">Collector: {item.collectorName}</div>
+                    {item.promiseDate && (
+                      <div className="timeline-detail">
+                        Hen tra: {item.promiseDate} - {fmt(item.promiseAmount)} - <PromisePill date={item.promiseDate} status={item.promiseStatus} />
+                      </div>
+                    )}
+                    {item.notes && <div className="timeline-note">"{item.notes}"</div>}
+                    {item.nextFollowUpDate && <div className="timeline-detail">Follow-up: {item.nextFollowUpDate}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );
