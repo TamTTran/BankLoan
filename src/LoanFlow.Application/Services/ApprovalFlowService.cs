@@ -121,7 +121,7 @@ public class ApprovalFlowService : IApprovalFlowService
             var executionResult = await ExecuteApprovedActionAsync(req, checkerUserId);
             if (!executionResult.IsSuccess)
             {
-                return Result.Failure<ApprovalRequestResponse>(executionResult.Error);
+                return Result.Failure<ApprovalRequestResponse>(executionResult.Error ?? "Approved action execution failed.");
             }
         }
 
@@ -149,7 +149,7 @@ public class ApprovalFlowService : IApprovalFlowService
                     var result = await scope.ServiceProvider
                     .GetRequiredService<ILoanLifecycleService>()
                     .RestructureAsync(payload.LoanId, payload.Request, checkerUserId);
-                    return result.IsSuccess ? Result.Success() : Result.Failure(result.Error);
+                    return result.IsSuccess ? Result.Success() : Result.Failure(result.Error ?? "Loan restructure failed.");
                 }),
             "LoanReschedule" => await ExecuteLifecycleActionAsync<RescheduleApprovalPayload>(
                 req.Payload,
@@ -158,7 +158,7 @@ public class ApprovalFlowService : IApprovalFlowService
                     var result = await scope.ServiceProvider
                     .GetRequiredService<ILoanLifecycleService>()
                     .RescheduleAsync(payload.LoanId, payload.Request, checkerUserId);
-                    return result.IsSuccess ? Result.Success() : Result.Failure(result.Error);
+                    return result.IsSuccess ? Result.Success() : Result.Failure(result.Error ?? "Loan reschedule failed.");
                 }),
             "LoanWriteOff" => await ExecuteLifecycleActionAsync<WriteOffApprovalPayload>(
                 req.Payload,
@@ -167,7 +167,7 @@ public class ApprovalFlowService : IApprovalFlowService
                     var result = await scope.ServiceProvider
                     .GetRequiredService<ILoanLifecycleService>()
                     .WriteOffAsync(payload.LoanId, payload.Request, checkerUserId);
-                    return result.IsSuccess ? Result.Success() : Result.Failure(result.Error);
+                    return result.IsSuccess ? Result.Success() : Result.Failure(result.Error ?? "Loan write-off failed.");
                 }),
             _ => Result.Success()
         };

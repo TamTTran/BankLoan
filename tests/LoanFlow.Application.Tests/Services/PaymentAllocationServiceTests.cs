@@ -1,10 +1,13 @@
 using FluentAssertions;
+using LoanFlow.Application.Common;
+using LoanFlow.Application.DTOs.Loan;
 using LoanFlow.Application.Services;
 using LoanFlow.Application.Tests.Support;
 using LoanFlow.Domain.Constants;
 using LoanFlow.Domain.Entities;
 using LoanFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace LoanFlow.Application.Tests.Services;
@@ -30,7 +33,7 @@ public class PaymentAllocationServiceTests
             ApprovedAmount = 1000,
             OutstandingAmount = 1000,
             Status = LoanStatus.Active,
-            CurrentClassification = LoanClassification.Standard
+            CurrentClassification = LoanClassification.Group1_Standard
         };
 
         db.Loans.Add(loan);
@@ -41,10 +44,27 @@ public class PaymentAllocationServiceTests
         db.RepaymentSchedules.AddRange(sch1, sch2);
         await db.SaveChangesAsync();
 
-        // Need to test allocation service. Usually Payment is handled by IPaymentService
-        var svcFees = new PaymentService(db);
+        var lateFeeService = new Mock<ILateFeeService>();
+        lateFeeService
+            .Setup(x => x.CalculateLateFeesAsync(1, It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result.Success());
+        var accountingService = new Mock<IAccountingService>();
+        accountingService
+            .Setup(x => x.PostJournalAsync(It.IsAny<JournalEntryDto>()))
+            .ReturnsAsync(Result.Success(new JournalEntry()));
+        var clock = new TestBusinessClock(
+            utcNow: new DateTime(2026, 1, 15, 1, 0, 0, DateTimeKind.Utc),
+            localNow: new DateTime(2026, 1, 15, 8, 0, 0, DateTimeKind.Unspecified),
+            businessDate: new DateOnly(2026, 1, 15));
+        var svcFees = new LoanService(db, lateFeeService.Object, clock, accountingService.Object);
         
-        var paymentResult = await svcFees.ReceivePaymentAsync(1, 110, PaymentMethod.BankTransfer, "Test Ref", 1);
+        var paymentResult = await svcFees.RecordPaymentAsync(1, new RecordPaymentRequest
+        {
+            PaymentDate = new DateOnly(2026, 1, 15),
+            Amount = 110,
+            PaymentMethod = PaymentMethod.BankTransfer,
+            Remarks = "Test Ref"
+        }, 1);
         
         paymentResult.IsSuccess.Should().BeTrue();
         

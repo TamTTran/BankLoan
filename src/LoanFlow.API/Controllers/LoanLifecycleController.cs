@@ -31,27 +31,26 @@ public class LoanLifecycleController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.Approver},{Roles.Manager}")]
     public async Task<IActionResult> Restructure(int loanId, [FromBody] RestructureRequest request)
     {
-        var result = await _service.RestructureAsync(loanId, request, CurrentUserId);
-        if (!result.IsSuccess) return BadRequest(new { success = false, error = result.Error });
-        return Ok(new { success = true, data = result.Value });
+        return await SubmitApprovalAsync(
+            "LoanRestructure",
+            new RestructureApprovalPayload
+            {
+                LoanId = loanId,
+                Request = request
+            });
     }
 
     [HttpPost("restructure/request")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.Approver},{Roles.Manager}")]
     public async Task<IActionResult> RequestRestructure(int loanId, [FromBody] RestructureRequest request)
     {
-        var approval = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
-        {
-            ActionType = "LoanRestructure",
-            Payload = JsonSerializer.Serialize(new RestructureApprovalPayload
+        return await SubmitApprovalAsync(
+            "LoanRestructure",
+            new RestructureApprovalPayload
             {
                 LoanId = loanId,
                 Request = request
-            })
-        }, CurrentUserId);
-
-        if (!approval.IsSuccess) return BadRequest(new { success = false, error = approval.Error });
-        return Accepted(new { success = true, approvalRequestId = approval.Value.Id });
+            });
     }
 
     // ── BUP-202: Reschedule ──────────────────────────────────────────────────
@@ -61,27 +60,26 @@ public class LoanLifecycleController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.Approver},{Roles.Manager}")]
     public async Task<IActionResult> Reschedule(int loanId, [FromBody] RescheduleRequest request)
     {
-        var result = await _service.RescheduleAsync(loanId, request, CurrentUserId);
-        if (!result.IsSuccess) return BadRequest(new { success = false, error = result.Error });
-        return Ok(new { success = true, data = result.Value });
+        return await SubmitApprovalAsync(
+            "LoanReschedule",
+            new RescheduleApprovalPayload
+            {
+                LoanId = loanId,
+                Request = request
+            });
     }
 
     [HttpPost("reschedule/request")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.Approver},{Roles.Manager}")]
     public async Task<IActionResult> RequestReschedule(int loanId, [FromBody] RescheduleRequest request)
     {
-        var approval = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
-        {
-            ActionType = "LoanReschedule",
-            Payload = JsonSerializer.Serialize(new RescheduleApprovalPayload
+        return await SubmitApprovalAsync(
+            "LoanReschedule",
+            new RescheduleApprovalPayload
             {
                 LoanId = loanId,
                 Request = request
-            })
-        }, CurrentUserId);
-
-        if (!approval.IsSuccess) return BadRequest(new { success = false, error = approval.Error });
-        return Accepted(new { success = true, approvalRequestId = approval.Value.Id });
+            });
     }
 
     // ── BUP-203: Write-Off ───────────────────────────────────────────────────
@@ -91,27 +89,26 @@ public class LoanLifecycleController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.Manager}")]
     public async Task<IActionResult> WriteOff(int loanId, [FromBody] WriteOffRequest request)
     {
-        var result = await _service.WriteOffAsync(loanId, request, CurrentUserId);
-        if (!result.IsSuccess) return BadRequest(new { success = false, error = result.Error });
-        return Ok(new { success = true, data = result.Value });
+        return await SubmitApprovalAsync(
+            "LoanWriteOff",
+            new WriteOffApprovalPayload
+            {
+                LoanId = loanId,
+                Request = request
+            });
     }
 
     [HttpPost("write-off/request")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.Manager}")]
     public async Task<IActionResult> RequestWriteOff(int loanId, [FromBody] WriteOffRequest request)
     {
-        var approval = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
-        {
-            ActionType = "LoanWriteOff",
-            Payload = JsonSerializer.Serialize(new WriteOffApprovalPayload
+        return await SubmitApprovalAsync(
+            "LoanWriteOff",
+            new WriteOffApprovalPayload
             {
                 LoanId = loanId,
                 Request = request
-            })
-        }, CurrentUserId);
-
-        if (!approval.IsSuccess) return BadRequest(new { success = false, error = approval.Error });
-        return Accepted(new { success = true, approvalRequestId = approval.Value.Id });
+            });
     }
 
     /// <summary>POST /loans/{id}/recovery — Ghi nhận thu hồi tiền sau write-off</summary>
@@ -122,6 +119,18 @@ public class LoanLifecycleController : ControllerBase
         var result = await _service.RecordRecoveryAsync(loanId, request, CurrentUserId);
         if (!result.IsSuccess) return BadRequest(new { success = false, error = result.Error });
         return Ok(new { success = true, data = result.Value });
+    }
+
+    private async Task<IActionResult> SubmitApprovalAsync(string actionType, object payload)
+    {
+        var approval = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = actionType,
+            Payload = JsonSerializer.Serialize(payload)
+        }, CurrentUserId);
+
+        if (!approval.IsSuccess) return BadRequest(new { success = false, error = approval.Error });
+        return Accepted(new { success = true, approvalRequestId = approval.Value.Id });
     }
 }
 

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using LoanFlow.Application.Common;
 using LoanFlow.Application.Services;
 using LoanFlow.Application.Tests.Support;
 using LoanFlow.Domain.Constants;
@@ -28,7 +29,7 @@ public class OverdueJobBusinessDateTests
             LoanAccountNo = "LN-TEST-003",
             OutstandingAmount = 1000,
             Status = LoanStatus.Active,
-            CurrentClassification = LoanClassification.Standard
+            CurrentClassification = LoanClassification.Group1_Standard
         };
         db.Loans.Add(loan);
 
@@ -39,13 +40,21 @@ public class OverdueJobBusinessDateTests
         await db.SaveChangesAsync();
 
         var logger = new Mock<ILogger<OverdueJobService>>();
-        var svc = new OverdueJobService(db, logger.Object);
+        var lateFeeService = new Mock<ILateFeeService>();
+        lateFeeService
+            .Setup(x => x.CalculateLateFeesAsync(It.IsAny<Loan>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result.Success());
+        var clock = new TestBusinessClock(
+            utcNow: new DateTime(2026, 4, 15, 1, 0, 0, DateTimeKind.Utc),
+            localNow: new DateTime(2026, 4, 15, 8, 0, 0, DateTimeKind.Unspecified),
+            businessDate: new DateOnly(2026, 4, 15));
+        var svc = new OverdueJobService(db, lateFeeService.Object, logger.Object, clock);
         
         // Simulating EOD for April 15, meaning sch1 (April 1) should be flagged Overdue, but Sch2 (May 1) should not.
         var result = await svc.RunDailyOverdueProcessingAsync(new DateOnly(2026, 4, 15), 100);
 
-        result.Success.Should().BeTrue();
-        result.TotalProcessed.Should().Be(1);
+        result.Errors.Should().Be(0);
+        result.TotalLoansProcessed.Should().Be(1);
 
         var updatedSch1 = await db.RepaymentSchedules.FindAsync(1);
         updatedSch1!.Status.Should().Be(InstallmentStatus.Overdue);
