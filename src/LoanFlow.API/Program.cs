@@ -65,6 +65,8 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ISmsService, NullSmsService>();
 builder.Services.AddScoped<IEndOfDayService, EndOfDayService>();
 builder.Services.AddScoped<IAdminUserService, AdminUserService>();
+builder.Services.AddScoped<IApprovalFlowService, ApprovalFlowService>();
+builder.Services.AddScoped<ILoanAdjustmentService, LoanAdjustmentService>();
 
 // === Background Jobs ===
 builder.Services.AddHostedService<DailyOverdueBackgroundService>();

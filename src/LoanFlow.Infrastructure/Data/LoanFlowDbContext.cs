@@ -44,6 +44,10 @@ public class LoanFlowDbContext : DbContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<EmailOtp> EmailOtps => Set<EmailOtp>();
 
+    // ── Banking Upgrade: Maker-Checker ───────────────────────────────────────
+    public DbSet<PendingApprovalRequest> PendingApprovalRequests => Set<PendingApprovalRequest>();
+    public DbSet<LoanAdjustment> LoanAdjustments => Set<LoanAdjustment>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -159,6 +163,46 @@ public class LoanFlowDbContext : DbContext
         {
             b.HasIndex(c => c.Phone).IsUnique().HasDatabaseName("IX_Customers_Phone");
             b.HasIndex(c => c.IdNumber).IsUnique().HasDatabaseName("IX_Customers_IdNumber");
+        });
+
+        modelBuilder.Entity<PendingApprovalRequest>(b =>
+        {
+            b.HasIndex(p => p.Status).HasDatabaseName("IX_PendingApprovalRequests_Status");
+            b.Property(p => p.ActionType).HasMaxLength(50);
+            b.Property(p => p.Status).HasMaxLength(20);
+            
+            b.HasOne(p => p.RequestedBy)
+                .WithMany()
+                .HasForeignKey(p => p.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(p => p.ApprovedBy)
+                .WithMany()
+                .HasForeignKey(p => p.ApprovedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LoanAdjustment>(b =>
+        {
+            b.HasIndex(a => a.LoanId).HasDatabaseName("IX_LoanAdjustments_LoanId");
+            b.Property(a => a.AdjustmentType).HasMaxLength(50);
+            b.Property(a => a.ReasonCode).HasMaxLength(50);
+            b.Property(a => a.Amount).HasPrecision(18, 2);
+
+            b.HasOne(a => a.Loan)
+                .WithMany()
+                .HasForeignKey(a => a.LoanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(a => a.CreatedBy)
+                .WithMany()
+                .HasForeignKey(a => a.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(a => a.ApprovedBy)
+                .WithMany()
+                .HasForeignKey(a => a.ApprovedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoanFlowDbContext).Assembly);

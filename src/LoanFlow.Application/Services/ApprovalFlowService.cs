@@ -1,0 +1,157 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using LoanFlow.Application.Common;
+using LoanFlow.Application.DTOs.ApprovalFlow;
+using LoanFlow.Domain.Entities;
+using LoanFlow.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace LoanFlow.Application.Services;
+
+public interface IApprovalFlowService
+{
+    Task<Result<ApprovalRequestResponse>> SubmitRequestAsync(SubmitApprovalRequest request, int userId);
+    Task<IEnumerable<ApprovalRequestResponse>> GetPendingRequestsAsync();
+    Task<Result<ApprovalRequestResponse>> ApproveRequestAsync(int id, int checkerUserId);
+    Task<Result<ApprovalRequestResponse>> RejectRequestAsync(int id, ProcessApprovalRequest request, int checkerUserId);
+}
+
+public class ApprovalFlowService : IApprovalFlowService
+{
+    private readonly LoanFlowDbContext _db;
+    private readonly IServiceProvider _serviceProvider;
+
+    public ApprovalFlowService(LoanFlowDbContext db, IServiceProvider serviceProvider)
+    {
+        _db = db;
+        _serviceProvider = serviceProvider;
+    }
+
+    public async Task<Result<ApprovalRequestResponse>> SubmitRequestAsync(SubmitApprovalRequest request, int userId)
+    {
+        var pendingRequest = new PendingApprovalRequest
+        {
+            ActionType = request.ActionType,
+            Payload = request.Payload,
+            RequestedByUserId = userId,
+            Status = "Pending"
+        };
+
+        _db.PendingApprovalRequests.Add(pendingRequest);
+        
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = userId,
+            ActionCode = "ApprovalRequestSubmitted",
+            EntityType = "PendingApprovalRequest",
+            NewValuesJson = AuditHelper.ToJson(new { actionType = request.ActionType, payload = request.Payload })
+        });
+
+        await _db.SaveChangesAsync(); // save to generate Id
+        
+        // Fetch to get navigation properties if needed, or map manually
+        var user = await _db.Users.FindAsync(userId);
+        
+        return Result.Success(MapToDto(pendingRequest, user?.FullName ?? "Unknown"));
+    }
+
+    public async Task<IEnumerable<ApprovalRequestResponse>> GetPendingRequestsAsync()
+    {
+        var requests = await _db.PendingApprovalRequests
+            .Include(p => p.RequestedBy)
+            .Where(p => p.Status == "Pending")
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+
+        return requests.Select(p => MapToDto(p, p.RequestedBy?.FullName ?? "Unknown"));
+    }
+
+    public async Task<Result<ApprovalRequestResponse>> ApproveRequestAsync(int id, int checkerUserId)
+    {
+        return await ProcessRequestAsync(id, checkerUserId, true, null);
+    }
+
+    public async Task<Result<ApprovalRequestResponse>> RejectRequestAsync(int id, ProcessApprovalRequest request, int checkerUserId)
+    {
+        if (string.IsNullOrWhiteSpace(request.RejectionReason))
+            return Result.Failure<ApprovalRequestResponse>("Rejection reason is required.");
+
+        return await ProcessRequestAsync(id, checkerUserId, false, request.RejectionReason);
+    }
+
+    private async Task<Result<ApprovalRequestResponse>> ProcessRequestAsync(int id, int checkerUserId, bool isApproved, string? rejectionReason)
+    {
+        var req = await _db.PendingApprovalRequests
+            .Include(p => p.RequestedBy)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (req == null)
+            return Result.Failure<ApprovalRequestResponse>("Request not found.");
+
+        if (req.Status != "Pending")
+            return Result.Failure<ApprovalRequestResponse>($"Cannot process request. Status is already {req.Status}.");
+
+        // Simple Segregation of Duties: Maker cannot be Checker
+        if (req.RequestedByUserId == checkerUserId)
+            return Result.Failure<ApprovalRequestResponse>("Maker cannot be the Checker of their own request.");
+
+        req.Status = isApproved ? "Approved" : "Rejected";
+        req.ApprovedByUserId = checkerUserId;
+        req.DecidedAt = DateTime.UtcNow;
+        req.RejectionReason = rejectionReason;
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = checkerUserId,
+            ActionCode = isApproved ? "ApprovalRequestApproved" : "ApprovalRequestRejected",
+            EntityType = "PendingApprovalRequest",
+            EntityId = id,
+            NewValuesJson = AuditHelper.ToJson(new { reason = rejectionReason })
+        });
+
+        await _db.SaveChangesAsync();
+
+        // Delegate to specific services based on ActionType
+        if (isApproved)
+        {
+            if (req.ActionType == "ManualAdjustment")
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var adjustmentSvc = scope.ServiceProvider.GetRequiredService<ILoanAdjustmentService>();
+                var adjustmentResult = await adjustmentSvc.ApplyApprovedAdjustmentAsync(id, checkerUserId);
+                if (!adjustmentResult.IsSuccess)
+                {
+                    // If delegation fails, we might want to log this or handle it. 
+                    // For now, we still return the approval DTO but maybe with a warning.
+                }
+            }
+        }
+
+        var checker = await _db.Users.FindAsync(checkerUserId);
+
+        var dto = MapToDto(req, req.RequestedBy?.FullName ?? "Unknown");
+        dto.ApprovedByUserName = checker?.FullName;
+
+        return Result.Success(dto);
+    }
+
+    private static ApprovalRequestResponse MapToDto(PendingApprovalRequest entity, string requestedByName)
+    {
+        return new ApprovalRequestResponse
+        {
+            Id = entity.Id,
+            ActionType = entity.ActionType,
+            Payload = entity.Payload,
+            Status = entity.Status,
+            RequestedByUserId = entity.RequestedByUserId,
+            RequestedByUserName = requestedByName,
+            CreatedAt = entity.CreatedAt,
+            ApprovedByUserId = entity.ApprovedByUserId,
+            DecidedAt = entity.DecidedAt,
+            RejectionReason = entity.RejectionReason
+        };
+    }
+}

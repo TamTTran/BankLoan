@@ -15,7 +15,7 @@ public static class DbSeeder
         var products = await SeedLoanProductsAsync(db);
         var customers = await SeedCustomersAsync(db, users.Officer.Id);
 
-        await SeedHappyPathScenarioAsync(
+        var happyLoan = await SeedHappyPathScenarioAsync(
             db,
             customers[0],
             products[1],
@@ -30,7 +30,10 @@ public static class DbSeeder
             users.Approver.Id,
             users.Collector.Id);
 
-        Console.WriteLine("[Seeder v2] Done: Users, Products, Customers, Demo loan, Overdue loan seeded.");
+        // ── Phase 1: Maker-Checker & Manual Adjustment seed data ────────────
+        await SeedMakerCheckerScenariosAsync(db, happyLoan.Id, users.Officer.Id, users.Manager.Id);
+
+        Console.WriteLine("[Seeder v3] Done: Users, Products, Customers, Demo loan, Overdue loan, Phase-1 approval scenarios seeded.");
     }
 
     private static async Task<SeedUsersResult> SeedUsersAsync(LoanFlowDbContext db)
@@ -147,7 +150,7 @@ public static class DbSeeder
         return customers;
     }
 
-    private static async Task SeedHappyPathScenarioAsync(
+    private static async Task<Loan> SeedHappyPathScenarioAsync(
         LoanFlowDbContext db,
         Customer customer,
         LoanProduct product,
@@ -233,6 +236,7 @@ public static class DbSeeder
         });
 
         await db.SaveChangesAsync();
+        return loan;
     }
 
     private static async Task SeedOverdueScenarioAsync(
@@ -306,6 +310,125 @@ public static class DbSeeder
         });
 
         await db.SaveChangesAsync();
+    }
+
+    // ── Phase 1: Maker-Checker seed scenarios ──────────────────────────────
+    private static async Task SeedMakerCheckerScenariosAsync(
+        LoanFlowDbContext db,
+        int loanId,
+        int makerUserId,
+        int checkerUserId)
+    {
+        // Scenario 1: Pending ManualAdjustment request (waiting for Checker approval)
+        // Demonstrates the approval queue in the UI
+        var pendingPayload = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            LoanId = loanId,
+            AdjustmentType = "LateFee",
+            Amount = -150_000m,
+            ReasonCode = "CustomerHardship",
+            Note = "Miễn giảm phí trễ hạn theo yêu cầu của khách hàng do hoàn cảnh khó khăn"
+        });
+
+        db.PendingApprovalRequests.Add(new PendingApprovalRequest
+        {
+            ActionType = "ManualAdjustment",
+            Payload = pendingPayload,
+            RequestedByUserId = makerUserId,
+            Status = "Pending",
+            CreatedAt = DateTime.UtcNow.AddHours(-2)
+        });
+
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = makerUserId,
+            ActionCode = "ApprovalRequestSubmitted",
+            EntityType = "PendingApprovalRequest",
+            NewValuesJson = System.Text.Json.JsonSerializer.Serialize(new { actionType = "ManualAdjustment", loanId })
+        });
+
+        await db.SaveChangesAsync();
+
+        // Scenario 2: Approved ManualAdjustment — interest waiver already applied
+        // Demonstrates the completed adjustment history
+        var approvedPayload = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            LoanId = loanId,
+            AdjustmentType = "Interest",
+            Amount = -300_000m,
+            ReasonCode = "SystemError",
+            Note = "Điều chỉnh lãi do lỗi tính lãi kép sai trong kỳ 2"
+        });
+
+        var approvedRequest = new PendingApprovalRequest
+        {
+            ActionType = "ManualAdjustment",
+            Payload = approvedPayload,
+            RequestedByUserId = makerUserId,
+            ApprovedByUserId = checkerUserId,
+            Status = "Approved",
+            CreatedAt = DateTime.UtcNow.AddDays(-3),
+            DecidedAt = DateTime.UtcNow.AddDays(-3).AddHours(1)
+        };
+        db.PendingApprovalRequests.Add(approvedRequest);
+        await db.SaveChangesAsync();
+
+        // Create the actual LoanAdjustment record (what would be created by ApprovalFlowService)
+        db.LoanAdjustments.Add(new LoanAdjustment
+        {
+            LoanId = loanId,
+            AdjustmentType = "Interest",
+            Amount = -300_000m,
+            ReasonCode = "SystemError",
+            Note = "Điều chỉnh lãi do lỗi tính lãi kép sai trong kỳ 2",
+            CreatedByUserId = makerUserId,
+            ApprovedByUserId = checkerUserId,
+            AppliedAt = DateTime.UtcNow.AddDays(-3).AddHours(1)
+        });
+
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = checkerUserId,
+            ActionCode = "ApprovalRequestApproved",
+            EntityType = "PendingApprovalRequest",
+            EntityId = approvedRequest.Id,
+            NewValuesJson = System.Text.Json.JsonSerializer.Serialize(new { loanId, amount = -300_000m, type = "Interest" })
+        });
+
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = checkerUserId,
+            ActionCode = "LoanAdjustmentApplied",
+            EntityType = "Loan",
+            EntityId = loanId,
+            NewValuesJson = System.Text.Json.JsonSerializer.Serialize(new { amount = -300_000m, type = "Interest" })
+        });
+
+        // Scenario 3: Rejected request — fee waive denied
+        var rejectedPayload = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            LoanId = loanId,
+            AdjustmentType = "Fee",
+            Amount = -200_000m,
+            ReasonCode = "CustomerRequest",
+            Note = "Khách hàng xin miễn phí xử lý hồ sơ vì đã là khách hàng lâu năm"
+        });
+
+        db.PendingApprovalRequests.Add(new PendingApprovalRequest
+        {
+            ActionType = "ManualAdjustment",
+            Payload = rejectedPayload,
+            RequestedByUserId = makerUserId,
+            ApprovedByUserId = checkerUserId,
+            Status = "Rejected",
+            RejectionReason = "Không đủ điều kiện miễn giảm phí theo chính sách hiện hành",
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            DecidedAt = DateTime.UtcNow.AddDays(-1).AddHours(3)
+        });
+
+        await db.SaveChangesAsync();
+
+        Console.WriteLine("[Seeder v3] Phase-1 seeded: 1 Pending, 1 Approved, 1 Rejected approval request.");
     }
 
     private static async Task<LoanApplication> CreateApprovedApplicationAsync(
