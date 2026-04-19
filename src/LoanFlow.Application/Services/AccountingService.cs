@@ -38,6 +38,13 @@ public class AccountingService : IAccountingService
 
     public async Task<Result<JournalEntry>> PostJournalAsync(JournalEntryDto request)
     {
+        // Validate accounting period is open
+        var period = await _db.Set<AccountingPeriod>()
+            .FirstOrDefaultAsync(p => p.Year == request.BusinessDate.Year && p.Month == request.BusinessDate.Month);
+        
+        if (period != null && period.Status == "Closed")
+            return Result.Failure<JournalEntry>($"Accounting period {request.BusinessDate.Year}/{request.BusinessDate.Month:D2} is closed. Cannot post journal entries.");
+
         if (request.Lines.Count < 2)
             return Result.Failure<JournalEntry>("A journal entry must have at least two lines.");
 

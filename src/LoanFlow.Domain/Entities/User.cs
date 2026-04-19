@@ -10,6 +10,7 @@ public class User
     public string Status { get; set; } = "Active"; // Active | Inactive
     public int FailedLoginAttempts { get; set; } = 0;
     public DateTime? LockoutEnd { get; set; }
+    public int? BranchId { get; set; }              // FK to Branch (null = HQ / all branches)
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

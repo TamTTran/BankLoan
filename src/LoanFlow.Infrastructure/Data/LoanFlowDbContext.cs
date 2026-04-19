@@ -59,6 +59,13 @@ public class LoanFlowDbContext : DbContext
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<JournalEntryLine> JournalEntryLines => Set<JournalEntryLine>();
 
+    // ── Banking Upgrade: Phase 4 (Enterprise) ────────────────────────────
+    public DbSet<ClassificationSnapshot> ClassificationSnapshots => Set<ClassificationSnapshot>();
+    public DbSet<AccountingPeriod> AccountingPeriods => Set<AccountingPeriod>();
+    public DbSet<CicInquiry> CicInquiries => Set<CicInquiry>();
+    public DbSet<EkycVerification> EkycVerifications => Set<EkycVerification>();
+    public DbSet<Branch> Branches => Set<Branch>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -284,6 +291,55 @@ public class LoanFlowDbContext : DbContext
             b.Property(l => l.LineDescription).HasMaxLength(255);
             b.HasOne(l => l.JournalEntry).WithMany(j => j.Lines).HasForeignKey(l => l.JournalEntryId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(l => l.GLAccount).WithMany().HasForeignKey(l => l.GLAccountId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Phase 4: Enterprise Banking ──────────────────────────────────
+        modelBuilder.Entity<ClassificationSnapshot>(b =>
+        {
+            b.HasIndex(s => new { s.LoanId, s.SnapshotDate }).HasDatabaseName("IX_ClassificationSnapshots_LoanId_Date");
+            b.Property(s => s.OutstandingAmount).HasPrecision(18, 2);
+            b.Property(s => s.ProvisionAmount).HasPrecision(18, 2);
+            b.HasOne(s => s.Loan).WithMany().HasForeignKey(s => s.LoanId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AccountingPeriod>(b =>
+        {
+            b.HasIndex(p => new { p.Year, p.Month }).IsUnique().HasDatabaseName("IX_AccountingPeriods_Year_Month");
+            b.Property(p => p.Status).HasMaxLength(20);
+            b.HasOne(p => p.ClosedBy).WithMany().HasForeignKey(p => p.ClosedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CicInquiry>(b =>
+        {
+            b.HasIndex(c => c.CustomerId).HasDatabaseName("IX_CicInquiries_CustomerId");
+            b.Property(c => c.CicGrade).HasMaxLength(10);
+            b.Property(c => c.Status).HasMaxLength(20);
+            b.Property(c => c.Provider).HasMaxLength(20);
+            b.Property(c => c.TotalBorrowingAtCic).HasPrecision(18, 2);
+            b.HasOne(c => c.Customer).WithMany().HasForeignKey(c => c.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(c => c.RequestedBy).WithMany().HasForeignKey(c => c.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EkycVerification>(b =>
+        {
+            b.HasIndex(e => e.CustomerId).HasDatabaseName("IX_EkycVerifications_CustomerId");
+            b.Property(e => e.IdType).HasMaxLength(20);
+            b.Property(e => e.IdNumber).HasMaxLength(30);
+            b.Property(e => e.Status).HasMaxLength(20);
+            b.Property(e => e.Provider).HasMaxLength(20);
+            b.Property(e => e.FaceMatchScore).HasPrecision(5, 1);
+            b.Property(e => e.OcrConfidence).HasPrecision(5, 1);
+            b.HasOne(e => e.Customer).WithMany().HasForeignKey(e => e.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(e => e.RequestedBy).WithMany().HasForeignKey(e => e.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Branch>(b =>
+        {
+            b.HasIndex(br => br.BranchCode).IsUnique().HasDatabaseName("IX_Branches_BranchCode");
+            b.Property(br => br.BranchCode).HasMaxLength(20);
+            b.Property(br => br.BranchName).HasMaxLength(100);
+            b.Property(br => br.Status).HasMaxLength(20);
+            b.HasOne(br => br.Manager).WithMany().HasForeignKey(br => br.ManagerUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoanFlowDbContext).Assembly);

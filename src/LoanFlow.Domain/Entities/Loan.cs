@@ -31,6 +31,7 @@ public class Loan
     public decimal LateFeeRate { get; set; } = 0;           // snapshot: late fee rate
     public int LateFeeGraceDays { get; set; } = 0;          // snapshot: grace days before late fee
     public string ProductType { get; set; } = "PersonalUnsecured"; // snapshot: product type
+    public int? BranchId { get; set; }                            // chi nhánh sở hữu khoản vay
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

@@ -150,10 +150,21 @@ public class DailyClassificationBackgroundService : BackgroundService
                 loan.UpdatedAt = DateTime.UtcNow;
                 updateCount++;
             }
+
+            // Write classification snapshot for NPL migration matrix
+            db.Set<ClassificationSnapshot>().Add(new ClassificationSnapshot
+            {
+                LoanId = loan.Id,
+                SnapshotDate = today,
+                Classification = loan.CurrentClassification,
+                OutstandingAmount = loan.OutstandingAmount,
+                ProvisionAmount = loan.ProvisionAmount,
+                Dpd = maxDpd
+            });
         }
 
         await db.SaveChangesAsync(token);
 
-        _logger.LogInformation($"[EOD] Classification finished. Updated {updateCount} loans.");
+        _logger.LogInformation($"[EOD] Classification finished. Updated {updateCount} loans. {activeLoans.Count} snapshots written.");
     }
 }

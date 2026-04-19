@@ -70,6 +70,16 @@ builder.Services.AddScoped<ILoanAdjustmentService, LoanAdjustmentService>();
 builder.Services.AddScoped<ILoanLifecycleService, LoanLifecycleService>();
 builder.Services.AddScoped<IAccountingService, AccountingService>();
 
+// === Phase 4: Enterprise Banking ===
+builder.Services.AddScoped<INplReportingService, NplReportingService>();
+builder.Services.AddScoped<IAccountingPeriodService, AccountingPeriodService>();
+builder.Services.AddScoped<IRegulatoryReportingService, RegulatoryReportingService>();
+builder.Services.AddScoped<ICicProvider, LoanFlow.Infrastructure.ExternalServices.MockCicProvider>();
+builder.Services.AddScoped<IEkycProvider, LoanFlow.Infrastructure.ExternalServices.MockEkycProvider>();
+builder.Services.AddScoped<ICicService, CicService>();
+builder.Services.AddScoped<IEkycService, EkycService>();
+builder.Services.AddScoped<IBranchService, BranchService>();
+
 // === Background Jobs ===
 builder.Services.AddHostedService<DailyOverdueBackgroundService>();
 builder.Services.AddHostedService<LoanFlow.API.BackgroundJobs.DailyAccrualBackgroundService>();
@@ -177,6 +187,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseMiddleware<BranchFilterMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 
