@@ -66,6 +66,14 @@ public class LoanFlowDbContext : DbContext
     public DbSet<EkycVerification> EkycVerifications => Set<EkycVerification>();
     public DbSet<Branch> Branches => Set<Branch>();
 
+    // ── Banking Upgrade: Phase 5 (Operations) ────────────────────────────
+    public DbSet<CustomerExposureLimit> ExposureLimits => Set<CustomerExposureLimit>();
+    public DbSet<LoanTopUp> LoanTopUps => Set<LoanTopUp>();
+    public DbSet<CollateralRevaluation> CollateralRevaluations => Set<CollateralRevaluation>();
+    public DbSet<NotificationTemplate> NotificationTemplates => Set<NotificationTemplate>();
+    public DbSet<DunningStrategy> DunningStrategies => Set<DunningStrategy>();
+    public DbSet<LoanDocument> LoanDocuments => Set<LoanDocument>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -340,6 +348,70 @@ public class LoanFlowDbContext : DbContext
             b.Property(br => br.BranchName).HasMaxLength(100);
             b.Property(br => br.Status).HasMaxLength(20);
             b.HasOne(br => br.Manager).WithMany().HasForeignKey(br => br.ManagerUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Phase 5: Operations ───────────────────────────────────────
+        modelBuilder.Entity<CustomerExposureLimit>(b =>
+        {
+            b.HasIndex(e => e.CustomerId).IsUnique().HasDatabaseName("IX_ExposureLimits_CustomerId");
+            b.Property(e => e.MaxExposure).HasPrecision(18, 2);
+            b.Property(e => e.CurrentExposure).HasPrecision(18, 2);
+            b.Property(e => e.UtilizationRate).HasPrecision(5, 2);
+            b.Property(e => e.Status).HasMaxLength(20);
+            b.HasOne(e => e.Customer).WithMany().HasForeignKey(e => e.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(e => e.OverriddenBy).WithMany().HasForeignKey(e => e.OverriddenByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LoanTopUp>(b =>
+        {
+            b.HasIndex(t => t.LoanId).HasDatabaseName("IX_LoanTopUps_LoanId");
+            b.Property(t => t.TopUpAmount).HasPrecision(18, 2);
+            b.Property(t => t.PreviousOutstanding).HasPrecision(18, 2);
+            b.Property(t => t.NewOutstanding).HasPrecision(18, 2);
+            b.Property(t => t.NewMonthlyRate).HasPrecision(10, 6);
+            b.Property(t => t.Status).HasMaxLength(20);
+            b.HasOne(t => t.Loan).WithMany().HasForeignKey(t => t.LoanId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(t => t.RequestedBy).WithMany().HasForeignKey(t => t.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(t => t.ApprovedBy).WithMany().HasForeignKey(t => t.ApprovedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CollateralRevaluation>(b =>
+        {
+            b.HasIndex(r => r.CollateralId).HasDatabaseName("IX_CollateralRevaluations_CollateralId");
+            b.Property(r => r.OldValue).HasPrecision(18, 2);
+            b.Property(r => r.NewValue).HasPrecision(18, 2);
+            b.HasOne(r => r.Collateral).WithMany().HasForeignKey(r => r.CollateralId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(r => r.RecordedBy).WithMany().HasForeignKey(r => r.RecordedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<NotificationTemplate>(b =>
+        {
+            b.HasIndex(t => t.TemplateCode).IsUnique().HasDatabaseName("IX_NotificationTemplates_Code");
+            b.Property(t => t.TemplateCode).HasMaxLength(50);
+            b.Property(t => t.Title).HasMaxLength(200);
+            b.Property(t => t.Channel).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<DunningStrategy>(b =>
+        {
+            b.HasIndex(s => new { s.DpdThreshold, s.ActionType }).HasDatabaseName("IX_DunningStrategies_Dpd_Action");
+            b.Property(s => s.ActionType).HasMaxLength(50);
+            b.HasOne(s => s.Template).WithMany().HasForeignKey(s => s.NotificationTemplateId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<LoanDocument>(b =>
+        {
+            b.HasIndex(d => d.LoanId).HasDatabaseName("IX_LoanDocuments_LoanId");
+            b.HasIndex(d => d.CustomerId).HasDatabaseName("IX_LoanDocuments_CustomerId");
+            b.Property(d => d.DocumentType).HasMaxLength(50);
+            b.Property(d => d.FileName).HasMaxLength(255);
+            b.Property(d => d.FilePath).HasMaxLength(500);
+            b.Property(d => d.MimeType).HasMaxLength(100);
+            b.Property(d => d.Status).HasMaxLength(20);
+            b.HasOne(d => d.Loan).WithMany().HasForeignKey(d => d.LoanId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(d => d.Customer).WithMany().HasForeignKey(d => d.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(d => d.UploadedBy).WithMany().HasForeignKey(d => d.UploadedByUserId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(d => d.VerifiedBy).WithMany().HasForeignKey(d => d.VerifiedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoanFlowDbContext).Assembly);

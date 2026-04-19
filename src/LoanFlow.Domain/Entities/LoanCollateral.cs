@@ -12,6 +12,7 @@ public class LoanCollateral
     public int LoanId { get; set; }
     public int CollateralId { get; set; }
     public decimal AllocatedValue { get; set; }       // value portion allocated to this loan
+    public string Status { get; set; } = "Active";   // Active | Released
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public Loan Loan { get; set; } = default!;

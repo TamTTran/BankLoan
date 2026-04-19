@@ -80,6 +80,14 @@ builder.Services.AddScoped<ICicService, CicService>();
 builder.Services.AddScoped<IEkycService, EkycService>();
 builder.Services.AddScoped<IBranchService, BranchService>();
 
+// === Phase 5: Operations ===
+builder.Services.AddScoped<IExposureLimitService, ExposureLimitService>();
+builder.Services.AddScoped<ILoanTopUpService, LoanTopUpService>();
+builder.Services.AddScoped<ICollateralLifecycleService, CollateralLifecycleService>();
+builder.Services.AddScoped<IDunningService, DunningService>();
+builder.Services.AddScoped<IDocumentService, DocumentService>();
+builder.Services.AddScoped<IDataExportService, DataExportService>();
+
 // === Background Jobs ===
 builder.Services.AddHostedService<DailyOverdueBackgroundService>();
 builder.Services.AddHostedService<LoanFlow.API.BackgroundJobs.DailyAccrualBackgroundService>();
