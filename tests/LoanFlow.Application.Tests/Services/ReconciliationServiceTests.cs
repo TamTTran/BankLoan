@@ -6,6 +6,7 @@ using LoanFlow.Domain.Entities;
 using LoanFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Xunit;
 
 namespace LoanFlow.Application.Tests.Services;
 
@@ -94,5 +95,63 @@ public class ReconciliationServiceTests
         report.TotalPaymentsAmount.Should().Be(100m);
         report.TotalPaymentTransactionsAmount.Should().Be(100m);
         report.Exceptions.Should().NotContain(x => x.ExceptionType == ReconciliationExceptionType.PaymentMismatch);
+    }
+
+    [Fact]
+    public async Task RunReconciliationAsync_Should_Close_OpenException_WhenMismatchIsResolved()
+    {
+        var options = new DbContextOptionsBuilder<LoanFlowDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new LoanFlowDbContext(options);
+
+        db.Users.Add(new User { Id = 1, FullName = "Admin", Username = "admin", PasswordHash = "hash", Role = Roles.Admin });
+        db.ReconciliationExceptions.Add(new ReconciliationException
+        {
+            Id = 1,
+            BusinessDate = new DateOnly(2026, 4, 18),
+            ExceptionType = ReconciliationExceptionType.PaymentMismatch,
+            Status = ReconciliationStatus.Open,
+            ExpectedAmount = 100m,
+            ActualAmount = 80m,
+            Difference = 20m,
+            Description = "Existing mismatch"
+        });
+        db.Payments.Add(new Payment
+        {
+            Id = 1,
+            LoanId = 1,
+            PaymentDate = new DateOnly(2026, 4, 18),
+            Amount = 100m,
+            PaymentMethod = PaymentMethod.Cash,
+            CreatedByUserId = 1
+        });
+        db.LoanTransactions.Add(new LoanTransaction
+        {
+            Id = 1,
+            LoanId = 1,
+            TransactionType = "Payment",
+            Amount = 100m,
+            CreatedAt = new DateTime(2026, 4, 18, 10, 0, 0, DateTimeKind.Utc)
+        });
+        await db.SaveChangesAsync();
+
+        var calendar = new BusinessCalendarService(Options.Create(new BusinessDateOptions()));
+        var clock = new TestBusinessClock(
+            utcNow: new DateTime(2026, 4, 18, 12, 0, 0, DateTimeKind.Utc),
+            localNow: new DateTime(2026, 4, 18, 19, 0, 0, DateTimeKind.Unspecified),
+            businessDate: new DateOnly(2026, 4, 18));
+        var service = new ReconciliationService(db, calendar, clock);
+
+        var report = await service.RunReconciliationAsync(new DateOnly(2026, 4, 18), 1);
+
+        report.Exceptions.Should().BeEmpty();
+
+        var updated = await db.ReconciliationExceptions.FindAsync(1);
+        updated.Should().NotBeNull();
+        updated!.Status.Should().Be(ReconciliationStatus.Resolved);
+        updated.ResolvedByUserId.Should().Be(1);
+        updated.Resolution.Should().Contain("resolved");
     }
 }

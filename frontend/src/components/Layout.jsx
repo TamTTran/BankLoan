@@ -11,6 +11,8 @@ const NAV = [
   { to: '/overdue', icon: 'QH', label: 'Qua han', id: 'nav-overdue' },
   { to: '/collections', icon: 'TH', label: 'Thu hoi no', id: 'nav-collections' },
   { to: '/reports', icon: 'BC', label: 'Bao cao', id: 'nav-reports' },
+  { to: '/approvals', icon: '✅', label: 'Phe duyet', id: 'nav-approvals', badge: true },
+  { to: '/system-ops', icon: '⚙️', label: 'He thong', id: 'nav-ops' },
 ];
 
 export function Layout({ children, pendingCount = 0 }) {

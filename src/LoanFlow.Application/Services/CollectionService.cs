@@ -323,18 +323,22 @@ public class CollectionService : ICollectionService
         var loanIds = brokenActions.Select(a => a.LoanId).Distinct().ToList();
         var payments = await _db.Payments
             .Where(p => loanIds.Contains(p.LoanId) && p.Amount > 0)
-            .Select(p => new { p.LoanId, p.PaymentDate })
+            .Select(p => new { p.LoanId, p.PaymentDate, p.Amount })
             .ToListAsync();
             
         var paymentsByLoan = payments.GroupBy(p => p.LoanId).ToDictionary(g => g.Key, g => g.ToList());
 
         foreach (var action in brokenActions)
         {
-            // A promise is kept if ANY payment was made on or after the action date
-            var hasPayment = paymentsByLoan.TryGetValue(action.LoanId, out var loanPayments)
-                          && loanPayments.Any(p => p.PaymentDate >= action.ActionDate);
+            var promisedAmount = action.PromiseAmount ?? 0m;
+            var promiseDate = action.PromiseDate!.Value;
+            var paidTowardPromise = paymentsByLoan.TryGetValue(action.LoanId, out var loanPayments)
+                ? loanPayments
+                    .Where(p => p.PaymentDate >= action.ActionDate && p.PaymentDate <= promiseDate)
+                    .Sum(p => p.Amount)
+                : 0m;
 
-            if (hasPayment)
+            if (paidTowardPromise >= promisedAmount && promisedAmount > 0)
             {
                 action.PromiseStatus = Domain.Constants.PromiseStatus.Kept;
             }

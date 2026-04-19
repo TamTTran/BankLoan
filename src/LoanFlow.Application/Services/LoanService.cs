@@ -482,14 +482,26 @@ public class LoanService : ILoanService
             throw new InvalidOperationException($"Accounting failed: {journalResult.Error}");
         }
 
-        // Wave 4: Create SuspenseTransaction if there is overpayment
+        // Wave 4 / CF4: Update Suspense vs Advance Payment rule
         if (overpayment > 0)
         {
+            var nextSchedule = loan.RepaymentSchedules
+                .Where(s => s.Status != InstallmentStatus.Paid)
+                .OrderBy(s => s.InstallmentNo)
+                .FirstOrDefault();
+
+            string suspenseReason = "Overpayment (Suspense)";
+            
+            if (nextSchedule != null && overpayment >= nextSchedule.RemainingDueAmount)
+            {
+                suspenseReason = "Advance Payment";
+            }
+
             var suspense = new SuspenseTransaction
             {
                 LoanId = loanId,
                 Amount = overpayment,
-                Reason = "Overpayment"
+                Reason = suspenseReason
             };
             _db.SuspenseTransactions.Add(suspense);
             

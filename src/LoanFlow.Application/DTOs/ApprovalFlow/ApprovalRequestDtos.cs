@@ -1,4 +1,5 @@
 using System;
+using LoanFlow.Application.Services;
 
 namespace LoanFlow.Application.DTOs.ApprovalFlow;
 
@@ -26,4 +27,22 @@ public class ApprovalRequestResponse
 public class ProcessApprovalRequest
 {
     public string? RejectionReason { get; set; }
+}
+
+public class RestructureApprovalPayload
+{
+    public int LoanId { get; set; }
+    public RestructureRequest Request { get; set; } = new();
+}
+
+public class RescheduleApprovalPayload
+{
+    public int LoanId { get; set; }
+    public RescheduleRequest Request { get; set; } = new();
+}
+
+public class WriteOffApprovalPayload
+{
+    public int LoanId { get; set; }
+    public WriteOffRequest Request { get; set; } = new();
 }

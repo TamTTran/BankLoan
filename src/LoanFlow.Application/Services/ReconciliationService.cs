@@ -106,6 +106,15 @@ public class ReconciliationService : IReconciliationService
             
             report.Exceptions.Add(MapExceptionToDto(exc));
         }
+        else
+        {
+            CloseOpenExceptions(
+                existingOpenExceptions,
+                businessDate,
+                ReconciliationExceptionType.PaymentMismatch,
+                userId,
+                "Mismatch resolved by reconciliation rerun.");
+        }
 
         // ── 2. Disbursement reconciliation ───────────────────────────────
         var totalDisb = await _db.LoanDisbursements
@@ -139,6 +148,15 @@ public class ReconciliationService : IReconciliationService
             exc.Description = $"Disbursement total ({totalDisb:N2}) does not match transaction total ({totalDisbTx:N2}).";
             
             report.Exceptions.Add(MapExceptionToDto(exc));
+        }
+        else
+        {
+            CloseOpenExceptions(
+                existingOpenExceptions,
+                businessDate,
+                ReconciliationExceptionType.DisbursementMismatch,
+                userId,
+                "Mismatch resolved by reconciliation rerun.");
         }
 
         // ── 3. Outstanding balance verification ─────────────────────────
@@ -177,6 +195,16 @@ public class ReconciliationService : IReconciliationService
                 
                 report.Exceptions.Add(MapExceptionToDto(exc));
             }
+            else
+            {
+                CloseOpenExceptions(
+                    existingOpenExceptions,
+                    businessDate,
+                    ReconciliationExceptionType.OutstandingMismatch,
+                    userId,
+                    "Mismatch resolved by reconciliation rerun.",
+                    loan.Id);
+            }
         }
 
         report.ExceptionsFound = report.Exceptions.Count;
@@ -192,6 +220,30 @@ public class ReconciliationService : IReconciliationService
 
         await _db.SaveChangesAsync();
         return report;
+    }
+
+    private void CloseOpenExceptions(
+        IEnumerable<ReconciliationException> existingOpenExceptions,
+        DateOnly businessDate,
+        string exceptionType,
+        int? userId,
+        string resolution,
+        int? loanId = null)
+    {
+        var exceptionsToClose = existingOpenExceptions
+            .Where(e => e.BusinessDate == businessDate
+                && e.ExceptionType == exceptionType
+                && e.Status == ReconciliationStatus.Open
+                && e.LoanId == loanId)
+            .ToList();
+
+        foreach (var exc in exceptionsToClose)
+        {
+            exc.Status = ReconciliationStatus.Resolved;
+            exc.ResolvedByUserId = userId;
+            exc.ResolvedAt = _businessClock.UtcNow;
+            exc.Resolution = resolution;
+        }
     }
 
     public async Task<PagedResult<ReconciliationExceptionDto>> GetExceptionsAsync(string? status, int page = 1, int pageSize = 50)

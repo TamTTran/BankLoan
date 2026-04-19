@@ -56,7 +56,7 @@ export function LoanDetailModal({ loanId, onClose }) {
 
       {/* Tabs */}
       <div className="modal-tabs" style={{marginTop:'-1.5rem'}}>
-        {[['schedule','📅 Lịch trả nợ'],['payments','💳 Lịch sử TT']].map(([k,l])=>(
+        {[['schedule','📅 Lịch trả nợ'],['payments','💳 Lịch sử TT'],['ops','⚙️ Nghiệp vụ']].map(([k,l])=>(
           <div key={k} className={`modal-tab${tab===k?' active':''}`} onClick={()=>setTab(k)}>{l}</div>
         ))}
       </div>
@@ -98,6 +98,19 @@ export function LoanDetailModal({ loanId, onClose }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {tab === 'ops' && (
+        <div className="modal-tab-content" style={{padding:'20px'}}>
+          <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
+            <Button variant="outline" onClick={() => alert('Restructure Modal')}>🔄 Cơ cấu lại nợ (Restructure)</Button>
+            <Button variant="outline" onClick={() => alert('Reschedule Modal')}>📅 Dời ngày (Reschedule)</Button>
+            <Button variant="outline" onClick={() => alert('Manual Adjustment')}>📝 Sửa tiền / Miễn giảm (Maker-Checker)</Button>
+            <Button variant="danger" onClick={() => alert('Write-off')}>🗑 Xóa Nợ (Write-off)</Button>
+          </div>
+          <div style={{ marginTop: '20px', padding: '15px', background: 'var(--bg-card)', borderRadius: '8px', fontSize: '0.85rem' }}>
+            <strong>💡 Hướng dẫn:</strong> Chức năng Cơ cấu lại nợ và Tiễn giảm yêu cầu sự phê duyệt của cấp Quản lý. Các giao dịch này sẽ bay thẳng vào mục phê duyệt. (Tính năng đang chờ kết nối Modal với API).
+          </div>
         </div>
       )}
     </Modal>

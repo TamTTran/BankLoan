@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using LoanFlow.Application.Common;
 using LoanFlow.Application.DTOs.ApprovalFlow;
@@ -117,16 +118,10 @@ public class ApprovalFlowService : IApprovalFlowService
         // Delegate to specific services based on ActionType
         if (isApproved)
         {
-            if (req.ActionType == "ManualAdjustment")
+            var executionResult = await ExecuteApprovedActionAsync(req, checkerUserId);
+            if (!executionResult.IsSuccess)
             {
-                using var scope = _serviceProvider.CreateScope();
-                var adjustmentSvc = scope.ServiceProvider.GetRequiredService<ILoanAdjustmentService>();
-                var adjustmentResult = await adjustmentSvc.ApplyApprovedAdjustmentAsync(id, checkerUserId);
-                if (!adjustmentResult.IsSuccess)
-                {
-                    // If delegation fails, we might want to log this or handle it. 
-                    // For now, we still return the approval DTO but maybe with a warning.
-                }
+                return Result.Failure<ApprovalRequestResponse>(executionResult.Error);
             }
         }
 
@@ -136,6 +131,68 @@ public class ApprovalFlowService : IApprovalFlowService
         dto.ApprovedByUserName = checker?.FullName;
 
         return Result.Success(dto);
+    }
+
+    private async Task<Result> ExecuteApprovedActionAsync(PendingApprovalRequest req, int checkerUserId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+
+        return req.ActionType switch
+        {
+            "ManualAdjustment" => await scope.ServiceProvider
+                .GetRequiredService<ILoanAdjustmentService>()
+                .ApplyApprovedAdjustmentAsync(req.Id, checkerUserId),
+            "LoanRestructure" => await ExecuteLifecycleActionAsync<RestructureApprovalPayload>(
+                req.Payload,
+                async payload =>
+                {
+                    var result = await scope.ServiceProvider
+                    .GetRequiredService<ILoanLifecycleService>()
+                    .RestructureAsync(payload.LoanId, payload.Request, checkerUserId);
+                    return result.IsSuccess ? Result.Success() : Result.Failure(result.Error);
+                }),
+            "LoanReschedule" => await ExecuteLifecycleActionAsync<RescheduleApprovalPayload>(
+                req.Payload,
+                async payload =>
+                {
+                    var result = await scope.ServiceProvider
+                    .GetRequiredService<ILoanLifecycleService>()
+                    .RescheduleAsync(payload.LoanId, payload.Request, checkerUserId);
+                    return result.IsSuccess ? Result.Success() : Result.Failure(result.Error);
+                }),
+            "LoanWriteOff" => await ExecuteLifecycleActionAsync<WriteOffApprovalPayload>(
+                req.Payload,
+                async payload =>
+                {
+                    var result = await scope.ServiceProvider
+                    .GetRequiredService<ILoanLifecycleService>()
+                    .WriteOffAsync(payload.LoanId, payload.Request, checkerUserId);
+                    return result.IsSuccess ? Result.Success() : Result.Failure(result.Error);
+                }),
+            _ => Result.Success()
+        };
+    }
+
+    private static async Task<Result> ExecuteLifecycleActionAsync<TPayload>(
+        string payloadJson,
+        Func<TPayload, Task<Result>> executor)
+    {
+        TPayload? payload;
+        try
+        {
+            payload = JsonSerializer.Deserialize<TPayload>(
+                payloadJson,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch
+        {
+            return Result.Failure("Invalid approval payload format.");
+        }
+
+        if (payload is null)
+            return Result.Failure("Approval payload is required.");
+
+        return await executor(payload);
     }
 
     private static ApprovalRequestResponse MapToDto(PendingApprovalRequest entity, string requestedByName)

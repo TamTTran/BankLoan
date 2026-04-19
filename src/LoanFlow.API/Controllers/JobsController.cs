@@ -31,6 +31,12 @@ public class JobsController : ControllerBase
     public async Task<IActionResult> RunOverdueJob([FromQuery] DateOnly? date, [FromQuery] int batchSize = 100)
     {
         var businessDate = date ?? _businessCalendar.GetCurrentBusinessDate();
+        var currentBusinessDate = _businessCalendar.GetCurrentBusinessDate();
+
+        if (businessDate > currentBusinessDate)
+        {
+            return BadRequest(new { success = false, message = $"Cannot manual run Daily Overdue for future date {businessDate}. Current business date is {currentBusinessDate}." });
+        }
 
         var result = await _overdueJobService.RunDailyOverdueProcessingAsync(businessDate, batchSize);
 
@@ -59,6 +65,12 @@ public class JobsController : ControllerBase
     public async Task<IActionResult> RunEndOfDay([FromQuery] DateOnly? date)
     {
         var businessDate = date ?? _businessCalendar.GetCurrentBusinessDate();
+        var currentBusinessDate = _businessCalendar.GetCurrentBusinessDate();
+
+        if (businessDate > currentBusinessDate)
+        {
+            return BadRequest(new { success = false, message = $"Cannot manual run EOD for future date {businessDate}. Current business date is {currentBusinessDate}." });
+        }
 
         var report = await _eodService.RunAsync(businessDate, CurrentUserId);
 

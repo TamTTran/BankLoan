@@ -12,6 +12,8 @@ import Overdue      from '../pages/Overdue';
 import Collections  from '../pages/Collections';
 import Reports      from '../pages/Reports';
 import Notifications from '../pages/Notifications';
+import Approvals    from '../pages/Approvals';
+import SystemOps    from '../pages/SystemOps';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -32,6 +34,8 @@ function AppShell() {
         <Route path="/collections"  element={<Collections />} />
         <Route path="/reports"      element={<Reports />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/approvals"    element={<Approvals />} />
+        <Route path="/system-ops"   element={<SystemOps />} />
         <Route path="*"             element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Layout>

@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Text.Json;
+using LoanFlow.Application.DTOs.ApprovalFlow;
 using LoanFlow.Application.Services;
 using LoanFlow.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
@@ -12,8 +14,13 @@ namespace LoanFlow.API.Controllers;
 public class LoanLifecycleController : ControllerBase
 {
     private readonly ILoanLifecycleService _service;
+    private readonly IApprovalFlowService _approvalFlowService;
 
-    public LoanLifecycleController(ILoanLifecycleService service) => _service = service;
+    public LoanLifecycleController(ILoanLifecycleService service, IApprovalFlowService approvalFlowService)
+    {
+        _service = service;
+        _approvalFlowService = approvalFlowService;
+    }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -29,6 +36,24 @@ public class LoanLifecycleController : ControllerBase
         return Ok(new { success = true, data = result.Value });
     }
 
+    [HttpPost("restructure/request")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Approver},{Roles.Manager}")]
+    public async Task<IActionResult> RequestRestructure(int loanId, [FromBody] RestructureRequest request)
+    {
+        var approval = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = "LoanRestructure",
+            Payload = JsonSerializer.Serialize(new RestructureApprovalPayload
+            {
+                LoanId = loanId,
+                Request = request
+            })
+        }, CurrentUserId);
+
+        if (!approval.IsSuccess) return BadRequest(new { success = false, error = approval.Error });
+        return Accepted(new { success = true, approvalRequestId = approval.Value.Id });
+    }
+
     // ── BUP-202: Reschedule ──────────────────────────────────────────────────
 
     /// <summary>POST /loans/{id}/reschedule — Đổi ngày trả nợ hàng tháng</summary>
@@ -41,6 +66,24 @@ public class LoanLifecycleController : ControllerBase
         return Ok(new { success = true, data = result.Value });
     }
 
+    [HttpPost("reschedule/request")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Approver},{Roles.Manager}")]
+    public async Task<IActionResult> RequestReschedule(int loanId, [FromBody] RescheduleRequest request)
+    {
+        var approval = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = "LoanReschedule",
+            Payload = JsonSerializer.Serialize(new RescheduleApprovalPayload
+            {
+                LoanId = loanId,
+                Request = request
+            })
+        }, CurrentUserId);
+
+        if (!approval.IsSuccess) return BadRequest(new { success = false, error = approval.Error });
+        return Accepted(new { success = true, approvalRequestId = approval.Value.Id });
+    }
+
     // ── BUP-203: Write-Off ───────────────────────────────────────────────────
 
     /// <summary>POST /loans/{id}/write-off — Xóa nợ (chỉ Admin hoặc Manager)</summary>
@@ -51,6 +94,24 @@ public class LoanLifecycleController : ControllerBase
         var result = await _service.WriteOffAsync(loanId, request, CurrentUserId);
         if (!result.IsSuccess) return BadRequest(new { success = false, error = result.Error });
         return Ok(new { success = true, data = result.Value });
+    }
+
+    [HttpPost("write-off/request")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.Manager}")]
+    public async Task<IActionResult> RequestWriteOff(int loanId, [FromBody] WriteOffRequest request)
+    {
+        var approval = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = "LoanWriteOff",
+            Payload = JsonSerializer.Serialize(new WriteOffApprovalPayload
+            {
+                LoanId = loanId,
+                Request = request
+            })
+        }, CurrentUserId);
+
+        if (!approval.IsSuccess) return BadRequest(new { success = false, error = approval.Error });
+        return Accepted(new { success = true, approvalRequestId = approval.Value.Id });
     }
 
     /// <summary>POST /loans/{id}/recovery — Ghi nhận thu hồi tiền sau write-off</summary>
