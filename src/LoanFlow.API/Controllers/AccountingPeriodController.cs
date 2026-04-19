@@ -1,6 +1,8 @@
 using LoanFlow.Application.Services;
+using LoanFlow.Application.DTOs.ApprovalFlow;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace LoanFlow.API.Controllers;
 
@@ -10,9 +12,13 @@ namespace LoanFlow.API.Controllers;
 public class AccountingPeriodController : ControllerBase
 {
     private readonly IAccountingPeriodService _periodService;
+    private readonly IApprovalFlowService _approvalFlowService;
 
-    public AccountingPeriodController(IAccountingPeriodService periodService)
-        => _periodService = periodService;
+    public AccountingPeriodController(IAccountingPeriodService periodService, IApprovalFlowService approvalFlowService)
+    {
+        _periodService = periodService;
+        _approvalFlowService = approvalFlowService;
+    }
 
     [HttpGet]
     public async Task<IActionResult> GetAll()
@@ -29,8 +35,17 @@ public class AccountingPeriodController : ControllerBase
     public async Task<IActionResult> Close(int year, int month, [FromBody] CloseRequest? req = null)
     {
         var userId = int.Parse(User.FindFirst("UserId")!.Value);
-        var result = await _periodService.ClosePeriodAsync(year, month, userId, req?.Notes);
-        return result.IsSuccess ? Ok(new { message = $"Period {year}/{month:D2} closed successfully." }) : BadRequest(result.Error);
+        var result = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = "AccountingPeriodClose",
+            Payload = JsonSerializer.Serialize(new AccountingPeriodCloseApprovalPayload
+            {
+                Year = year,
+                Month = month,
+                Notes = req?.Notes
+            })
+        }, userId);
+        return result.IsSuccess ? Accepted(new { success = true, approvalRequestId = result.Value.Id }) : BadRequest(result.Error);
     }
 
     [HttpPost("{year}/{month}/reopen")]
@@ -38,8 +53,16 @@ public class AccountingPeriodController : ControllerBase
     public async Task<IActionResult> Reopen(int year, int month)
     {
         var userId = int.Parse(User.FindFirst("UserId")!.Value);
-        var result = await _periodService.ReopenPeriodAsync(year, month, userId);
-        return result.IsSuccess ? Ok(new { message = $"Period {year}/{month:D2} reopened." }) : BadRequest(result.Error);
+        var result = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = "AccountingPeriodReopen",
+            Payload = JsonSerializer.Serialize(new AccountingPeriodReopenApprovalPayload
+            {
+                Year = year,
+                Month = month
+            })
+        }, userId);
+        return result.IsSuccess ? Accepted(new { success = true, approvalRequestId = result.Value.Id }) : BadRequest(result.Error);
     }
 
     public class CloseRequest

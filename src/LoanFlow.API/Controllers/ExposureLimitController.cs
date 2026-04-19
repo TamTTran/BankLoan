@@ -1,6 +1,8 @@
 using LoanFlow.Application.Services;
+using LoanFlow.Application.DTOs.ApprovalFlow;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace LoanFlow.API.Controllers;
 
@@ -10,7 +12,12 @@ namespace LoanFlow.API.Controllers;
 public class ExposureLimitController : ControllerBase
 {
     private readonly IExposureLimitService _service;
-    public ExposureLimitController(IExposureLimitService service) => _service = service;
+    private readonly IApprovalFlowService _approvalFlowService;
+    public ExposureLimitController(IExposureLimitService service, IApprovalFlowService approvalFlowService)
+    {
+        _service = service;
+        _approvalFlowService = approvalFlowService;
+    }
 
     [HttpGet("{customerId}")]
     public async Task<IActionResult> Get(int customerId)
@@ -33,8 +40,16 @@ public class ExposureLimitController : ControllerBase
     public async Task<IActionResult> Override(int customerId, [FromBody] OverrideRequest req)
     {
         var userId = int.Parse(User.FindFirst("UserId")!.Value);
-        var result = await _service.OverrideExposureAsync(customerId, req.Reason, userId);
-        return result.IsSuccess ? Ok(new { message = "Exposure limit overridden." }) : BadRequest(result.Error);
+        var result = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = "ExposureOverride",
+            Payload = JsonSerializer.Serialize(new ExposureOverrideApprovalPayload
+            {
+                CustomerId = customerId,
+                Reason = req.Reason
+            })
+        }, userId);
+        return result.IsSuccess ? Accepted(new { success = true, approvalRequestId = result.Value.Id }) : BadRequest(result.Error);
     }
 
     [HttpPost("{customerId}/refresh")]

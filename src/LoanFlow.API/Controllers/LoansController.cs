@@ -1,10 +1,12 @@
 using LoanFlow.Application.DTOs.Loan;
+using LoanFlow.Application.DTOs.ApprovalFlow;
 using LoanFlow.Application.Services;
 using LoanFlow.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using LoanFlow.API.Filters;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace LoanFlow.API.Controllers;
 
@@ -14,14 +16,14 @@ namespace LoanFlow.API.Controllers;
 public class LoansController : ControllerBase
 {
     private readonly ILoanService _service;
-    private readonly ILateFeeService _lateFeeService;
     private readonly ICollateralService _collateralService;
+    private readonly IApprovalFlowService _approvalFlowService;
 
-    public LoansController(ILoanService service, ILateFeeService lateFeeService, ICollateralService collateralService)
+    public LoansController(ILoanService service, ICollateralService collateralService, IApprovalFlowService approvalFlowService)
     {
         _service = service;
-        _lateFeeService = lateFeeService;
         _collateralService = collateralService;
+        _approvalFlowService = approvalFlowService;
     }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -64,9 +66,13 @@ public class LoansController : ControllerBase
     [IdempotencyFilter]
     public async Task<IActionResult> Disburse(int id, [FromBody] DisburseRequest request)
     {
-        var result = await _service.DisburseAsync(id, request, CurrentUserId);
-        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
-        return Ok(new { success = true, data = result.Value });
+        return await SubmitApprovalAsync(
+            "LoanDisburse",
+            new DisburseApprovalPayload
+            {
+                LoanId = id,
+                Request = request
+            });
     }
 
     // ── Schedule ─────────────────────────────────────────────────────────────
@@ -126,9 +132,13 @@ public class LoansController : ControllerBase
     [IdempotencyFilter]
     public async Task<IActionResult> EarlySettle(int id, [FromBody] EarlySettleRequest request)
     {
-        var result = await _service.EarlySettleAsync(id, request, CurrentUserId);
-        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
-        return Ok(new { success = true, data = new { message = "Loan settled early successfully." } });
+        return await SubmitApprovalAsync(
+            "LoanEarlySettle",
+            new EarlySettleApprovalPayload
+            {
+                LoanId = id,
+                Request = request
+            });
     }
 
     /// <summary>POST /late-fees/{id}/waive</summary>
@@ -136,9 +146,17 @@ public class LoansController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.Approver}")]
     public async Task<IActionResult> WaiveLateFee(int id)
     {
-        var result = await _lateFeeService.WaiveLateFeeAsync(id, CurrentUserId);
-        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
-        return Ok(new { success = true, data = new { message = "Late fee waived." } });
+        var approval = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = "LateFeeWaive",
+            Payload = JsonSerializer.Serialize(new LateFeeWaiveApprovalPayload
+            {
+                LateFeeId = id
+            })
+        }, CurrentUserId);
+
+        if (!approval.IsSuccess) return BadRequest(new { success = false, error = new { message = approval.Error } });
+        return Accepted(new { success = true, approvalRequestId = approval.Value.Id });
     }
 
     // ── Phase 3: Loan Collaterals ───────────────────────────────────────────
@@ -188,8 +206,23 @@ public class LoansController : ControllerBase
     [IdempotencyFilter]
     public async Task<IActionResult> ApplySuspense(int id)
     {
-        var result = await _service.ApplySuspenseAsync(id, CurrentUserId);
-        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
-        return Ok(new { success = true, data = new { message = "Suspense applied successfully." } });
+        return await SubmitApprovalAsync(
+            "SuspenseApply",
+            new ApplySuspenseApprovalPayload
+            {
+                SuspenseId = id
+            });
+    }
+
+    private async Task<IActionResult> SubmitApprovalAsync(string actionType, object payload)
+    {
+        var approval = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = actionType,
+            Payload = JsonSerializer.Serialize(payload)
+        }, CurrentUserId);
+
+        if (!approval.IsSuccess) return BadRequest(new { success = false, error = new { message = approval.Error } });
+        return Accepted(new { success = true, approvalRequestId = approval.Value.Id });
     }
 }

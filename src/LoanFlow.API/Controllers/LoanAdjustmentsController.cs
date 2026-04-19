@@ -11,12 +11,10 @@ namespace LoanFlow.API.Controllers;
 public class LoanAdjustmentsController : ControllerBase
 {
     private readonly IApprovalFlowService _approvalFlowService;
-    private readonly ILoanAdjustmentService _loanAdjustmentService;
 
-    public LoanAdjustmentsController(IApprovalFlowService approvalFlowService, ILoanAdjustmentService loanAdjustmentService)
+    public LoanAdjustmentsController(IApprovalFlowService approvalFlowService)
     {
         _approvalFlowService = approvalFlowService;
-        _loanAdjustmentService = loanAdjustmentService;
     }
 
     [HttpPost("manual-adjustment")]
@@ -49,15 +47,5 @@ public class LoanAdjustmentsController : ControllerBase
         var approvalResult = await _approvalFlowService.SubmitRequestAsync(request, userId);
 
         return Ok(new { success = true, approvalRequestId = approvalResult.Value.Id });
-    }
-
-    [HttpPost("{approvalId}/apply")]
-    [Authorize(Roles = "Admin,Manager,Approver")]
-    public async Task<IActionResult> ApplyAdjustment(int approvalId)
-    {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
-        
-        var result = await _loanAdjustmentService.ApplyApprovedAdjustmentAsync(approvalId, userId);
-        return result.IsSuccess ? Ok(new { message = "Adjustment applied successfully." }) : BadRequest(result.Error);
     }
 }

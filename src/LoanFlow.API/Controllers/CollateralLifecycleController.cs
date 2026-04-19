@@ -1,6 +1,8 @@
 using LoanFlow.Application.Services;
+using LoanFlow.Application.DTOs.ApprovalFlow;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace LoanFlow.API.Controllers;
 
@@ -10,7 +12,12 @@ namespace LoanFlow.API.Controllers;
 public class CollateralLifecycleController : ControllerBase
 {
     private readonly ICollateralLifecycleService _service;
-    public CollateralLifecycleController(ICollateralLifecycleService service) => _service = service;
+    private readonly IApprovalFlowService _approvalFlowService;
+    public CollateralLifecycleController(ICollateralLifecycleService service, IApprovalFlowService approvalFlowService)
+    {
+        _service = service;
+        _approvalFlowService = approvalFlowService;
+    }
 
     [HttpPost("{collateralId}/revalue")]
     public async Task<IActionResult> Revalue(int collateralId, [FromBody] RevalueRequest req)
@@ -29,8 +36,15 @@ public class CollateralLifecycleController : ControllerBase
     public async Task<IActionResult> Release(int collateralId)
     {
         var userId = int.Parse(User.FindFirst("UserId")!.Value);
-        var result = await _service.ReleaseCollateralAsync(collateralId, userId);
-        return result.IsSuccess ? Ok(new { message = "Collateral released." }) : BadRequest(result.Error);
+        var result = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = "CollateralRelease",
+            Payload = JsonSerializer.Serialize(new CollateralReleaseApprovalPayload
+            {
+                CollateralId = collateralId
+            })
+        }, userId);
+        return result.IsSuccess ? Accepted(new { success = true, approvalRequestId = result.Value.Id }) : BadRequest(result.Error);
     }
 
     [HttpPost("{collateralId}/seize")]
@@ -38,7 +52,14 @@ public class CollateralLifecycleController : ControllerBase
     public async Task<IActionResult> Seize(int collateralId)
     {
         var userId = int.Parse(User.FindFirst("UserId")!.Value);
-        var result = await _service.SeizeCollateralAsync(collateralId, userId);
-        return result.IsSuccess ? Ok(new { message = "Collateral seized." }) : BadRequest(result.Error);
+        var result = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = "CollateralSeize",
+            Payload = JsonSerializer.Serialize(new CollateralSeizeApprovalPayload
+            {
+                CollateralId = collateralId
+            })
+        }, userId);
+        return result.IsSuccess ? Accepted(new { success = true, approvalRequestId = result.Value.Id }) : BadRequest(result.Error);
     }
 }

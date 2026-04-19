@@ -1,8 +1,10 @@
 using LoanFlow.Application.Services;
+using LoanFlow.Application.DTOs.ApprovalFlow;
 using LoanFlow.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace LoanFlow.API.Controllers;
 
@@ -12,10 +14,12 @@ namespace LoanFlow.API.Controllers;
 public class ReversalsController : ControllerBase
 {
     private readonly IReversalService _service;
+    private readonly IApprovalFlowService _approvalFlowService;
 
-    public ReversalsController(IReversalService service)
+    public ReversalsController(IReversalService service, IApprovalFlowService approvalFlowService)
     {
         _service = service;
+        _approvalFlowService = approvalFlowService;
     }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -73,8 +77,17 @@ public class ReversalsController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.Approver}")]
     public async Task<IActionResult> AdjustFee(int id, [FromBody] AdjustFeeDto request)
     {
-        var result = await _service.AdjustFeeAsync(id, request, CurrentUserId);
-        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
-        return Ok(new { success = true, data = new { message = "Fee adjusted." } });
+        var approval = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
+        {
+            ActionType = "LateFeeAdjust",
+            Payload = JsonSerializer.Serialize(new AdjustFeeApprovalPayload
+            {
+                LoanId = id,
+                Request = request
+            })
+        }, CurrentUserId);
+
+        if (!approval.IsSuccess) return BadRequest(new { success = false, error = new { message = approval.Error } });
+        return Accepted(new { success = true, approvalRequestId = approval.Value.Id });
     }
 }

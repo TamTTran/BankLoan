@@ -169,6 +169,60 @@ public class ApprovalFlowService : IApprovalFlowService
                     .WriteOffAsync(payload.LoanId, payload.Request, checkerUserId);
                     return result.IsSuccess ? Result.Success() : Result.Failure(result.Error ?? "Loan write-off failed.");
                 }),
+            "LateFeeWaive" => await ExecuteLifecycleActionAsync<LateFeeWaiveApprovalPayload>(
+                req.Payload,
+                payload => scope.ServiceProvider
+                    .GetRequiredService<ILateFeeService>()
+                    .WaiveLateFeeAsync(payload.LateFeeId, checkerUserId)),
+            "LateFeeAdjust" => await ExecuteLifecycleActionAsync<AdjustFeeApprovalPayload>(
+                req.Payload,
+                payload => scope.ServiceProvider
+                    .GetRequiredService<IReversalService>()
+                    .AdjustFeeAsync(payload.LoanId, payload.Request, checkerUserId)),
+            "LoanDisburse" => await ExecuteLifecycleActionAsync<DisburseApprovalPayload>(
+                req.Payload,
+                async payload =>
+                {
+                    var result = await scope.ServiceProvider
+                        .GetRequiredService<ILoanService>()
+                        .DisburseAsync(payload.LoanId, payload.Request, checkerUserId);
+                    return result.IsSuccess ? Result.Success() : Result.Failure(result.Error ?? "Loan disbursement failed.");
+                }),
+            "LoanEarlySettle" => await ExecuteLifecycleActionAsync<EarlySettleApprovalPayload>(
+                req.Payload,
+                payload => scope.ServiceProvider
+                    .GetRequiredService<ILoanService>()
+                    .EarlySettleAsync(payload.LoanId, payload.Request, checkerUserId)),
+            "SuspenseApply" => await ExecuteLifecycleActionAsync<ApplySuspenseApprovalPayload>(
+                req.Payload,
+                payload => scope.ServiceProvider
+                    .GetRequiredService<ILoanService>()
+                    .ApplySuspenseAsync(payload.SuspenseId, checkerUserId)),
+            "ExposureOverride" => await ExecuteLifecycleActionAsync<ExposureOverrideApprovalPayload>(
+                req.Payload,
+                payload => scope.ServiceProvider
+                    .GetRequiredService<IExposureLimitService>()
+                    .OverrideExposureAsync(payload.CustomerId, payload.Reason, checkerUserId)),
+            "CollateralRelease" => await ExecuteLifecycleActionAsync<CollateralReleaseApprovalPayload>(
+                req.Payload,
+                payload => scope.ServiceProvider
+                    .GetRequiredService<ICollateralLifecycleService>()
+                    .ReleaseCollateralAsync(payload.CollateralId, checkerUserId)),
+            "CollateralSeize" => await ExecuteLifecycleActionAsync<CollateralSeizeApprovalPayload>(
+                req.Payload,
+                payload => scope.ServiceProvider
+                    .GetRequiredService<ICollateralLifecycleService>()
+                    .SeizeCollateralAsync(payload.CollateralId, checkerUserId)),
+            "AccountingPeriodClose" => await ExecuteLifecycleActionAsync<AccountingPeriodCloseApprovalPayload>(
+                req.Payload,
+                payload => scope.ServiceProvider
+                    .GetRequiredService<IAccountingPeriodService>()
+                    .ClosePeriodAsync(payload.Year, payload.Month, checkerUserId, payload.Notes)),
+            "AccountingPeriodReopen" => await ExecuteLifecycleActionAsync<AccountingPeriodReopenApprovalPayload>(
+                req.Payload,
+                payload => scope.ServiceProvider
+                    .GetRequiredService<IAccountingPeriodService>()
+                    .ReopenPeriodAsync(payload.Year, payload.Month, checkerUserId)),
             _ => Result.Success()
         };
     }

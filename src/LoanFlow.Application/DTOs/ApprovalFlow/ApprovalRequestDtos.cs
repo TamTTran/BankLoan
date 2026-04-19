@@ -1,4 +1,5 @@
 using System;
+using LoanFlow.Application.DTOs.Loan;
 using LoanFlow.Application.Services;
 
 namespace LoanFlow.Application.DTOs.ApprovalFlow;
@@ -45,4 +46,61 @@ public class WriteOffApprovalPayload
 {
     public int LoanId { get; set; }
     public WriteOffRequest Request { get; set; } = new();
+}
+
+public class LateFeeWaiveApprovalPayload
+{
+    public int LateFeeId { get; set; }
+}
+
+public class AdjustFeeApprovalPayload
+{
+    public int LoanId { get; set; }
+    public AdjustFeeDto Request { get; set; } = new();
+}
+
+public class DisburseApprovalPayload
+{
+    public int LoanId { get; set; }
+    public DisburseRequest Request { get; set; } = new();
+}
+
+public class EarlySettleApprovalPayload
+{
+    public int LoanId { get; set; }
+    public EarlySettleRequest Request { get; set; } = new();
+}
+
+public class ApplySuspenseApprovalPayload
+{
+    public int SuspenseId { get; set; }
+}
+
+public class ExposureOverrideApprovalPayload
+{
+    public int CustomerId { get; set; }
+    public string Reason { get; set; } = "";
+}
+
+public class CollateralReleaseApprovalPayload
+{
+    public int CollateralId { get; set; }
+}
+
+public class CollateralSeizeApprovalPayload
+{
+    public int CollateralId { get; set; }
+}
+
+public class AccountingPeriodCloseApprovalPayload
+{
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class AccountingPeriodReopenApprovalPayload
+{
+    public int Year { get; set; }
+    public int Month { get; set; }
 }

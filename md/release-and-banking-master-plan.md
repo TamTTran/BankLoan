@@ -230,6 +230,41 @@ Reduce regression risk in critical financial and batch behavior.
 | REL-406 | Maintain smoke test checklist | manual checklist | P1 |
 | REL-407 | Attach BA and QA sign-off package | release evidence | P1 |
 
+## 6.6 Action Control Matrix
+
+The following matrix defines which actions must go through maker-checker before broad production release.
+
+| Action Group | Action | Current Control Target | Release Expectation |
+|---|---|---|---|
+| Lending core | `Disburse loan` | Maker-checker required | Must stay approval-driven |
+| Lending core | `Early settle loan` | Maker-checker required | Must stay approval-driven |
+| Lending core | `Apply suspense` | Maker-checker required | Must stay approval-driven |
+| Lifecycle | `Restructure loan` | Maker-checker required | Must stay approval-driven |
+| Lifecycle | `Reschedule loan` | Maker-checker required | Must stay approval-driven |
+| Lifecycle | `Write-off loan` | Maker-checker required | Must stay approval-driven |
+| Fees / adjustments | `Waive late fee` | Maker-checker required | Must stay approval-driven |
+| Fees / adjustments | `Adjust late fee` | Maker-checker required | Must stay approval-driven |
+| Fees / adjustments | `Manual adjustment` | Maker-checker required | Must stay approval-driven |
+| Exposure control | `Override exposure limit` | Maker-checker required | Must stay approval-driven |
+| Collateral | `Release collateral` | Maker-checker required | Must stay approval-driven |
+| Collateral | `Seize collateral` | Maker-checker required | Must stay approval-driven |
+| Accounting control | `Close accounting period` | Maker-checker required | Must stay approval-driven |
+| Accounting control | `Reopen accounting period` | Maker-checker required | Must stay approval-driven |
+| Reversals | `Request payment reversal` | Two-step reversal flow | Request + separate approver required |
+| Reversals | `Approve / reject reversal` | Two-step reversal flow | Must remain segregated from requester |
+| Collections / ops | `Record payment` | Direct execution | Keep direct with idempotency and audit |
+| Collections / ops | `Assign collector` | Direct execution | Keep direct with audit |
+| Collections / ops | `Add collection action` | Direct execution | Keep direct with audit |
+| Reporting / ops | `Run reconciliation` | Direct admin execution | Keep direct, but audited and limited by role |
+| Batch / ops | `Run overdue / EOD job` | Direct admin execution | Keep direct, but protected by business date rule |
+| Reference data | `Set exposure limit` | Direct admin execution | Keep direct unless BA wants approval for threshold changes |
+| Collateral ops | `Revalue collateral` | Direct execution | Keep direct with audit trail |
+
+Decision rule:
+
+- Any action that can change money state, legal recovery state, customer exposure exception state, collateral ownership state, or accounting period state must go through maker-checker.
+- Any action that is operational, repeatable, and low-risk may stay direct, but must keep role restriction, audit log, and where relevant idempotency.
+
 ---
 
 ## 7. Go / No-Go Rule
