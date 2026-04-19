@@ -1,11 +1,11 @@
 using LoanFlow.Application.Services;
 using System.Text.Json;
 
-namespace LoanFlow.Infrastructure.ExternalServices;
+namespace LoanFlow.API.ExternalServices;
 
 /// <summary>
 /// Mock CIC provider for development/testing.
-/// Generates realistic-looking CIC scores based on random seed + customer name hash.
+/// Generates realistic-looking CIC scores based on random seed + customer ID hash.
 /// Replace with real NAPAS/PCB API integration in production.
 /// </summary>
 public class MockCicProvider : ICicProvider
@@ -14,11 +14,10 @@ public class MockCicProvider : ICicProvider
 
     public Task<CicInquiryResultDto> InquireAsync(string idNumber, string fullName)
     {
-        // Deterministic seed based on ID number for consistent results
         var seed = idNumber.GetHashCode();
         var rng = new Random(Math.Abs(seed));
 
-        var score = rng.Next(300, 850);  // CIC scores typically 300-850
+        var score = rng.Next(300, 850);
         var grade = score switch
         {
             >= 750 => "AA",
@@ -29,7 +28,7 @@ public class MockCicProvider : ICicProvider
             _ => "D"
         };
 
-        var totalBorrowing = Math.Round((decimal)(rng.NextDouble() * 500_000_000), 0);  // 0 - 500M VND
+        var totalBorrowing = Math.Round((decimal)(rng.NextDouble() * 500_000_000), 0);
         var maxDpd = rng.Next(0, 90);
 
         var result = new CicInquiryResultDto
@@ -43,17 +42,11 @@ public class MockCicProvider : ICicProvider
             {
                 provider = "MOCK",
                 timestamp = DateTime.UtcNow,
-                idNumber,
-                fullName,
-                score,
-                grade,
-                totalBorrowing,
-                maxDpd,
+                idNumber, fullName, score, grade, totalBorrowing, maxDpd,
                 disclaimer = "This is mock data for development purposes only."
             })
         };
 
-        // Simulate network latency
         return Task.FromResult(result);
     }
 }

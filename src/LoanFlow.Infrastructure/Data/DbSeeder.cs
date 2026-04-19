@@ -13,9 +13,15 @@ public static class DbSeeder
 
         await SeedGLAccountsAsync(db);
 
+        // Phase 4: Seed branches first (users reference them)
+        var branches = await SeedBranchesAsync(db);
+
         var users = await SeedUsersAsync(db);
         var products = await SeedLoanProductsAsync(db);
         var customers = await SeedCustomersAsync(db, users.Officer.Id);
+
+        // Phase 4: Assign users and customers to branches
+        await AssignBranchesAsync(db, users, customers, branches);
 
         var happyLoan = await SeedHappyPathScenarioAsync(
             db,
@@ -35,7 +41,10 @@ public static class DbSeeder
         // ── Phase 1: Maker-Checker & Manual Adjustment seed data ────────────
         await SeedMakerCheckerScenariosAsync(db, happyLoan.Id, users.Officer.Id, users.Manager.Id);
 
-        Console.WriteLine("[Seeder v3] Done: GL Accounts, Users, Products, Customers, Demo loan, Overdue loan, Phase-1 approval scenarios seeded.");
+        // Phase 4: Seed initial accounting period
+        await SeedAccountingPeriodAsync(db);
+
+        Console.WriteLine("[Seeder v4] Done: GL Accounts, Branches, Users, Products, Customers, Demo loans, Phase 1-4 scenarios seeded.");
     }
 
     private static async Task SeedGLAccountsAsync(LoanFlowDbContext db)
@@ -589,4 +598,54 @@ public static class DbSeeder
         User Approver,
         User Collector,
         User Manager);
+
+    // ── Phase 4: Branches ───────────────────────────────────────────────────
+    private static async Task<List<Branch>> SeedBranchesAsync(LoanFlowDbContext db)
+    {
+        var branches = new List<Branch>
+        {
+            new() { BranchCode = "HCM-HQ", BranchName = "HCM - Hội sở chính", Address = "123 Nguyễn Huệ, Q.1, TP.HCM", Phone = "028-1234-5678" },
+            new() { BranchCode = "HN-01", BranchName = "HN - Chi nhánh Hà Nội", Address = "45 Hoàn Kiếm, Hà Nội", Phone = "024-9876-5432" },
+        };
+
+        db.Branches.AddRange(branches);
+        await db.SaveChangesAsync();
+        Console.WriteLine("[Seeder] 2 branches seeded (HCM-HQ, HN-01).");
+        return branches;
+    }
+
+    private static async Task AssignBranchesAsync(LoanFlowDbContext db, SeedUsersResult users, List<Customer> customers, List<Branch> branches)
+    {
+        var hcm = branches[0];  // HCM-HQ
+        var hn = branches[1];   // HN-01
+
+        // Admin stays null (HQ, sees everything)
+        users.Officer.BranchId = hcm.Id;
+        users.Approver.BranchId = hcm.Id;
+        users.Collector.BranchId = hcm.Id;
+        users.Manager.BranchId = hcm.Id;
+
+        // Assign manager to branch
+        hcm.ManagerUserId = users.Manager.Id;
+
+        // Assign customers to HCM branch
+        foreach (var c in customers)
+            c.BranchId = hcm.Id;
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedAccountingPeriodAsync(LoanFlowDbContext db)
+    {
+        var now = DateTime.UtcNow;
+        db.AccountingPeriods.Add(new AccountingPeriod
+        {
+            Year = now.Year,
+            Month = now.Month,
+            Status = "Open",
+            OpenedAt = now
+        });
+        await db.SaveChangesAsync();
+        Console.WriteLine($"[Seeder] Accounting period {now.Year}/{now.Month:D2} opened.");
+    }
 }
