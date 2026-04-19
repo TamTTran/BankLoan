@@ -319,18 +319,20 @@ public class CollectionService : ICollectionService
 
         if (brokenActions.Count == 0) return 0;
 
-        // C6 Fix: Batch-fetch all loan IDs that received payments after their promise dates
+        // Fetch all positive payments for the affected loans
         var loanIds = brokenActions.Select(a => a.LoanId).Distinct().ToList();
-        var paymentsAfterPromise = await _db.Payments
+        var payments = await _db.Payments
             .Where(p => loanIds.Contains(p.LoanId) && p.Amount > 0)
-            .GroupBy(p => p.LoanId)
-            .Select(g => new { LoanId = g.Key, MinPayDate = g.Min(p => p.PaymentDate) })
-            .ToDictionaryAsync(x => x.LoanId);
+            .Select(p => new { p.LoanId, p.PaymentDate })
+            .ToListAsync();
+            
+        var paymentsByLoan = payments.GroupBy(p => p.LoanId).ToDictionary(g => g.Key, g => g.ToList());
 
         foreach (var action in brokenActions)
         {
-            var hasPayment = paymentsAfterPromise.TryGetValue(action.LoanId, out var payInfo)
-                          && payInfo.MinPayDate >= action.PromiseDate!.Value;
+            // A promise is kept if ANY payment was made on or after the action date
+            var hasPayment = paymentsByLoan.TryGetValue(action.LoanId, out var loanPayments)
+                          && loanPayments.Any(p => p.PaymentDate >= action.ActionDate);
 
             if (hasPayment)
             {

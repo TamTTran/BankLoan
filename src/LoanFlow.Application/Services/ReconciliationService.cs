@@ -67,6 +67,10 @@ public class ReconciliationService : IReconciliationService
         var report = new ReconciliationReportDto { BusinessDate = businessDate };
         var (startUtc, endUtc) = _businessCalendar.GetBusinessDayUtcRange(businessDate);
 
+        var existingOpenExceptions = await _db.ReconciliationExceptions
+            .Where(e => e.BusinessDate == businessDate && e.Status == ReconciliationStatus.Open)
+            .ToListAsync();
+
         // ── 1. Payment reconciliation ────────────────────────────────────
         // Sum payments on date
         var totalPayments = await _db.Payments
@@ -83,16 +87,23 @@ public class ReconciliationService : IReconciliationService
 
         if (totalPayments != totalPaymentTx)
         {
-            var exc = new ReconciliationException
+            var exc = existingOpenExceptions.FirstOrDefault(e => e.ExceptionType == ReconciliationExceptionType.PaymentMismatch);
+            if (exc == null)
             {
-                BusinessDate = businessDate,
-                ExceptionType = ReconciliationExceptionType.PaymentMismatch,
-                ExpectedAmount = totalPayments,
-                ActualAmount = totalPaymentTx,
-                Difference = totalPayments - totalPaymentTx,
-                Description = $"Payment total ({totalPayments:N2}) does not match transaction total ({totalPaymentTx:N2})."
-            };
-            _db.ReconciliationExceptions.Add(exc);
+                exc = new ReconciliationException
+                {
+                    BusinessDate = businessDate,
+                    ExceptionType = ReconciliationExceptionType.PaymentMismatch,
+                    Status = ReconciliationStatus.Open
+                };
+                _db.ReconciliationExceptions.Add(exc);
+            }
+            
+            exc.ExpectedAmount = totalPayments;
+            exc.ActualAmount = totalPaymentTx;
+            exc.Difference = totalPayments - totalPaymentTx;
+            exc.Description = $"Payment total ({totalPayments:N2}) does not match transaction total ({totalPaymentTx:N2}).";
+            
             report.Exceptions.Add(MapExceptionToDto(exc));
         }
 
@@ -110,16 +121,23 @@ public class ReconciliationService : IReconciliationService
 
         if (totalDisb != totalDisbTx)
         {
-            var exc = new ReconciliationException
+            var exc = existingOpenExceptions.FirstOrDefault(e => e.ExceptionType == ReconciliationExceptionType.DisbursementMismatch);
+            if (exc == null)
             {
-                BusinessDate = businessDate,
-                ExceptionType = ReconciliationExceptionType.DisbursementMismatch,
-                ExpectedAmount = totalDisb,
-                ActualAmount = totalDisbTx,
-                Difference = totalDisb - totalDisbTx,
-                Description = $"Disbursement total ({totalDisb:N2}) does not match transaction total ({totalDisbTx:N2})."
-            };
-            _db.ReconciliationExceptions.Add(exc);
+                exc = new ReconciliationException
+                {
+                    BusinessDate = businessDate,
+                    ExceptionType = ReconciliationExceptionType.DisbursementMismatch,
+                    Status = ReconciliationStatus.Open
+                };
+                _db.ReconciliationExceptions.Add(exc);
+            }
+            
+            exc.ExpectedAmount = totalDisb;
+            exc.ActualAmount = totalDisbTx;
+            exc.Difference = totalDisb - totalDisbTx;
+            exc.Description = $"Disbursement total ({totalDisb:N2}) does not match transaction total ({totalDisbTx:N2}).";
+            
             report.Exceptions.Add(MapExceptionToDto(exc));
         }
 
@@ -137,17 +155,26 @@ public class ReconciliationService : IReconciliationService
 
             if (Math.Abs(loan.OutstandingAmount - computedOutstanding) > 0.01m)
             {
-                var exc = new ReconciliationException
+                var exc = existingOpenExceptions.FirstOrDefault(e => 
+                    e.ExceptionType == ReconciliationExceptionType.OutstandingMismatch && e.LoanId == loan.Id);
+                
+                if (exc == null)
                 {
-                    BusinessDate = businessDate,
-                    ExceptionType = ReconciliationExceptionType.OutstandingMismatch,
-                    LoanId = loan.Id,
-                    ExpectedAmount = computedOutstanding,
-                    ActualAmount = loan.OutstandingAmount,
-                    Difference = loan.OutstandingAmount - computedOutstanding,
-                    Description = $"Loan {loan.LoanAccountNo}: stored outstanding ({loan.OutstandingAmount:N2}) != computed ({computedOutstanding:N2})."
-                };
-                _db.ReconciliationExceptions.Add(exc);
+                    exc = new ReconciliationException
+                    {
+                        BusinessDate = businessDate,
+                        ExceptionType = ReconciliationExceptionType.OutstandingMismatch,
+                        LoanId = loan.Id,
+                        Status = ReconciliationStatus.Open
+                    };
+                    _db.ReconciliationExceptions.Add(exc);
+                }
+                
+                exc.ExpectedAmount = computedOutstanding;
+                exc.ActualAmount = loan.OutstandingAmount;
+                exc.Difference = loan.OutstandingAmount - computedOutstanding;
+                exc.Description = $"Loan {loan.LoanAccountNo}: stored outstanding ({loan.OutstandingAmount:N2}) != computed ({computedOutstanding:N2}).";
+                
                 report.Exceptions.Add(MapExceptionToDto(exc));
             }
         }

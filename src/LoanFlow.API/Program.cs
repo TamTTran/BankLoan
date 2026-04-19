@@ -23,6 +23,16 @@ if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
 {
     throw new InvalidOperationException("FATAL: 'Jwt:Key' is missing or too short (requires at least 32 characters for HMACSHA256).");
 }
+var jwtIssuer = builder.Configuration["Jwt:Issuer"];
+if (string.IsNullOrWhiteSpace(jwtIssuer))
+{
+    throw new InvalidOperationException("FATAL: 'Jwt:Issuer' is missing from configuration.");
+}
+var jwtAudience = builder.Configuration["Jwt:Audience"];
+if (string.IsNullOrWhiteSpace(jwtAudience))
+{
+    throw new InvalidOperationException("FATAL: 'Jwt:Audience' is missing from configuration.");
+}
 
 // === Database ===
 builder.Services.AddDbContext<LoanFlowDbContext>(options =>
@@ -54,6 +64,7 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ISmsService, NullSmsService>();
 builder.Services.AddScoped<IEndOfDayService, EndOfDayService>();
+builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 
 // === Background Jobs ===
 builder.Services.AddHostedService<DailyOverdueBackgroundService>();
@@ -126,6 +137,10 @@ builder.Services.AddSwaggerGen(c =>
 
 // === CORS (origins from config) ===
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+if (!builder.Environment.IsDevelopment() && allowedOrigins.Length == 0)
+{
+    throw new InvalidOperationException("FATAL: 'Cors:AllowedOrigins' is missing or empty in production configuration.");
+}
 builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", p =>
         p.WithOrigins(allowedOrigins)

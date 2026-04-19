@@ -19,6 +19,7 @@ public interface IAuthService
     Task<Result> LogoutAsync(int userId, string plainRefreshToken);
     Task<Result> LogoutAllAsync(int userId);
     Task<IEnumerable<SessionDto>> GetSessionsAsync(int userId);
+    Task<Result> RevokeSessionAsync(int userId, int sessionId);
 }
 
 public class AuthService : IAuthService
@@ -136,6 +137,16 @@ public class AuthService : IAuthService
             .ToListAsync();
 
         return sessions.Select(s => new SessionDto(s.Id, s.DeviceName, s.CreatedAt, s.ExpiresAt, s.IsActive));
+    }
+
+    public async Task<Result> RevokeSessionAsync(int userId, int sessionId)
+    {
+        var token = await _db.RefreshTokens.FirstOrDefaultAsync(t => t.UserId == userId && t.Id == sessionId);
+        if (token is null) return Result.Failure("Session not found or does not belong to user.");
+        
+        token.IsRevoked = true;
+        await _db.SaveChangesAsync();
+        return Result.Success();
     }
 
     private async Task<Result<LoginResponse>> GenerateAuthResponseAsync(User user, string? deviceId, string? deviceName)

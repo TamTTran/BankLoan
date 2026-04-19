@@ -70,18 +70,18 @@ export default function Reports() {
       {/* Portfolio Report */}
       {tab === 'portfolio' && data && (
         <div>
-          <div className="stats-grid" style={{ marginBottom: '2rem' }}>
-            <div className="stat-card"><div className="stat-value">{data.totalLoans}</div><div className="stat-label">Tổng khoản vay</div></div>
-            <div className="stat-card"><div className="stat-value">{fmt(data.totalOutstanding)}</div><div className="stat-label">Tổng dư nợ</div></div>
-            <div className="stat-card"><div className="stat-value">{data.avgTenorMonths}</div><div className="stat-label">Kỳ hạn TB (tháng)</div></div>
-            <div className="stat-card"><div className="stat-value">{data.avgInterestRate}%</div><div className="stat-label">Lãi suất TB</div></div>
-            <div className="stat-card"><div className="stat-value">{data.disbursementsThisMonth}</div><div className="stat-label">Giải ngân tháng này</div></div>
-            <div className="stat-card"><div className="stat-value">{fmt(data.disbursementVolumeThisMonth)}</div><div className="stat-label">Giá trị giải ngân</div></div>
+          <div className="kpi-grid" style={{ marginBottom: '2rem' }}>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{data.totalLoans}</div><div className="kpi-label">Tổng khoản vay</div></div>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{fmt(data.totalOutstanding)}</div><div className="kpi-label">Tổng dư nợ</div></div>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{data.avgTenorMonths}</div><div className="kpi-label">Kỳ hạn TB (tháng)</div></div>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{data.avgInterestRate}%</div><div className="kpi-label">Lãi suất TB</div></div>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{data.disbursementsThisMonth}</div><div className="kpi-label">Giải ngân tháng này</div></div>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{fmt(data.disbursementVolumeThisMonth)}</div><div className="kpi-label">Giá trị giải ngân</div></div>
           </div>
 
           <h3 style={{ marginBottom: '1rem' }}>Phân bổ theo trạng thái</h3>
-          <div className="table-container">
-            <table>
+          <div className="table-shell">
+            <table className="data-table">
               <thead><tr><th>Trạng thái</th><th className="text-right">Số lượng</th><th className="text-right">Dư nợ</th></tr></thead>
               <tbody>
                 {data.statusBreakdown?.map(s => (
@@ -92,8 +92,8 @@ export default function Reports() {
           </div>
 
           <h3 style={{ margin: '1.5rem 0 1rem' }}>Phân bổ theo loại sản phẩm</h3>
-          <div className="table-container">
-            <table>
+          <div className="table-shell">
+            <table className="data-table">
               <thead><tr><th>Loại sản phẩm</th><th className="text-right">Số lượng</th><th className="text-right">Dư nợ</th></tr></thead>
               <tbody>
                 {data.productBreakdown?.map(p => (
@@ -108,12 +108,12 @@ export default function Reports() {
       {/* Overdue Movement Report */}
       {tab === 'overdue' && data && (
         <div>
-          <div className="stats-grid" style={{ marginBottom: '2rem' }}>
-            <div className="stat-card"><div className="stat-value">{data.newOverdueCount}</div><div className="stat-label">Mới quá hạn</div></div>
-            <div className="stat-card"><div className="stat-value" style={{ color: '#22c55e' }}>{data.curedCount}</div><div className="stat-label">Đã khắc phục</div></div>
+          <div className="kpi-grid" style={{ marginBottom: '2rem' }}>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{data.newOverdueCount}</div><div className="kpi-label">Mới quá hạn</div></div>
+            <div className="kpi-card kpi-blue"><div className="kpi-value" style={{ color: '#22c55e' }}>{data.curedCount}</div><div className="kpi-label">Đã khắc phục</div></div>
           </div>
-          <div className="table-container">
-            <table>
+          <div className="table-shell">
+            <table className="data-table">
               <thead><tr><th>Ngày</th><th className="text-right">Số khoản QH</th><th className="text-right">Số tiền QH</th><th className="text-right">DPD TB</th></tr></thead>
               <tbody>
                 {data.days?.map(d => (
@@ -127,8 +127,8 @@ export default function Reports() {
 
       {/* Collection Productivity Report */}
       {tab === 'productivity' && data && (
-        <div className="table-container">
-          <table>
+        <div className="table-shell">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Collector</th>
@@ -162,16 +162,16 @@ export default function Reports() {
       {/* Approval Queue Report */}
       {tab === 'approval' && data && (
         <div>
-          <div className="stats-grid" style={{ marginBottom: '2rem' }}>
-            <div className="stat-card"><div className="stat-value">{data.totalPending}</div><div className="stat-label">Đang chờ duyệt</div></div>
-            <div className="stat-card"><div className="stat-value">{data.avgDaysPending}</div><div className="stat-label">Chờ TB (ngày)</div></div>
-            <div className="stat-card"><div className="stat-value">{data.approvedThisMonth}</div><div className="stat-label">Đã duyệt tháng này</div></div>
-            <div className="stat-card"><div className="stat-value">{data.rejectedThisMonth}</div><div className="stat-label">Đã từ chối</div></div>
-            <div className="stat-card"><div className="stat-value">{pct(data.approvalRate)}</div><div className="stat-label">Tỉ lệ duyệt</div></div>
+          <div className="kpi-grid" style={{ marginBottom: '2rem' }}>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{data.totalPending}</div><div className="kpi-label">Đang chờ duyệt</div></div>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{data.avgDaysPending}</div><div className="kpi-label">Chờ TB (ngày)</div></div>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{data.approvedThisMonth}</div><div className="kpi-label">Đã duyệt tháng này</div></div>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{data.rejectedThisMonth}</div><div className="kpi-label">Đã từ chối</div></div>
+            <div className="kpi-card kpi-blue"><div className="kpi-value">{pct(data.approvalRate)}</div><div className="kpi-label">Tỉ lệ duyệt</div></div>
           </div>
           {data.byApprover?.length > 0 && (
-            <div className="table-container">
-              <table>
+            <div className="table-shell">
+              <table className="data-table">
                 <thead><tr><th>Người duyệt</th><th className="text-right">Đã duyệt</th><th className="text-right">Đã từ chối</th></tr></thead>
                 <tbody>
                   {data.byApprover.map(a => (

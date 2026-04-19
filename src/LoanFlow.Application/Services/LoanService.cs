@@ -75,6 +75,12 @@ public class LoanService : ILoanService
     // ── GET /loans/{id} ─────────────────────────────────────────────────────
     public async Task<Result<LoanDto>> GetByIdAsync(int id)
     {
+        var today = _businessClock.TodayBusinessDate();
+        
+        // Query time calculation for late fees MUST happen before fetching the loan entity
+        // so that the newly calculated/updated late fees are included in the read.
+        await _lateFeeService.CalculateLateFeesAsync(id, today);
+
         var loan = await _db.Loans
             .Include(l => l.Customer)
             .Include(l => l.Product)
@@ -88,10 +94,6 @@ public class LoanService : ILoanService
         if (loan is null) return Result.Failure<LoanDto>("Loan not found.");
 
         var dto = MapToDto(loan);
-        var today = _businessClock.TodayBusinessDate();
-
-        // Query time calculation for late fees
-        await _lateFeeService.CalculateLateFeesAsync(loan.Id, today);
 
         // Map schedules and late fees
         dto.Schedule = loan.RepaymentSchedules

@@ -123,6 +123,7 @@ public class LoansController : ControllerBase
     /// <summary>POST /loans/{id}/early-settle</summary>
     [HttpPost("loans/{id:int}/early-settle")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.Approver}")]
+    [IdempotencyFilter]
     public async Task<IActionResult> EarlySettle(int id, [FromBody] EarlySettleRequest request)
     {
         var result = await _service.EarlySettleAsync(id, request, CurrentUserId);
@@ -184,6 +185,7 @@ public class LoansController : ControllerBase
     /// <summary>POST /loans/suspense/{id}/apply</summary>
     [HttpPost("suspense/{id:int}/apply")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer}")]
+    [IdempotencyFilter]
     public async Task<IActionResult> ApplySuspense(int id)
     {
         var result = await _service.ApplySuspenseAsync(id, CurrentUserId);
