@@ -67,9 +67,13 @@ builder.Services.AddScoped<IEndOfDayService, EndOfDayService>();
 builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 builder.Services.AddScoped<IApprovalFlowService, ApprovalFlowService>();
 builder.Services.AddScoped<ILoanAdjustmentService, LoanAdjustmentService>();
+builder.Services.AddScoped<ILoanLifecycleService, LoanLifecycleService>();
+builder.Services.AddScoped<IAccountingService, AccountingService>();
 
 // === Background Jobs ===
 builder.Services.AddHostedService<DailyOverdueBackgroundService>();
+builder.Services.AddHostedService<LoanFlow.API.BackgroundJobs.DailyAccrualBackgroundService>();
+builder.Services.AddHostedService<LoanFlow.API.BackgroundJobs.DailyClassificationBackgroundService>();
 
 // === JWT Auth ===
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

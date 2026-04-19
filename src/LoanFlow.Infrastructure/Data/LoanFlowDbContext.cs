@@ -48,6 +48,17 @@ public class LoanFlowDbContext : DbContext
     public DbSet<PendingApprovalRequest> PendingApprovalRequests => Set<PendingApprovalRequest>();
     public DbSet<LoanAdjustment> LoanAdjustments => Set<LoanAdjustment>();
 
+    // ── Banking Upgrade: Phase 2 ─────────────────────────────────────────
+    public DbSet<LoanRestructure> LoanRestructures => Set<LoanRestructure>();
+    public DbSet<LoanReschedule> LoanReschedules => Set<LoanReschedule>();
+    public DbSet<LoanWriteOff> LoanWriteOffs => Set<LoanWriteOff>();
+    public DbSet<LoanRecovery> LoanRecoveries => Set<LoanRecovery>();
+
+    // ── Banking Upgrade: Phase 3 (Accounting) ────────────────────────────
+    public DbSet<GLAccount> GLAccounts => Set<GLAccount>();
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<JournalEntryLine> JournalEntryLines => Set<JournalEntryLine>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -203,6 +214,76 @@ public class LoanFlowDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(a => a.ApprovedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Phase 2: Loan Lifecycle ───────────────────────────────────
+        modelBuilder.Entity<LoanRestructure>(b =>
+        {
+            b.HasIndex(r => r.LoanId).HasDatabaseName("IX_LoanRestructures_LoanId");
+            b.Property(r => r.ReasonCode).HasMaxLength(50);
+            b.Property(r => r.OldMonthlyInterestRate).HasPrecision(10, 6);
+            b.Property(r => r.NewMonthlyInterestRate).HasPrecision(10, 6);
+            b.HasOne(r => r.Loan).WithMany().HasForeignKey(r => r.LoanId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(r => r.RequestedBy).WithMany().HasForeignKey(r => r.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(r => r.ApprovedBy).WithMany().HasForeignKey(r => r.ApprovedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LoanReschedule>(b =>
+        {
+            b.HasIndex(r => r.LoanId).HasDatabaseName("IX_LoanReschedules_LoanId");
+            b.Property(r => r.ReasonCode).HasMaxLength(50);
+            b.HasOne(r => r.Loan).WithMany().HasForeignKey(r => r.LoanId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(r => r.RequestedBy).WithMany().HasForeignKey(r => r.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(r => r.ApprovedBy).WithMany().HasForeignKey(r => r.ApprovedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LoanWriteOff>(b =>
+        {
+            b.HasIndex(w => w.LoanId).IsUnique().HasDatabaseName("IX_LoanWriteOffs_LoanId"); // 1 loan = 1 write-off
+            b.Property(w => w.WriteOffAmount).HasPrecision(18, 2);
+            b.Property(w => w.UnpaidPrincipal).HasPrecision(18, 2);
+            b.Property(w => w.UnpaidInterest).HasPrecision(18, 2);
+            b.Property(w => w.UnpaidLateFees).HasPrecision(18, 2);
+            b.Property(w => w.ReasonCode).HasMaxLength(50);
+            b.HasOne(w => w.Loan).WithMany().HasForeignKey(w => w.LoanId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(w => w.RequestedBy).WithMany().HasForeignKey(w => w.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(w => w.ApprovedBy).WithMany().HasForeignKey(w => w.ApprovedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LoanRecovery>(b =>
+        {
+            b.HasIndex(r => r.LoanId).HasDatabaseName("IX_LoanRecoveries_LoanId");
+            b.Property(r => r.RecoveredAmount).HasPrecision(18, 2);
+            b.Property(r => r.RecoveryMethod).HasMaxLength(50);
+            b.HasOne(r => r.Loan).WithMany().HasForeignKey(r => r.LoanId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(r => r.WriteOff).WithMany(w => w.Recoveries).HasForeignKey(r => r.WriteOffId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(r => r.RecordedBy).WithMany().HasForeignKey(r => r.RecordedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Phase 3: Bank-Grade Accounting ──────────────────────────────
+        modelBuilder.Entity<GLAccount>(b =>
+        {
+            b.HasIndex(a => a.AccountCode).IsUnique().HasDatabaseName("IX_GLAccounts_AccountCode");
+            b.Property(a => a.AccountCode).HasMaxLength(20);
+            b.Property(a => a.AccountName).HasMaxLength(100);
+            b.Property(a => a.AccountType).HasMaxLength(20);
+            b.Property(a => a.Balance).HasPrecision(18, 2);
+        });
+
+        modelBuilder.Entity<JournalEntry>(b =>
+        {
+            b.Property(j => j.ReferenceNumber).HasMaxLength(50);
+            b.Property(j => j.Description).HasMaxLength(255);
+            b.HasIndex(j => j.ReferenceNumber);
+        });
+
+        modelBuilder.Entity<JournalEntryLine>(b =>
+        {
+            b.Property(l => l.DebitAmount).HasPrecision(18, 2);
+            b.Property(l => l.CreditAmount).HasPrecision(18, 2);
+            b.Property(l => l.LineDescription).HasMaxLength(255);
+            b.HasOne(l => l.JournalEntry).WithMany(j => j.Lines).HasForeignKey(l => l.JournalEntryId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(l => l.GLAccount).WithMany().HasForeignKey(l => l.GLAccountId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoanFlowDbContext).Assembly);

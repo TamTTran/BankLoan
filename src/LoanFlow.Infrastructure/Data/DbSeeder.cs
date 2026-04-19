@@ -11,6 +11,8 @@ public static class DbSeeder
     {
         if (await db.Users.AnyAsync()) return; // Already seeded
 
+        await SeedGLAccountsAsync(db);
+
         var users = await SeedUsersAsync(db);
         var products = await SeedLoanProductsAsync(db);
         var customers = await SeedCustomersAsync(db, users.Officer.Id);
@@ -33,7 +35,30 @@ public static class DbSeeder
         // ── Phase 1: Maker-Checker & Manual Adjustment seed data ────────────
         await SeedMakerCheckerScenariosAsync(db, happyLoan.Id, users.Officer.Id, users.Manager.Id);
 
-        Console.WriteLine("[Seeder v3] Done: Users, Products, Customers, Demo loan, Overdue loan, Phase-1 approval scenarios seeded.");
+        Console.WriteLine("[Seeder v3] Done: GL Accounts, Users, Products, Customers, Demo loan, Overdue loan, Phase-1 approval scenarios seeded.");
+    }
+
+    private static async Task SeedGLAccountsAsync(LoanFlowDbContext db)
+    {
+        var accounts = new List<GLAccount>
+        {
+            new GLAccount { AccountCode = "1001", AccountName = "Cash in Bank", AccountType = GLAccountType.Asset },
+            new GLAccount { AccountCode = "1301", AccountName = "Loan Principal Outstanding", AccountType = GLAccountType.Asset },
+            new GLAccount { AccountCode = "1302", AccountName = "Interest Receivable", AccountType = GLAccountType.Asset },
+            new GLAccount { AccountCode = "1303", AccountName = "Late Fee Receivable", AccountType = GLAccountType.Asset },
+            new GLAccount { AccountCode = "1309", AccountName = "Allowance for Loan Losses", AccountType = GLAccountType.Asset }, // Contra-asset
+            
+            new GLAccount { AccountCode = "2001", AccountName = "Suspense / Overpayment", AccountType = GLAccountType.Liability },
+            
+            new GLAccount { AccountCode = "4001", AccountName = "Interest Income", AccountType = GLAccountType.Income },
+            new GLAccount { AccountCode = "4002", AccountName = "Late Fee Income", AccountType = GLAccountType.Income },
+            new GLAccount { AccountCode = "4005", AccountName = "Recovery Income", AccountType = GLAccountType.Income },
+            
+            new GLAccount { AccountCode = "5001", AccountName = "Provision Expense", AccountType = GLAccountType.Expense },
+            new GLAccount { AccountCode = "5002", AccountName = "Write-Off Expense", AccountType = GLAccountType.Expense },
+        };
+        db.GLAccounts.AddRange(accounts);
+        await db.SaveChangesAsync();
     }
 
     private static async Task<SeedUsersResult> SeedUsersAsync(LoanFlowDbContext db)

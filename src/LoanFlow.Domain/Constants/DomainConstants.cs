@@ -24,6 +24,9 @@ public static class LoanStatus
     public const string Active = "Active";
     public const string Overdue = "Overdue";
     public const string Closed = "Closed";
+    // ── Phase 2 ────────────
+    public const string Restructured = "Restructured";  // Đã cơ cấu lại, tiếp tục trả nợ
+    public const string WrittenOff = "WrittenOff";       // Đã xóa nợ, không có khả năng thu hồi
 }
 
 public static class InstallmentStatus
@@ -181,6 +184,12 @@ public static class AuditActions
     public const string SuspenseApplied = "SUSPENSE_APPLIED";
     public const string SuspenseRefunded = "SUSPENSE_REFUNDED";
     public const string NotificationSent = "NOTIFICATION_SENT";
+
+    // ── Phase 2: Loan Lifecycle ──────────────────────────────
+    public const string LoanRestructured = "LOAN_RESTRUCTURED";
+    public const string LoanRescheduled = "LOAN_RESCHEDULED";
+    public const string LoanWrittenOff = "LOAN_WRITTEN_OFF";
+    public const string LoanRecoveryRecorded = "LOAN_RECOVERY_RECORDED";
 }
 
 // ── Reversal Type ───────────────────────────────────────────────────────────
@@ -317,7 +326,26 @@ public static class NotificationType
 public static class OtpPurpose
 {
     public const string Login = "Login";
-    public const string VerifyOverpayment = "VerifyOverpayment";
+}
+
+// ── Phase 3: Bank-Grade Accounting & Compliance ──────────────────────────────
+
+public static class GLAccountType
+{
+    public const string Asset = "Asset";
+    public const string Liability = "Liability";
+    public const string Equity = "Equity";
+    public const string Income = "Income";
+    public const string Expense = "Expense";
+}
+
+public static class LoanClassification
+{
+    public const int Group1_Standard = 1;         // Nợ đủ tiêu chuẩn
+    public const int Group2_SpecialMention = 2;   // Nợ cần chú ý
+    public const int Group3_Substandard = 3;      // Nợ dưới tiêu chuẩn
+    public const int Group4_Doubtful = 4;         // Nợ nghi ngờ
+    public const int Group5_Loss = 5;             // Nợ có khả năng mất vốn
 }
 
 

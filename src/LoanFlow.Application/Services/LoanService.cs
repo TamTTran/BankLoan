@@ -30,12 +30,14 @@ public class LoanService : ILoanService
     private readonly LoanFlowDbContext _db;
     private readonly ILateFeeService _lateFeeService;
     private readonly IBusinessClock _businessClock;
+    private readonly IAccountingService _accountingService;
 
-    public LoanService(LoanFlowDbContext db, ILateFeeService lateFeeService, IBusinessClock businessClock)
+    public LoanService(LoanFlowDbContext db, ILateFeeService lateFeeService, IBusinessClock businessClock, IAccountingService accountingService)
     {
         _db = db;
         _lateFeeService = lateFeeService;
         _businessClock = businessClock;
+        _accountingService = accountingService;
     }
 
     // ── GET /loans ──────────────────────────────────────────────────────────
@@ -248,6 +250,25 @@ public class LoanService : ILoanService
             else
                 GenerateSchedule(loan, req.DisbursementDate);
 
+            // Phase 3: Post Disbursement Journal Entry
+            var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
+            {
+                ReferenceNumber = $"DISB-{loanId}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                BusinessDate = req.DisbursementDate,
+                Description = $"Disbursement for Loan {loan.LoanAccountNo}",
+                Lines = new List<JournalEntryLineDto>
+                {
+                    new JournalEntryLineDto { AccountCode = "1301", DebitAmount = req.DisbursedAmount, CreditAmount = 0, LineDescription = "Loan Principal Disbursement" },
+                    new JournalEntryLineDto { AccountCode = "1001", DebitAmount = 0, CreditAmount = req.DisbursedAmount, LineDescription = "Cash Outflow" }
+                }
+            });
+
+            if (!journalResult.IsSuccess)
+            {
+                await tx.RollbackAsync();
+                return Result.Failure<LoanDto>($"Accounting failed: {journalResult.Error}");
+            }
+
             _db.AuditLogs.Add(new AuditLog
             {
                 ActorUserId = userId,
@@ -312,6 +333,9 @@ public class LoanService : ILoanService
 
         // §13.6 Payment allocation: LateFee → Interest → Principal
         var remaining = amountToAllocate;
+        decimal totalLateFeeToPay = 0;
+        decimal totalInterestToPay = 0;
+        decimal totalPrincipalToPay = 0;
         
         // 1. Pay pending Late Fees first
         var pendingFees = loan.LateFees.Where(f => f.Status == LateFeeStatus.Pending).ToList();
@@ -327,6 +351,7 @@ public class LoanService : ILoanService
             {
                 fee.Status = LateFeeStatus.Paid;
                 remaining -= fee.FeeAmount;
+                totalLateFeeToPay += fee.FeeAmount;
             }
         }
 
@@ -344,6 +369,7 @@ public class LoanService : ILoanService
             var interestPay = Math.Min(remaining, interestDue);
             schedule.InterestPaid += interestPay;
             remaining -= interestPay;
+            totalInterestToPay += interestPay;
 
             // Then principal
             if (remaining > 0)
@@ -352,6 +378,7 @@ public class LoanService : ILoanService
                 var principalPay = Math.Min(remaining, principalDue);
                 schedule.PrincipalPaid += principalPay;
                 remaining -= principalPay;
+                totalPrincipalToPay += principalPay;
             }
 
             // Update remaining due and status
@@ -412,6 +439,48 @@ public class LoanService : ILoanService
             EntityId = payment.Id,
             NewValuesJson = AuditHelper.ToJson(new { amount = req.Amount, loanId })
         });
+
+        // Phase 3: Post Payment Journal Entry
+        var journalLines = new List<JournalEntryLineDto>
+        {
+            new JournalEntryLineDto { AccountCode = "1001", DebitAmount = req.Amount, CreditAmount = 0, LineDescription = "Cash Inflow" }
+        };
+
+        if (totalPrincipalToPay > 0)
+        {
+            journalLines.Add(new JournalEntryLineDto { AccountCode = "1301", DebitAmount = 0, CreditAmount = totalPrincipalToPay, LineDescription = "Principal Repayment" });
+        }
+
+        if (totalInterestToPay > 0)
+        {
+            journalLines.Add(new JournalEntryLineDto { AccountCode = "1302", DebitAmount = 0, CreditAmount = totalInterestToPay, LineDescription = "Interest Receivable Repayment" });
+        }
+        
+        if (totalLateFeeToPay > 0)
+        {
+            // Assuming LateFee Receivable is 1303 
+            journalLines.Add(new JournalEntryLineDto { AccountCode = "1303", DebitAmount = 0, CreditAmount = totalLateFeeToPay, LineDescription = "Late Fee Repayment" });
+        }
+
+        if (overpayment > 0)
+        {
+            // 2001 -> Suspense Liability (will seed it)
+            journalLines.Add(new JournalEntryLineDto { AccountCode = "2001", DebitAmount = 0, CreditAmount = overpayment, LineDescription = "Overpayment to Suspense" });
+        }
+
+        var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
+        {
+            ReferenceNumber = $"PAY-{payment.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+            BusinessDate = req.PaymentDate,
+            Description = $"Payment Recorded for Loan {loan.Id}",
+            Lines = journalLines
+        });
+
+        if (!journalResult.IsSuccess)
+        {
+            await tx.RollbackAsync();
+            throw new InvalidOperationException($"Accounting failed: {journalResult.Error}");
+        }
 
         // Wave 4: Create SuspenseTransaction if there is overpayment
         if (overpayment > 0)

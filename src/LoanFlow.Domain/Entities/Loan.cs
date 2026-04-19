@@ -1,3 +1,5 @@
+using LoanFlow.Domain.Constants;
+
 namespace LoanFlow.Domain.Entities;
 
 public class Loan
@@ -15,6 +17,10 @@ public class Loan
     public DateOnly? MaturityDate { get; set; }
     public string Status { get; set; } = "PendingDisbursement"; // PendingDisbursement | Active | Overdue | Closed
     public decimal OutstandingAmount { get; set; }
+
+    // ── Phase 3: NPL & Classification ────────────────────────────────────────
+    public int CurrentClassification { get; set; } = LoanClassification.Group1_Standard;
+    public decimal ProvisionAmount { get; set; } = 0;
 
     // ── Bank-grade snapshot fields (frozen at loan creation from product) ────
     public string InterestMethod { get; set; } = "Flat";    // snapshot: Flat | ReducingBalance
