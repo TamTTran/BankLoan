@@ -59,6 +59,11 @@ public class ExceptionHandlingMiddleware
             problemDetails.Title = "Conflict";
             problemDetails.Type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.8";
             problemDetails.Detail = ex.Message;
+            problemDetails.Extensions["retryable"] = true;
+            problemDetails.Extensions["category"] = IsMoneyProcessingConflict(ex.Message)
+                ? "money-processing"
+                : "concurrency";
+            problemDetails.Extensions["suggestedAction"] = "Reload the latest state and retry the request.";
         }
         else if (ex is InvalidOperationException || ex is ArgumentException)
         {
@@ -86,5 +91,18 @@ public class ExceptionHandlingMiddleware
         
         var result = JsonSerializer.Serialize(problemDetails, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         return context.Response.WriteAsync(result);
+    }
+
+    private static bool IsMoneyProcessingConflict(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return false;
+
+        return message.Contains("payment", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("disburs", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("settl", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("late fee", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("reversal", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("loan", StringComparison.OrdinalIgnoreCase);
     }
 }

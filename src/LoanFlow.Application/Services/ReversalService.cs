@@ -186,6 +186,41 @@ public class ReversalService : IReversalService
             _db.LoanTransactions.Add(compensatingTx);
             await SaveChangesWithConcurrencyHandlingAsync("Reversal approval conflicted with another transaction. Reload and retry.");
 
+            // ── Ledger Chain: write negative-mirror PaymentAllocations for the reversal ──
+            // Query original allocations to know exactly what components to reverse
+            var originalAllocations = await _db.PaymentAllocations
+                .Where(a => a.LoanTransactionId == reversal.OriginalTransactionId)
+                .ToListAsync();
+
+            if (originalAllocations.Count > 0)
+            {
+                // Mirror each original allocation with a negative record linked to the compensating tx
+                foreach (var orig in originalAllocations)
+                {
+                    _db.PaymentAllocations.Add(new PaymentAllocation
+                    {
+                        PaymentId        = compensatingPayment.Id,
+                        LoanTransactionId = compensatingTx.Id,
+                        ScheduleId       = orig.ScheduleId,
+                        LateFeeId        = orig.LateFeeId,
+                        AllocationType   = orig.AllocationType,   // same type (Principal/Interest/LateFee/Suspense)
+                        Amount           = -orig.Amount           // negative = reversal
+                    });
+                }
+            }
+            else
+            {
+                // Fallback: no allocation records found (pre-ledger payments) — write a single Reversal entry
+                _db.PaymentAllocations.Add(new PaymentAllocation
+                {
+                    PaymentId        = compensatingPayment.Id,
+                    LoanTransactionId = compensatingTx.Id,
+                    ScheduleId       = null,
+                    AllocationType   = "Reversal",
+                    Amount           = -reversal.ReversedAmount
+                });
+            }
+
             // 3. Roll back schedule allocations
             //    We need to "undo" what the original payment did.
             //    Strategy: add back the reversed amount using reverse allocation (Principal → Interest → LateFee)

@@ -234,14 +234,16 @@ public class LoanService : ILoanService
                 LoanId = loanId,
                 DisbursedAmount = req.DisbursedAmount,
                 DisbursementDate = req.DisbursementDate,
-                RecordedByUserId = userId
+                RecordedByUserId = userId,
+                CreatedAt = _businessClock.UtcNow
             });
 
             _db.LoanTransactions.Add(new LoanTransaction
             {
                 LoanId = loanId,
                 TransactionType = "Disbursement",
-                Amount = req.DisbursedAmount
+                Amount = req.DisbursedAmount,
+                CreatedAt = _businessClock.UtcNow
             });
 
             // §12.5 Rule 5 + §13.2: Generate repayment schedule — Flat or ReducingBalance
@@ -336,6 +338,7 @@ public class LoanService : ILoanService
         decimal totalLateFeeToPay = 0;
         decimal totalInterestToPay = 0;
         decimal totalPrincipalToPay = 0;
+        var scheduleAllocations = new List<(int ScheduleId, decimal InterestAmount, decimal PrincipalAmount)>();
         
         // 1. Pay pending Late Fees first
         var pendingFees = loan.LateFees.Where(f => f.Status == LateFeeStatus.Pending).ToList();
@@ -371,14 +374,21 @@ public class LoanService : ILoanService
             remaining -= interestPay;
             totalInterestToPay += interestPay;
 
+            decimal principalPay = 0;
+
             // Then principal
             if (remaining > 0)
             {
                 var principalDue = schedule.PrincipalDue - schedule.PrincipalPaid;
-                var principalPay = Math.Min(remaining, principalDue);
+                principalPay = Math.Min(remaining, principalDue);
                 schedule.PrincipalPaid += principalPay;
                 remaining -= principalPay;
                 totalPrincipalToPay += principalPay;
+            }
+
+            if (interestPay > 0 || principalPay > 0)
+            {
+                scheduleAllocations.Add((schedule.Id, interestPay, principalPay));
             }
 
             // Update remaining due and status
@@ -418,7 +428,8 @@ public class LoanService : ILoanService
             Amount = req.Amount,
             PaymentMethod = req.PaymentMethod,
             Remarks = req.Remarks,
-            CreatedByUserId = userId
+            CreatedByUserId = userId,
+            CreatedAt = _businessClock.UtcNow
         };
         _db.Payments.Add(payment);
         await SaveChangesWithConcurrencyHandlingAsync("Loan was modified by another transaction while recording payment. Reload and retry.");
@@ -428,7 +439,8 @@ public class LoanService : ILoanService
             LoanId = loanId,
             PaymentId = payment.Id,
             TransactionType = "Payment",
-            Amount = req.Amount
+            Amount = req.Amount,
+            CreatedAt = _businessClock.UtcNow
         };
         _db.LoanTransactions.Add(loanTx);
         await SaveChangesWithConcurrencyHandlingAsync("Loan was modified by another transaction while recording payment. Reload and retry.");
@@ -450,29 +462,26 @@ public class LoanService : ILoanService
         }
 
         // Principal/Interest allocations per schedule
-        foreach (var schedule in unpaidSchedules)
+        foreach (var allocation in scheduleAllocations)
         {
-            var interestAlloc = schedule.InterestPaid > 0 ? schedule.InterestPaid : 0m;
-            var principalAlloc = schedule.PrincipalPaid > 0 ? schedule.PrincipalPaid : 0m;
-
-            if (interestAlloc > 0)
+            if (allocation.InterestAmount > 0)
                 _db.PaymentAllocations.Add(new PaymentAllocation
                 {
                     PaymentId = payment.Id,
                     LoanTransactionId = loanTx.Id,
-                    ScheduleId = schedule.Id,
+                    ScheduleId = allocation.ScheduleId,
                     AllocationType = "Interest",
-                    Amount = interestAlloc
+                    Amount = allocation.InterestAmount
                 });
 
-            if (principalAlloc > 0)
+            if (allocation.PrincipalAmount > 0)
                 _db.PaymentAllocations.Add(new PaymentAllocation
                 {
                     PaymentId = payment.Id,
                     LoanTransactionId = loanTx.Id,
-                    ScheduleId = schedule.Id,
+                    ScheduleId = allocation.ScheduleId,
                     AllocationType = "Principal",
-                    Amount = principalAlloc
+                    Amount = allocation.PrincipalAmount
                 });
         }
 

@@ -24,7 +24,9 @@ public class ApprovalFlowServiceTests
             businessDate: new DateOnly(2026, 4, 19));
 
         var services = new ServiceCollection();
-        services.AddDbContext<LoanFlowDbContext>(options => options.UseInMemoryDatabase(databaseName));
+        services.AddDbContext<LoanFlowDbContext>(options => options
+            .UseInMemoryDatabase(databaseName)
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning)));
         services.AddSingleton<IBusinessClock>(clock);
         services.AddScoped<IApprovalFlowService, ApprovalFlowService>();
         services.AddScoped<ILoanLifecycleService, LoanLifecycleService>();

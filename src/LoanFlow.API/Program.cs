@@ -203,10 +203,40 @@ app.MapControllers();
 // Health endpoint for Docker / load-balancer probes (no auth required)
 app.MapHealthChecks("/health");
 
-// === Migrate + Seed (with retry for Docker) ===
-await MigrateWithRetryAsync(app);
+var migrateOnStartup = ShouldRunMigrationsOnStartup(app);
+var migrateOnly = args.Contains("--migrate-only", StringComparer.OrdinalIgnoreCase);
+
+if (migrateOnStartup || migrateOnly)
+{
+    // Schema rollout is opt-in outside Development so application startup
+    // does not implicitly become a production migration job.
+    await MigrateWithRetryAsync(app);
+}
+else
+{
+    app.Logger.LogInformation(
+        "Skipping automatic database migration. Set DB_MIGRATE_ON_STARTUP=true or run with --migrate-only to apply schema changes.");
+}
+
+if (migrateOnly)
+{
+    app.Logger.LogInformation("Schema rollout completed via --migrate-only.");
+    return;
+}
 
 app.Run();
+
+static bool ShouldRunMigrationsOnStartup(WebApplication app)
+{
+    var configuredValue = app.Configuration["DB_MIGRATE_ON_STARTUP"];
+    if (!string.IsNullOrWhiteSpace(configuredValue)
+        && bool.TryParse(configuredValue, out var migrateOnStartup))
+    {
+        return migrateOnStartup;
+    }
+
+    return app.Environment.IsDevelopment();
+}
 
 static async Task MigrateWithRetryAsync(WebApplication app)
 {

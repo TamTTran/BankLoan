@@ -1,8 +1,4 @@
-# ──────────────────────────────────────────────────────
-# .gitignore — LoanFlow Lite (.NET 8 + Vite/Node frontend)
-# ──────────────────────────────────────────────────────
-
-# ── Visual Studio ─────────────────────────────────────
+# ── Visual Studio ─────────────────────────────────────────
 .vs/
 *.user
 *.suo
@@ -10,9 +6,7 @@
 *.sln.docstates
 *.userprefs
 
-
-# ── Build output ───────────────────────────────────────────────────────────────
-# Kết quả build (Debug & Release) — dùng ** để bắt mọi cấp thư mục
+# ── Build output ─────────────────────────────────────────
 **/bin/
 **/obj/
 **/log/
@@ -23,38 +17,34 @@ publish/
 # Incremental build cache (MSBuild)
 *.FileListAbsolute.txt
 *.FrameworkListFile.txt
-AssemblyInfo.cs        # auto-generated
 **/GeneratedFiles/
 
-# ── Debug ──────────────────────────────────────────────────────────────────────
-# Symbol / debug files
+# ── Debug ─────────────────────────────────────────────────
 *.pdb
 *.ilk
 *.idb
 *.ipdb
 
-# Crash dumps & memory snapshots
+# Crash dumps & profiler
 *.dmp
 *.mdmp
 *.psess
 *.vsp
 *.vspx
 *.sap
-
-# .NET diagnostic / profiler traces
 *.diagsession
 *.etl
 *.nettrace
 
-# Hot reload / fast refresh
+# Hot reload
 .hotreload/
 **/Properties/launchSettings.local.json
 launchSettings.override.json
 
-# User Secrets (lưu ngoài project folder, nhưng phòng trường hợp copy vào)
+# User Secrets
 secrets.json
 
-# SQLite dev/test database (nếu dùng InMemory hoặc SQLite khi debug)
+# SQLite dev/test database
 *.db
 *.db-shm
 *.db-wal
@@ -62,21 +52,19 @@ secrets.json
 *.sqlite
 *.sqlite3
 
-# EF Core design-time build cache
+# EF Core design-time
 *.dtbcache.v2
-**/obj/**/*.cs            # generated source từ EF/Razor
 
-# SQL Server LocalDB (file .mdf/.ldf tạo ra khi chạy local)
+# SQL Server LocalDB
 *.mdf
 *.ldf
 *.mdf-journal
 
-# App data / runtime folders tạo khi chạy debug
+# App data / runtime
 **/App_Data/
 wwwroot/uploads/
 
-
-# ── .NET / NuGet ──────────────────────────────────────
+# ── .NET / NuGet ──────────────────────────────────────────
 *.nupkg
 *.snupkg
 *.nuget.props
@@ -89,8 +77,7 @@ project.assets.json
 packages/
 !packages/build/
 
-# ── Secrets & environment ─────────────────────────────
-# appsettings có thông tin môi trường cụ thể — không commit
+# ── Secrets & environment ─────────────────────────────────
 **/appsettings.Development.json
 **/appsettings.Local.json
 **/appsettings.Production.json
@@ -99,36 +86,35 @@ packages/
 *.p12
 *.pem
 *.key
-secrets.json
 .env
 .env.*
 !.env.example
 
-# ── Entity Framework Migrations ───────────────────────
-# Migrations are tracked in git — do NOT add Migrations/ here
-# But ignore the design-time build cache
-*.dtbcache.v2
+# ── EF Migrations ─────────────────────────────────────────
+# Migrations ARE tracked — do NOT add Migrations/ here
 
-# ── Rider / JetBrains ─────────────────────────────────
+# ── Rider / JetBrains ─────────────────────────────────────
 .idea/
 *.sln.iml
 _ReSharper*/
 *.ReSharper
+*.DotSettings
+*.DotSettings.user
 
-# ── VSCode ────────────────────────────────────────────
+# ── VSCode ────────────────────────────────────────────────
 .vscode/settings.json
 .vscode/launch.json
 .vscode/tasks.json
 !.vscode/extensions.json
 
-# ── Test results ──────────────────────────────────────
+# ── Test results ──────────────────────────────────────────
 TestResults/
 coverage/
 *.coveragexml
 *.trx
 *.coverage
 
-# ── Node / Frontend ────────────────────────────────────
+# ── Node / Frontend ──────────────────────────────────────
 node_modules/
 dist/
 .next/
@@ -141,11 +127,19 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.vite/
 
-# ── Docker ────────────────────────────────────────────
+# ── Docker ────────────────────────────────────────────────
 .docker/
 
-# ── OS ────────────────────────────────────────────────
+# ── .NET SDK telemetry & tool cache ───────────────────────
+.dotnet/
+.dotnet-tools/
+
+# ── Gemini / AI agent workspace ───────────────────────────
+.gemini/
+
+# ── OS ────────────────────────────────────────────────────
 .DS_Store
 .DS_Store?
 ._*
@@ -156,7 +150,7 @@ Desktop.ini
 $RECYCLE.BIN/
 ehthumbs.db
 
-# ── Misc ──────────────────────────────────────────────
+# ── Misc ──────────────────────────────────────────────────
 *.bak
 *.tmp
 *.swp

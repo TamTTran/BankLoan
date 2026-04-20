@@ -19,6 +19,7 @@ public class PaymentAllocationServiceTests
     {
         var options = new DbContextOptionsBuilder<LoanFlowDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
             .Options;
 
         await using var db = new LoanFlowDbContext(options);
@@ -78,5 +79,91 @@ public class PaymentAllocationServiceTests
         // Schedule 2 should be totally Unpaid
         updatedSch2!.Status.Should().Be(InstallmentStatus.Unpaid);
         updatedSch2.RemainingDueAmount.Should().Be(110);
+    }
+
+    [Fact]
+    public async Task RecordPaymentAsync_Should_WriteLedgerAllocationsForCurrentPaymentOnly()
+    {
+        var options = new DbContextOptionsBuilder<LoanFlowDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+
+        await using var db = new LoanFlowDbContext(options);
+
+        var loan = new Loan
+        {
+            Id = 1,
+            LoanAccountNo = "LN-TEST",
+            ApplicationId = 1,
+            CustomerId = 1,
+            ProductId = 1,
+            ApprovedAmount = 1000,
+            OutstandingAmount = 1000,
+            Status = LoanStatus.Active,
+            CurrentClassification = LoanClassification.Group1_Standard
+        };
+
+        db.Loans.Add(loan);
+
+        db.RepaymentSchedules.Add(new RepaymentSchedule
+        {
+            Id = 1,
+            LoanId = 1,
+            InstallmentNo = 1,
+            PrincipalDue = 100,
+            InterestDue = 10,
+            RemainingDueAmount = 110,
+            Status = InstallmentStatus.Unpaid,
+            DueDate = new DateOnly(2026, 1, 1)
+        });
+        await db.SaveChangesAsync();
+
+        var lateFeeService = new Mock<ILateFeeService>();
+        lateFeeService
+            .Setup(x => x.CalculateLateFeesAsync(1, It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result.Success());
+        var accountingService = new Mock<IAccountingService>();
+        accountingService
+            .Setup(x => x.PostJournalAsync(It.IsAny<JournalEntryDto>()))
+            .ReturnsAsync(Result.Success(new JournalEntry()));
+        var clock = new TestBusinessClock(
+            utcNow: new DateTime(2026, 1, 15, 1, 0, 0, DateTimeKind.Utc),
+            localNow: new DateTime(2026, 1, 15, 8, 0, 0, DateTimeKind.Unspecified),
+            businessDate: new DateOnly(2026, 1, 15));
+        var service = new LoanService(db, lateFeeService.Object, clock, accountingService.Object);
+
+        var firstPayment = await service.RecordPaymentAsync(1, new RecordPaymentRequest
+        {
+            PaymentDate = new DateOnly(2026, 1, 15),
+            Amount = 15,
+            PaymentMethod = PaymentMethod.BankTransfer,
+            Remarks = "First partial payment"
+        }, 1);
+
+        firstPayment.IsSuccess.Should().BeTrue();
+
+        var secondPayment = await service.RecordPaymentAsync(1, new RecordPaymentRequest
+        {
+            PaymentDate = new DateOnly(2026, 1, 16),
+            Amount = 20,
+            PaymentMethod = PaymentMethod.BankTransfer,
+            Remarks = "Second partial payment"
+        }, 1);
+
+        secondPayment.IsSuccess.Should().BeTrue();
+
+        var latestPayment = await db.Payments
+            .OrderByDescending(p => p.Id)
+            .FirstAsync();
+
+        var latestAllocations = await db.PaymentAllocations
+            .Where(a => a.PaymentId == latestPayment.Id)
+            .OrderBy(a => a.Id)
+            .ToListAsync();
+
+        latestAllocations.Should().HaveCount(1);
+        latestAllocations[0].AllocationType.Should().Be("Principal");
+        latestAllocations[0].Amount.Should().Be(20);
     }
 }

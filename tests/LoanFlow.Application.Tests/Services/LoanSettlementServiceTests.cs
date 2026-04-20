@@ -19,6 +19,7 @@ public class LoanSettlementServiceTests
     {
         var options = new DbContextOptionsBuilder<LoanFlowDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
             .Options;
 
         await using var db = new LoanFlowDbContext(options);

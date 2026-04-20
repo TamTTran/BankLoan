@@ -1,37 +1,80 @@
 # ── Git ──
 .git
 .gitignore
+.gitattributes
 .github
 
 # ── IDE / OS ──
 .vs
 .vscode
+.idea
 *.user
 *.suo
 *.DotSettings
+*.DotSettings.user
 **/.DS_Store
 Thumbs.db
+Desktop.ini
 
 # ── .NET build output ──
 **/bin
 **/obj
 **/out
+**/publish
 
-# ── Frontend (built in separate container) ──
+# ── Frontend (built in separate stage) ──
 frontend/node_modules
 frontend/dist
 frontend/.vite
+frontend/.cache
 
 # ── Docker (avoid recursive copy) ──
 **/Dockerfile
 **/.dockerignore
 docker-compose*.yml
+docker-compose*.yaml
 
-# ── Docs / misc ──
+# ── Docs / markdown ──
 md/
-claudekit-engineer/
 *.md
 !README.md
+
+# ── Test projects (not needed in production image) ──
+tests/
+**/TestResults
+**/coverage
+
+# ── AI agent / tooling workspace ──
+.gemini/
+claudekit-engineer/
+
+# ── .NET SDK telemetry & tool cache ──
+.dotnet/
+.dotnet-tools/
+
+# ── Secrets & env ──
 .env
 .env.*
 !.env.example
+*.pfx
+*.p12
+*.pem
+*.key
+secrets.json
+**/appsettings.Development.json
+**/appsettings.Local.json
+**/appsettings.Staging.json
+
+# ── Debug / profiler ──
+*.pdb
+*.dmp
+*.nettrace
+*.diagsession
+
+# ── Misc ──
+*.bak
+*.tmp
+*.swp
+*.log
+*.orig
+global.json

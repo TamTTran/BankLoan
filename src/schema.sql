@@ -439,7 +439,7 @@ CREATE TABLE `Loans` (
     `BranchId` int NULL,
     `CreatedAt` datetime(6) NOT NULL,
     `UpdatedAt` datetime(6) NOT NULL,
-    `RowVersion` datetime(6) NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    `RowVersion` timestamp(6) NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     CONSTRAINT `PK_Loans` PRIMARY KEY (`Id`),
     CONSTRAINT `FK_Loans_Customers_CustomerId` FOREIGN KEY (`CustomerId`) REFERENCES `Customers` (`Id`) ON DELETE RESTRICT,
     CONSTRAINT `FK_Loans_LoanApplications_ApplicationId` FOREIGN KEY (`ApplicationId`) REFERENCES `LoanApplications` (`Id`) ON DELETE RESTRICT,
@@ -719,7 +719,7 @@ CREATE TABLE `RepaymentSchedules` (
     `RemainingDueAmount` decimal(18,2) NOT NULL,
     `Status` varchar(20) CHARACTER SET utf8mb4 NOT NULL DEFAULT 'Unpaid',
     `CreatedAt` datetime(6) NOT NULL,
-    `RowVersion` datetime(6) NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    `RowVersion` timestamp(6) NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     CONSTRAINT `PK_RepaymentSchedules` PRIMARY KEY (`Id`),
     CONSTRAINT `FK_RepaymentSchedules_Loans_LoanId` FOREIGN KEY (`LoanId`) REFERENCES `Loans` (`Id`) ON DELETE CASCADE
 ) CHARACTER SET=utf8mb4;
@@ -767,7 +767,7 @@ CREATE TABLE `LateFees` (
     `Status` varchar(20) CHARACTER SET utf8mb4 NOT NULL DEFAULT 'Pending',
     `CalculatedAt` datetime(6) NOT NULL,
     `CreatedAt` datetime(6) NOT NULL,
-    `RowVersion` datetime(6) NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    `RowVersion` timestamp(6) NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     CONSTRAINT `PK_LateFees` PRIMARY KEY (`Id`),
     CONSTRAINT `FK_LateFees_Loans_LoanId` FOREIGN KEY (`LoanId`) REFERENCES `Loans` (`Id`) ON DELETE RESTRICT,
     CONSTRAINT `FK_LateFees_RepaymentSchedules_ScheduleId` FOREIGN KEY (`ScheduleId`) REFERENCES `RepaymentSchedules` (`Id`) ON DELETE RESTRICT
@@ -804,7 +804,7 @@ CREATE TABLE `TransactionReversals` (
     `ApprovedByUserId` int NULL,
     `CreatedAt` datetime(6) NOT NULL,
     `ApprovedAt` datetime(6) NULL,
-    `RowVersion` datetime(6) NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    `RowVersion` timestamp(6) NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     CONSTRAINT `PK_TransactionReversals` PRIMARY KEY (`Id`),
     CONSTRAINT `FK_TransactionReversals_LoanTransactions_OriginalTransactionId` FOREIGN KEY (`OriginalTransactionId`) REFERENCES `LoanTransactions` (`Id`) ON DELETE RESTRICT,
     CONSTRAINT `FK_TransactionReversals_LoanTransactions_ReversalTransactionId` FOREIGN KEY (`ReversalTransactionId`) REFERENCES `LoanTransactions` (`Id`) ON DELETE RESTRICT,

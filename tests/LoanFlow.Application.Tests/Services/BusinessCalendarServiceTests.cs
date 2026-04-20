@@ -22,11 +22,11 @@ public class BusinessCalendarServiceTests
     public void ResolveBusinessDate_Should_KeepSameDay_BeforeCutoff()
     {
         var service = CreateService();
-        var utc = new DateTime(2026, 4, 18, 8, 30, 0, DateTimeKind.Utc); // 15:30 local
+        var utc = new DateTime(2026, 4, 16, 8, 30, 0, DateTimeKind.Utc); // 15:30 local Thursday
 
         var businessDate = service.ResolveBusinessDate(utc);
 
-        businessDate.Should().Be(new DateOnly(2026, 4, 18));
+        businessDate.Should().Be(new DateOnly(2026, 4, 16));
     }
 
     [Fact]

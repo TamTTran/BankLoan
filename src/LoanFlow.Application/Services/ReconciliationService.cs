@@ -6,14 +6,24 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-// ── DTOs ────────────────────────────────────────────────────────────────────
 public class ReconciliationReportDto
 {
     public DateOnly BusinessDate { get; set; }
     public decimal TotalPaymentsAmount { get; set; }
     public decimal TotalPaymentTransactionsAmount { get; set; }
+    public decimal TotalPaymentAllocationsAmount { get; set; }
     public decimal TotalDisbursementsAmount { get; set; }
     public decimal TotalDisbursementTransactionsAmount { get; set; }
+    public decimal TotalReversalsAmount { get; set; }
+    public decimal TotalReversalTransactionsAmount { get; set; }
+    public decimal TotalLateFeesAmount { get; set; }
+    public decimal TotalLateFeeTransactionsAmount { get; set; }
+    public decimal TotalSuspenseAllocationsAmount { get; set; }
+    public decimal TotalSuspenseTransactionsAmount { get; set; }
+    public decimal TotalOutstandingComputedAmount { get; set; }
+    public decimal TotalOutstandingStoredAmount { get; set; }
+    public decimal TotalPendingLateFeesAmount { get; set; }
+    public decimal TotalPendingSuspenseAmount { get; set; }
     public int ExceptionsFound { get; set; }
     public List<ReconciliationExceptionDto> Exceptions { get; set; } = [];
 }
@@ -40,7 +50,6 @@ public class ResolveExceptionDto
     public string Resolution { get; set; } = "";
 }
 
-// ── Interface ───────────────────────────────────────────────────────────────
 public interface IReconciliationService
 {
     Task<ReconciliationReportDto> RunReconciliationAsync(DateOnly businessDate, int? userId);
@@ -48,7 +57,6 @@ public interface IReconciliationService
     Task<Result> ResolveExceptionAsync(int exceptionId, ResolveExceptionDto request, int userId);
 }
 
-// ── Implementation ──────────────────────────────────────────────────────────
 public class ReconciliationService : IReconciliationService
 {
     private readonly LoanFlowDbContext _db;
@@ -71,56 +79,50 @@ public class ReconciliationService : IReconciliationService
             .Where(e => e.BusinessDate == businessDate && e.Status == ReconciliationStatus.Open)
             .ToListAsync();
 
-        // ── 1. Payment reconciliation ────────────────────────────────────
-        // Sum payments on date
-        var totalPayments = await _db.Payments
-            .Where(p => p.PaymentDate == businessDate && p.Amount > 0) // exclude compensating (negative) payments
-            .SumAsync(p => p.Amount);
+        var paymentsOnDate = await _db.Payments
+            .Where(p => p.PaymentDate == businessDate)
+            .Select(p => new { p.Id, p.LoanId, p.Amount })
+            .ToListAsync();
+        var positivePayments = paymentsOnDate.Where(p => p.Amount > 0).ToList();
+        var positivePaymentIds = positivePayments.Select(p => p.Id).ToList();
 
-        // Sum payment transactions on date
+        var totalPayments = positivePayments.Sum(p => p.Amount);
         var totalPaymentTx = await _db.LoanTransactions
             .Where(t => t.TransactionType == "Payment" && t.CreatedAt >= startUtc && t.CreatedAt < endUtc)
             .SumAsync(t => t.Amount);
+        var totalPaymentAllocations = positivePaymentIds.Count == 0
+            ? 0m
+            : await _db.PaymentAllocations
+                .Where(a => positivePaymentIds.Contains(a.PaymentId))
+                .SumAsync(a => a.Amount);
 
         report.TotalPaymentsAmount = totalPayments;
         report.TotalPaymentTransactionsAmount = totalPaymentTx;
+        report.TotalPaymentAllocationsAmount = totalPaymentAllocations;
 
-        if (totalPayments != totalPaymentTx)
-        {
-            var exc = existingOpenExceptions.FirstOrDefault(e => e.ExceptionType == ReconciliationExceptionType.PaymentMismatch);
-            if (exc == null)
-            {
-                exc = new ReconciliationException
-                {
-                    BusinessDate = businessDate,
-                    ExceptionType = ReconciliationExceptionType.PaymentMismatch,
-                    Status = ReconciliationStatus.Open
-                };
-                _db.ReconciliationExceptions.Add(exc);
-            }
-            
-            exc.ExpectedAmount = totalPayments;
-            exc.ActualAmount = totalPaymentTx;
-            exc.Difference = totalPayments - totalPaymentTx;
-            exc.Description = $"Payment total ({totalPayments:N2}) does not match transaction total ({totalPaymentTx:N2}).";
-            
-            report.Exceptions.Add(MapExceptionToDto(exc));
-        }
-        else
-        {
-            CloseOpenExceptions(
-                existingOpenExceptions,
-                businessDate,
-                ReconciliationExceptionType.PaymentMismatch,
-                userId,
-                "Mismatch resolved by reconciliation rerun.");
-        }
+        ReconcileAggregate(
+            report,
+            existingOpenExceptions,
+            businessDate,
+            userId,
+            ReconciliationExceptionType.PaymentMismatch,
+            totalPayments,
+            totalPaymentTx,
+            $"Payment total ({totalPayments:N2}) does not match payment transaction total ({totalPaymentTx:N2}).");
 
-        // ── 2. Disbursement reconciliation ───────────────────────────────
+        ReconcileAggregate(
+            report,
+            existingOpenExceptions,
+            businessDate,
+            userId,
+            ReconciliationExceptionType.AllocationMismatch,
+            totalPayments,
+            totalPaymentAllocations,
+            $"Payment total ({totalPayments:N2}) does not match chained allocation total ({totalPaymentAllocations:N2}).");
+
         var totalDisb = await _db.LoanDisbursements
             .Where(d => d.DisbursementDate == businessDate)
             .SumAsync(d => d.DisbursedAmount);
-
         var totalDisbTx = await _db.LoanTransactions
             .Where(t => t.TransactionType == "Disbursement" && t.CreatedAt >= startUtc && t.CreatedAt < endUtc)
             .SumAsync(t => t.Amount);
@@ -128,40 +130,86 @@ public class ReconciliationService : IReconciliationService
         report.TotalDisbursementsAmount = totalDisb;
         report.TotalDisbursementTransactionsAmount = totalDisbTx;
 
-        if (totalDisb != totalDisbTx)
-        {
-            var exc = existingOpenExceptions.FirstOrDefault(e => e.ExceptionType == ReconciliationExceptionType.DisbursementMismatch);
-            if (exc == null)
-            {
-                exc = new ReconciliationException
-                {
-                    BusinessDate = businessDate,
-                    ExceptionType = ReconciliationExceptionType.DisbursementMismatch,
-                    Status = ReconciliationStatus.Open
-                };
-                _db.ReconciliationExceptions.Add(exc);
-            }
-            
-            exc.ExpectedAmount = totalDisb;
-            exc.ActualAmount = totalDisbTx;
-            exc.Difference = totalDisb - totalDisbTx;
-            exc.Description = $"Disbursement total ({totalDisb:N2}) does not match transaction total ({totalDisbTx:N2}).";
-            
-            report.Exceptions.Add(MapExceptionToDto(exc));
-        }
-        else
-        {
-            CloseOpenExceptions(
-                existingOpenExceptions,
-                businessDate,
-                ReconciliationExceptionType.DisbursementMismatch,
-                userId,
-                "Mismatch resolved by reconciliation rerun.");
-        }
+        ReconcileAggregate(
+            report,
+            existingOpenExceptions,
+            businessDate,
+            userId,
+            ReconciliationExceptionType.DisbursementMismatch,
+            totalDisb,
+            totalDisbTx,
+            $"Disbursement total ({totalDisb:N2}) does not match disbursement transaction total ({totalDisbTx:N2}).");
 
-        // ── 3. Outstanding balance verification ─────────────────────────
+        var totalReversals = await _db.TransactionReversals
+            .Where(r => r.Status == ReversalStatus.Approved
+                && r.ApprovedAt.HasValue
+                && r.ApprovedAt >= startUtc
+                && r.ApprovedAt < endUtc)
+            .SumAsync(r => r.ReversedAmount);
+        var totalReversalTx = await _db.LoanTransactions
+            .Where(t => t.TransactionType == "PaymentReversal" && t.CreatedAt >= startUtc && t.CreatedAt < endUtc)
+            .SumAsync(t => t.Amount < 0 ? -t.Amount : t.Amount);
+
+        report.TotalReversalsAmount = totalReversals;
+        report.TotalReversalTransactionsAmount = totalReversalTx;
+
+        ReconcileAggregate(
+            report,
+            existingOpenExceptions,
+            businessDate,
+            userId,
+            ReconciliationExceptionType.ReversalMismatch,
+            totalReversals,
+            totalReversalTx,
+            $"Approved reversal total ({totalReversals:N2}) does not match compensating reversal transaction total ({totalReversalTx:N2}).");
+
+        var totalLateFees = await _db.LateFees
+            .Where(f => f.CreatedAt >= startUtc && f.CreatedAt < endUtc)
+            .SumAsync(f => f.FeeAmount);
+        var totalLateFeeTx = await _db.LoanTransactions
+            .Where(t => t.TransactionType == "LateFeeAccrual" && t.CreatedAt >= startUtc && t.CreatedAt < endUtc)
+            .SumAsync(t => t.Amount);
+
+        report.TotalLateFeesAmount = totalLateFees;
+        report.TotalLateFeeTransactionsAmount = totalLateFeeTx;
+
+        ReconcileAggregate(
+            report,
+            existingOpenExceptions,
+            businessDate,
+            userId,
+            ReconciliationExceptionType.LateFeeMismatch,
+            totalLateFees,
+            totalLateFeeTx,
+            $"Late fee accrual total ({totalLateFees:N2}) does not match late fee transaction total ({totalLateFeeTx:N2}).");
+
+        var totalSuspenseAllocations = positivePaymentIds.Count == 0
+            ? 0m
+            : await _db.PaymentAllocations
+                .Where(a => positivePaymentIds.Contains(a.PaymentId) && a.AllocationType == "Suspense")
+                .SumAsync(a => a.Amount);
+        var totalSuspenseTransactions = positivePaymentIds.Count == 0
+            ? 0m
+            : await _db.SuspenseTransactions
+                .Where(s => s.SourcePaymentId.HasValue && positivePaymentIds.Contains(s.SourcePaymentId.Value))
+                .SumAsync(s => s.Amount);
+
+        report.TotalSuspenseAllocationsAmount = totalSuspenseAllocations;
+        report.TotalSuspenseTransactionsAmount = totalSuspenseTransactions;
+
+        ReconcileAggregate(
+            report,
+            existingOpenExceptions,
+            businessDate,
+            userId,
+            ReconciliationExceptionType.SuspenseMismatch,
+            totalSuspenseAllocations,
+            totalSuspenseTransactions,
+            $"Suspense allocation total ({totalSuspenseAllocations:N2}) does not match suspense transaction total ({totalSuspenseTransactions:N2}).");
+
         var activeLoans = await _db.Loans
             .Include(l => l.RepaymentSchedules)
+            .Include(l => l.LateFees)
             .Where(l => l.Status == LoanStatus.Active || l.Status == LoanStatus.Overdue)
             .ToListAsync();
 
@@ -170,29 +218,28 @@ public class ReconciliationService : IReconciliationService
             var computedOutstanding = loan.RepaymentSchedules
                 .Where(s => s.Status != InstallmentStatus.Paid)
                 .Sum(s => s.RemainingDueAmount);
+            var pendingLateFees = loan.LateFees
+                .Where(f => f.Status == LateFeeStatus.Pending)
+                .Sum(f => f.FeeAmount);
+            var pendingSuspense = await _db.SuspenseTransactions
+                .Where(s => s.LoanId == loan.Id && s.Status == SuspenseStatus.Pending)
+                .SumAsync(s => s.Amount);
 
-            if (Math.Abs(loan.OutstandingAmount - computedOutstanding) > 0.01m)
+            report.TotalOutstandingComputedAmount += computedOutstanding;
+            report.TotalOutstandingStoredAmount += loan.OutstandingAmount;
+            report.TotalPendingLateFeesAmount += pendingLateFees;
+            report.TotalPendingSuspenseAmount += pendingSuspense;
+
+            if (!AmountsMatch(loan.OutstandingAmount, computedOutstanding))
             {
-                var exc = existingOpenExceptions.FirstOrDefault(e => 
-                    e.ExceptionType == ReconciliationExceptionType.OutstandingMismatch && e.LoanId == loan.Id);
-                
-                if (exc == null)
-                {
-                    exc = new ReconciliationException
-                    {
-                        BusinessDate = businessDate,
-                        ExceptionType = ReconciliationExceptionType.OutstandingMismatch,
-                        LoanId = loan.Id,
-                        Status = ReconciliationStatus.Open
-                    };
-                    _db.ReconciliationExceptions.Add(exc);
-                }
-                
-                exc.ExpectedAmount = computedOutstanding;
-                exc.ActualAmount = loan.OutstandingAmount;
-                exc.Difference = loan.OutstandingAmount - computedOutstanding;
-                exc.Description = $"Loan {loan.LoanAccountNo}: stored outstanding ({loan.OutstandingAmount:N2}) != computed ({computedOutstanding:N2}).";
-                
+                var exc = UpsertOpenException(
+                    existingOpenExceptions,
+                    businessDate,
+                    ReconciliationExceptionType.OutstandingMismatch,
+                    computedOutstanding,
+                    loan.OutstandingAmount,
+                    $"Loan {loan.LoanAccountNo}: stored outstanding ({loan.OutstandingAmount:N2}) != computed principal+interest outstanding ({computedOutstanding:N2}); pending late fees = {pendingLateFees:N2}; pending suspense = {pendingSuspense:N2}.",
+                    loan.Id);
                 report.Exceptions.Add(MapExceptionToDto(exc));
             }
             else
@@ -220,6 +267,75 @@ public class ReconciliationService : IReconciliationService
 
         await _db.SaveChangesAsync();
         return report;
+    }
+
+    private void ReconcileAggregate(
+        ReconciliationReportDto report,
+        IEnumerable<ReconciliationException> existingOpenExceptions,
+        DateOnly businessDate,
+        int? userId,
+        string exceptionType,
+        decimal expectedAmount,
+        decimal actualAmount,
+        string description)
+    {
+        if (!AmountsMatch(expectedAmount, actualAmount))
+        {
+            var exc = UpsertOpenException(
+                existingOpenExceptions,
+                businessDate,
+                exceptionType,
+                expectedAmount,
+                actualAmount,
+                description);
+            report.Exceptions.Add(MapExceptionToDto(exc));
+            return;
+        }
+
+        CloseOpenExceptions(
+            existingOpenExceptions,
+            businessDate,
+            exceptionType,
+            userId,
+            "Mismatch resolved by reconciliation rerun.");
+    }
+
+    private ReconciliationException UpsertOpenException(
+        IEnumerable<ReconciliationException> existingOpenExceptions,
+        DateOnly businessDate,
+        string exceptionType,
+        decimal expectedAmount,
+        decimal actualAmount,
+        string description,
+        int? loanId = null)
+    {
+        var exc = existingOpenExceptions.FirstOrDefault(e =>
+            e.BusinessDate == businessDate
+            && e.ExceptionType == exceptionType
+            && e.Status == ReconciliationStatus.Open
+            && e.LoanId == loanId);
+
+        if (exc == null)
+        {
+            exc = new ReconciliationException
+            {
+                BusinessDate = businessDate,
+                ExceptionType = exceptionType,
+                LoanId = loanId,
+                Status = ReconciliationStatus.Open
+            };
+            _db.ReconciliationExceptions.Add(exc);
+        }
+
+        exc.ExpectedAmount = expectedAmount;
+        exc.ActualAmount = actualAmount;
+        exc.Difference = expectedAmount - actualAmount;
+        exc.Description = description;
+        exc.ResolvedByUserId = null;
+        exc.ResolvedAt = null;
+        exc.Resolution = null;
+
+        return exc;
     }
 
     private void CloseOpenExceptions(
@@ -298,6 +414,9 @@ public class ReconciliationService : IReconciliationService
         await _db.SaveChangesAsync();
         return Result.Success();
     }
+
+    private static bool AmountsMatch(decimal expectedAmount, decimal actualAmount) =>
+        Math.Abs(expectedAmount - actualAmount) <= 0.01m;
 
     private static ReconciliationExceptionDto MapExceptionToDto(ReconciliationException e) => new()
     {

@@ -220,7 +220,11 @@ public static class ReconciliationStatus
 public static class ReconciliationExceptionType
 {
     public const string PaymentMismatch = "PaymentMismatch";
+    public const string AllocationMismatch = "AllocationMismatch";
     public const string DisbursementMismatch = "DisbursementMismatch";
+    public const string ReversalMismatch = "ReversalMismatch";
+    public const string LateFeeMismatch = "LateFeeMismatch";
+    public const string SuspenseMismatch = "SuspenseMismatch";
     public const string OutstandingMismatch = "OutstandingMismatch";
 }
 
@@ -347,5 +351,4 @@ public static class LoanClassification
     public const int Group4_Doubtful = 4;         // Nợ nghi ngờ
     public const int Group5_Loss = 5;             // Nợ có khả năng mất vốn
 }
-
 
