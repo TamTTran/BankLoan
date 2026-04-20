@@ -90,10 +90,12 @@ builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IDataExportService, DataExportService>();
 builder.Services.AddScoped<ILoanAdjustmentService, LoanAdjustmentService>();
 
+// === EOD Application Services ===
+builder.Services.AddScoped<IAccrualJobService, AccrualJobService>();
+builder.Services.AddScoped<IClassificationJobService, ClassificationJobService>();
+
 // === Background Jobs ===
 builder.Services.AddHostedService<DailyOverdueBackgroundService>();
-builder.Services.AddHostedService<LoanFlow.API.BackgroundJobs.DailyAccrualBackgroundService>();
-builder.Services.AddHostedService<LoanFlow.API.BackgroundJobs.DailyClassificationBackgroundService>();
 
 // === JWT Auth ===
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

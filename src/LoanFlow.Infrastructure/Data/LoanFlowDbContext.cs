@@ -75,6 +75,9 @@ public class LoanFlowDbContext : DbContext
     public DbSet<DunningStrategy> DunningStrategies => Set<DunningStrategy>();
     public DbSet<LoanDocument> LoanDocuments => Set<LoanDocument>();
 
+    public DbSet<SystemConfig> SystemConfigs => Set<SystemConfig>();
+    public DbSet<EodBatchRecord> EodBatchRecords => Set<EodBatchRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -330,7 +333,7 @@ public class LoanFlowDbContext : DbContext
         {
             b.Property(j => j.ReferenceNumber).HasMaxLength(50);
             b.Property(j => j.Description).HasMaxLength(255);
-            b.HasIndex(j => j.ReferenceNumber);
+            b.HasIndex(j => j.ReferenceNumber).IsUnique().HasDatabaseName("IX_JournalEntries_ReferenceNumber");
         });
 
         modelBuilder.Entity<JournalEntryLine>(b =>
@@ -453,6 +456,20 @@ public class LoanFlowDbContext : DbContext
             b.HasOne(d => d.Customer).WithMany().HasForeignKey(d => d.CustomerId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(d => d.UploadedBy).WithMany().HasForeignKey(d => d.UploadedByUserId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne(d => d.VerifiedBy).WithMany().HasForeignKey(d => d.VerifiedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SystemConfig>(b =>
+        {
+            b.HasKey(s => s.Key);
+            b.Property(s => s.Key).HasMaxLength(100);
+            b.Property(s => s.Value).HasMaxLength(500);
+            b.Property(s => s.Description).HasMaxLength(1000);
+        });
+
+        modelBuilder.Entity<EodBatchRecord>(b =>
+        {
+            b.HasIndex(e => e.BusinessDate).IsUnique();
+            b.Property(e => e.Status).HasMaxLength(20);
         });
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoanFlowDbContext).Assembly);

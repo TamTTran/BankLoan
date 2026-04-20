@@ -79,9 +79,10 @@ public class LoanService : ILoanService
     {
         var today = _businessClock.TodayBusinessDate();
         
-        // Query time calculation for late fees MUST happen before fetching the loan entity
-        // so that the newly calculated/updated late fees are included in the read.
-        await _lateFeeService.CalculateLateFeesAsync(id, today);
+        // In a true bank-grade system, Late Fees are strictly accrued during EOD Batch.
+        // We DO NOT mutate the database on a GET request.
+        // If we want to show real-time projections, we would project DTOs here instead.
+        // For now, we rely on the EOD job to have updated the LateFees up to today.
 
         var loan = await _db.Loans
             .Include(l => l.Customer)
@@ -183,9 +184,26 @@ public class LoanService : ILoanService
         return await GetByIdAsync(loan.Id);
     }
 
+    private async Task EnsureSystemNotLockedAsync()
+    {
+        var eodRunning = await _db.SystemConfigs.FirstOrDefaultAsync(s => s.Key == "IsEodRunning");
+        if (eodRunning != null && eodRunning.Value == "true")
+        {
+            throw new InvalidOperationException("Hệ thống đang chạy Back-end cuối ngày (EOD). Không thể xử lý giao dịch lúc này.");
+        }
+    }
+
     // ── POST /loans/{id}/disburse (§LOAN-002) ────────────────────────────────
     public async Task<Result<LoanDto>> DisburseAsync(int loanId, DisburseRequest req, int userId)
     {
+        try 
+        {
+            await EnsureSystemNotLockedAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Failure<LoanDto>(ex.Message);
+        }
         var loan = await _db.Loans
             .Include(l => l.Product)
             .Include(l => l.LoanCollaterals)
@@ -299,6 +317,15 @@ public class LoanService : ILoanService
     // ── POST /loans/{id}/payments (§PAY-001) ─────────────────────────────────
     public async Task<Result> RecordPaymentAsync(int loanId, RecordPaymentRequest req, int userId)
     {
+        try 
+        {
+            await EnsureSystemNotLockedAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Failure(ex.Message);
+        }
+
         var loan = await _db.Loans
             .Include(l => l.RepaymentSchedules)
             .Include(l => l.LateFees)
@@ -330,11 +357,8 @@ public class LoanService : ILoanService
         var lateFeeDue = loan.LateFees.Where(f => f.Status == LateFeeStatus.Pending).Sum(f => f.FeeAmount);
         var totalDue = scheduleDue + lateFeeDue;
 
-        var overpayment = req.Amount > totalDue ? req.Amount - totalDue : 0;
-        var amountToAllocate = req.Amount > totalDue ? totalDue : req.Amount;
-
         // §13.6 Payment allocation: LateFee → Interest → Principal
-        var remaining = amountToAllocate;
+        var remaining = req.Amount; // Unallocated cash pool
         decimal totalLateFeeToPay = 0;
         decimal totalInterestToPay = 0;
         decimal totalPrincipalToPay = 0;
@@ -399,6 +423,8 @@ public class LoanService : ILoanService
                 ? InstallmentStatus.Paid
                 : InstallmentStatus.Partial;
         }
+
+        var overpayment = remaining; // Whatever is left becomes overpayment/suspense
 
         // §13.3 Update loan outstanding = sum of remaining due
         loan.OutstandingAmount = loan.RepaymentSchedules
@@ -652,7 +678,9 @@ public class LoanService : ILoanService
         if (loan.Status != LoanStatus.Active && loan.Status != LoanStatus.Overdue)
             return Result.Failure<EarlySettlePreviewDto>("Loan is not in active/overdue status.");
 
-        await _lateFeeService.CalculateLateFeesAsync(loanId, settlementDate);
+        // Note: For a true Bank-grade system, we do not mutate DB on Preview.
+        // We rely on the EOD job or project it in-memory.
+        // For now, we use the LateFees already in the DB (accrued up to yesterday).
 
         var unpaidSchedules = loan.RepaymentSchedules.Where(s => s.Status != InstallmentStatus.Paid).OrderBy(s => s.InstallmentNo).ToList();
         
@@ -713,6 +741,14 @@ public class LoanService : ILoanService
 
     public async Task<Result> EarlySettleAsync(int loanId, EarlySettleRequest request, int userId)
     {
+        try 
+        {
+            await EnsureSystemNotLockedAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Failure(ex.Message);
+        }
         var previewResult = await PreviewEarlySettleAsync(loanId, request.SettlementDate);
         if (!previewResult.IsSuccess) return Result.Failure(previewResult.Error!);
 
@@ -787,6 +823,35 @@ public class LoanService : ILoanService
             EntityId = loanId,
             NewValuesJson = AuditHelper.ToJson(new { settlementAmount = totalAmount, feeWaived = request.WaiveFee })
         });
+        
+        // Post Accounting Journal Entry for Early Settlement
+        var journalLines = new List<JournalEntryLineDto>
+        {
+            new JournalEntryLineDto { AccountCode = "1001", DebitAmount = totalAmount, CreditAmount = 0, LineDescription = "Cash Inflow from Early Settle" }
+        };
+
+        if (preview.RemainingPrincipal > 0)
+            journalLines.Add(new JournalEntryLineDto { AccountCode = "1301", DebitAmount = 0, CreditAmount = preview.RemainingPrincipal, LineDescription = "Principal Repaid" });
+        if (preview.ProRataInterest > 0)
+            journalLines.Add(new JournalEntryLineDto { AccountCode = "1302", DebitAmount = 0, CreditAmount = preview.ProRataInterest, LineDescription = "Interest Repaid" });
+        if (preview.UnpaidLateFees > 0)
+            journalLines.Add(new JournalEntryLineDto { AccountCode = "1303", DebitAmount = 0, CreditAmount = preview.UnpaidLateFees, LineDescription = "Late Fees Repaid" });
+        if (preview.EarlySettlementFee > 0)
+            journalLines.Add(new JournalEntryLineDto { AccountCode = "4004", DebitAmount = 0, CreditAmount = preview.EarlySettlementFee, LineDescription = "Early Settlement Fee Income" });
+
+        var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
+        {
+            ReferenceNumber = $"EARLYSETTLE-{payment.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+            BusinessDate = request.SettlementDate,
+            Description = $"Early Settlement for Loan {loan.Id}",
+            Lines = journalLines
+        });
+
+        if (!journalResult.IsSuccess)
+        {
+            await tx.RollbackAsync();
+            throw new InvalidOperationException($"Accounting failed: {journalResult.Error}");
+        }
 
         await SaveChangesWithConcurrencyHandlingAsync("Loan was modified while settling early. Reload and retry.");
         await tx.CommitAsync();

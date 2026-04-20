@@ -48,6 +48,9 @@ public class AccountingService : IAccountingService
         if (request.Lines.Count < 2)
             return Result.Failure<JournalEntry>("A journal entry must have at least two lines.");
 
+        if (await _db.JournalEntries.AnyAsync(je => je.ReferenceNumber == request.ReferenceNumber))
+            return Result.Failure<JournalEntry>($"Idempotency check failed: Journal entry with reference '{request.ReferenceNumber}' already exists.");
+
         // Enforce Double Entry constraint
         var totalDebits = request.Lines.Sum(l => l.DebitAmount);
         var totalCredits = request.Lines.Sum(l => l.CreditAmount);

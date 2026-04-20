@@ -17,11 +17,13 @@ public class LateFeeService : ILateFeeService
 {
     private readonly LoanFlowDbContext _db;
     private readonly IBusinessClock _businessClock;
+    private readonly IAccountingService _accountingService;
 
-    public LateFeeService(LoanFlowDbContext db, IBusinessClock businessClock)
+    public LateFeeService(LoanFlowDbContext db, IBusinessClock businessClock, IAccountingService accountingService)
     {
         _db = db;
         _businessClock = businessClock;
+        _accountingService = accountingService;
     }
 
     public async Task<Result> CalculateLateFeesAsync(int loanId, DateOnly calculationDate)
@@ -66,16 +68,24 @@ public class LateFeeService : ILateFeeService
 
             var existingFee = loan.LateFees.FirstOrDefault(f => f.ScheduleId == schedule.Id && f.Status == LateFeeStatus.Pending);
             
+            var accrualDelta = 0m;
+
             if (existingFee != null)
             {
-                // Update existing pending fee
-                existingFee.OverdueAmount = overdueAmount;
-                existingFee.DaysOverdue = daysOverdue;
-                existingFee.FeeAmount = calculatedFee;
-                existingFee.CalculatedAt = _businessClock.UtcNow;
+                var difference = calculatedFee - existingFee.FeeAmount;
+                if (difference > 0)
+                {
+                    accrualDelta = difference;
+                    // Update existing pending fee
+                    existingFee.OverdueAmount = overdueAmount;
+                    existingFee.DaysOverdue = daysOverdue;
+                    existingFee.FeeAmount = calculatedFee;
+                    existingFee.CalculatedAt = _businessClock.UtcNow;
+                }
             }
             else
             {
+                accrualDelta = calculatedFee;
                 // Create new pending fee
                 var newFee = new LateFee
                 {
@@ -102,9 +112,28 @@ public class LateFeeService : ILateFeeService
                 _db.LoanTransactions.Add(accrualTx);
 
                 // Back-link: we'll update AccrualLoanTransactionId after SaveChanges
-                // We store a reference here so we can link after save
                 await _db.SaveChangesAsync();
                 newFee.AccrualLoanTransactionId = accrualTx.Id;
+            }
+
+            if (accrualDelta > 0)
+            {
+                var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
+                {
+                    ReferenceNumber = $"LATEFEE-ACCR-{loan.Id}-S{schedule.Id}-{_businessClock.TodayBusinessDate():yyMMddHHmmss}",
+                    BusinessDate = _businessClock.TodayBusinessDate(),
+                    Description = $"Late Fee Accrual for Loan {loan.LoanAccountNo}",
+                    Lines = new List<JournalEntryLineDto>
+                    {
+                        new JournalEntryLineDto { AccountCode = "1303", DebitAmount = accrualDelta, CreditAmount = 0, LineDescription = "Late Fee Receivable" },
+                        new JournalEntryLineDto { AccountCode = "4002", DebitAmount = 0, CreditAmount = accrualDelta, LineDescription = "Late Fee Income" }
+                    }
+                });
+                
+                if (!journalResult.IsSuccess)
+                {
+                    throw new InvalidOperationException($"Failed to post Late Fee Journal: {journalResult.Error}");
+                }
             }
         }
 
@@ -130,6 +159,24 @@ public class LateFeeService : ILateFeeService
             EntityId = lateFee.Id,
             NewValuesJson = AuditHelper.ToJson(new { waivedAmount = lateFee.FeeAmount })
         });
+        
+        // Reverse Late Fee Income
+        var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
+        {
+            ReferenceNumber = $"LATEWF-{lateFee.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+            BusinessDate = _businessClock.TodayBusinessDate(),
+            Description = $"Late Fee Waived for LateFeeId {lateFee.Id}",
+            Lines = new List<JournalEntryLineDto>
+            {
+                new JournalEntryLineDto { AccountCode = "4002", DebitAmount = lateFee.FeeAmount, CreditAmount = 0, LineDescription = "Late Fee Income Reversal" },
+                new JournalEntryLineDto { AccountCode = "1303", DebitAmount = 0, CreditAmount = lateFee.FeeAmount, LineDescription = "Late Fee Receivable Reversal" }
+            }
+        });
+
+        if (!journalResult.IsSuccess)
+        {
+            throw new InvalidOperationException($"Failed to post Late Fee Waiver Journal: {journalResult.Error}");
+        }
 
         await SaveChangesWithConcurrencyHandlingAsync();
         return Result.Success();

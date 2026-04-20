@@ -925,6 +925,42 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.ToTable("EmailOtps");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.EodBatchRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("LastCompletedStep")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessDate")
+                        .IsUnique();
+
+                    b.ToTable("EodBatchRecords");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.GLAccount", b =>
                 {
                     b.Property<int>("Id")
@@ -1013,7 +1049,9 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ReferenceNumber");
+                    b.HasIndex("ReferenceNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_JournalEntries_ReferenceNumber");
 
                     b.ToTable("JournalEntries");
                 });
@@ -2431,6 +2469,29 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.HasIndex("SourcePaymentId");
 
                     b.ToTable("SuspenseTransactions");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.SystemConfig", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("SystemConfigs");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.TransactionReversal", b =>

@@ -41,10 +41,27 @@ public static class DbSeeder
         // ── Phase 1: Maker-Checker & Manual Adjustment seed data ────────────
         await SeedMakerCheckerScenariosAsync(db, happyLoan.Id, users.Officer.Id, users.Manager.Id);
 
-        // Phase 4: Seed initial accounting period
         await SeedAccountingPeriodAsync(db);
+        
+        // EOD Lock Seed
+        await SeedSystemConfigAsync(db);
 
-        Console.WriteLine("[Seeder v4] Done: GL Accounts, Branches, Users, Products, Customers, Demo loans, Phase 1-4 scenarios seeded.");
+        Console.WriteLine("[Seeder v4] Done: GL Accounts, Branches, Users, Products, Customers, Demo loans, Phase 1-4 scenarios, configs seeded.");
+    }
+
+    private static async Task SeedSystemConfigAsync(LoanFlowDbContext db)
+    {
+        if (!await db.SystemConfigs.AnyAsync(s => s.Key == "IsEodRunning"))
+        {
+            db.SystemConfigs.Add(new SystemConfig
+            {
+                Key = "IsEodRunning",
+                Value = "false",
+                Description = "True if End-Of-Day batch is running. Blocks external transactions.",
+                UpdatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
     }
 
     private static async Task SeedGLAccountsAsync(LoanFlowDbContext db)
@@ -61,6 +78,7 @@ public static class DbSeeder
             
             new GLAccount { AccountCode = "4001", AccountName = "Interest Income", AccountType = GLAccountType.Income },
             new GLAccount { AccountCode = "4002", AccountName = "Late Fee Income", AccountType = GLAccountType.Income },
+            new GLAccount { AccountCode = "4004", AccountName = "Early Settle Fee Income", AccountType = GLAccountType.Income },
             new GLAccount { AccountCode = "4005", AccountName = "Recovery Income", AccountType = GLAccountType.Income },
             
             new GLAccount { AccountCode = "5001", AccountName = "Provision Expense", AccountType = GLAccountType.Expense },
