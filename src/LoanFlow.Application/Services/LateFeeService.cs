@@ -77,7 +77,7 @@ public class LateFeeService : ILateFeeService
             else
             {
                 // Create new pending fee
-                _db.LateFees.Add(new LateFee
+                var newFee = new LateFee
                 {
                     LoanId = loan.Id,
                     ScheduleId = schedule.Id,
@@ -87,7 +87,24 @@ public class LateFeeService : ILateFeeService
                     FeeAmount = calculatedFee,
                     Status = LateFeeStatus.Pending,
                     CalculatedAt = _businessClock.UtcNow
-                });
+                };
+                _db.LateFees.Add(newFee);
+
+                // Ledger chain: create a LoanTransaction record for this accrual
+                var accrualTx = new LoanTransaction
+                {
+                    LoanId = loan.Id,
+                    PaymentId = null,
+                    TransactionType = "LateFeeAccrual",
+                    Amount = calculatedFee,
+                    ReferenceNo = $"LATE-{loan.Id}-S{schedule.Id}"
+                };
+                _db.LoanTransactions.Add(accrualTx);
+
+                // Back-link: we'll update AccrualLoanTransactionId after SaveChanges
+                // We store a reference here so we can link after save
+                await _db.SaveChangesAsync();
+                newFee.AccrualLoanTransactionId = accrualTx.Id;
             }
         }
 

@@ -28,6 +28,8 @@ export function Layout({ children, pendingCount = 0 }) {
     if (n.to === '/products' && !can.viewProductsNav) return false;
     if (n.to === '/collections' && !can.viewCollectionQueue) return false;
     if (n.to === '/reports' && !can.viewReports) return false;
+    if (n.to === '/approvals' && !can.viewApprovalsNav) return false;
+    if (n.to === '/system-ops' && !can.viewSystemOpsNav) return false;
     return true;
   });
 

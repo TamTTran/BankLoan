@@ -338,7 +338,10 @@ public class CollectionService : ICollectionService
                     .Sum(p => p.Amount)
                 : 0m;
 
-            if (paidTowardPromise >= promisedAmount && promisedAmount > 0)
+            // BA Rule (REL-002): Promise is Kept if paid >= 98% of promised amount
+            // Allows 2% tolerance for bank rounding/fee discrepancy
+            const decimal keptThreshold = 0.98m;
+            if (paidTowardPromise >= promisedAmount * keptThreshold && promisedAmount > 0)
             {
                 action.PromiseStatus = Domain.Constants.PromiseStatus.Kept;
             }

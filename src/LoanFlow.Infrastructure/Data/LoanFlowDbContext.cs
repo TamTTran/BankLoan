@@ -41,6 +41,7 @@ public class LoanFlowDbContext : DbContext
 
     // ── Wave 4: Overpayment & Notifications ──────────────────────────────────
     public DbSet<SuspenseTransaction> SuspenseTransactions => Set<SuspenseTransaction>();
+    public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<EmailOtp> EmailOtps => Set<EmailOtp>();
 
@@ -130,6 +131,46 @@ public class LoanFlowDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(s => s.AppliedToRepaymentScheduleId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Ledger chain links
+            b.HasOne(s => s.SourcePayment)
+                .WithMany()
+                .HasForeignKey(s => s.SourcePaymentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(s => s.SourceLoanTransaction)
+                .WithMany()
+                .HasForeignKey(s => s.SourceLoanTransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PaymentAllocation>(b =>
+        {
+            b.Property(a => a.Amount).HasPrecision(18, 2);
+            b.Property(a => a.AllocationType).HasMaxLength(20).IsRequired();
+
+            b.HasOne(a => a.Payment)
+                .WithMany()
+                .HasForeignKey(a => a.PaymentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(a => a.LoanTransaction)
+                .WithMany()
+                .HasForeignKey(a => a.LoanTransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(a => a.Schedule)
+                .WithMany()
+                .HasForeignKey(a => a.ScheduleId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(a => a.LateFeeRef)
+                .WithMany()
+                .HasForeignKey(a => a.LateFeeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasIndex(a => a.PaymentId).HasDatabaseName("IX_PaymentAllocations_PaymentId");
+            b.HasIndex(a => a.LoanTransactionId).HasDatabaseName("IX_PaymentAllocations_LoanTransactionId");
         });
 
         // ── H5: Performance indexes for 100K+ scale ─────────────────────────

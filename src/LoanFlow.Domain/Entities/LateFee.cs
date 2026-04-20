@@ -19,6 +19,9 @@ public class LateFee
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? RowVersion { get; set; }
 
+    /// <summary>FK to LoanTransaction type=LateFeeAccrual created when this fee was first generated.</summary>
+    public int? AccrualLoanTransactionId { get; set; }
+
     public Loan Loan { get; set; } = default!;
     public RepaymentSchedule Schedule { get; set; } = default!;
 }

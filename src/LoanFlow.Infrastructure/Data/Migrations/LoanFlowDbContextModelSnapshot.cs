@@ -1061,6 +1061,9 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("AccrualLoanTransactionId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CalculatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -2114,6 +2117,53 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.ToTable("Payments");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.PaymentAllocation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AllocatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("AllocationType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("LateFeeId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LoanTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PaymentId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ScheduleId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LateFeeId");
+
+                    b.HasIndex("LoanTransactionId")
+                        .HasDatabaseName("IX_PaymentAllocations_LoanTransactionId");
+
+                    b.HasIndex("PaymentId")
+                        .HasDatabaseName("IX_PaymentAllocations_PaymentId");
+
+                    b.HasIndex("ScheduleId");
+
+                    b.ToTable("PaymentAllocations");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.PendingApprovalRequest", b =>
                 {
                     b.Property<int>("Id")
@@ -2360,6 +2410,12 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<int?>("SourceLoanTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SourcePaymentId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -2369,6 +2425,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.HasIndex("AppliedToRepaymentScheduleId");
 
                     b.HasIndex("LoanId");
+
+                    b.HasIndex("SourceLoanTransactionId");
+
+                    b.HasIndex("SourcePaymentId");
 
                     b.ToTable("SuspenseTransactions");
                 });
@@ -3161,6 +3221,39 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Navigation("Loan");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.PaymentAllocation", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.LateFee", "LateFeeRef")
+                        .WithMany()
+                        .HasForeignKey("LateFeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("LoanFlow.Domain.Entities.LoanTransaction", "LoanTransaction")
+                        .WithMany()
+                        .HasForeignKey("LoanTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanFlow.Domain.Entities.Payment", "Payment")
+                        .WithMany()
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanFlow.Domain.Entities.RepaymentSchedule", "Schedule")
+                        .WithMany()
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("LateFeeRef");
+
+                    b.Navigation("LoanTransaction");
+
+                    b.Navigation("Payment");
+
+                    b.Navigation("Schedule");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.PendingApprovalRequest", b =>
                 {
                     b.HasOne("LoanFlow.Domain.Entities.User", "ApprovedBy")
@@ -3229,9 +3322,23 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("LoanFlow.Domain.Entities.LoanTransaction", "SourceLoanTransaction")
+                        .WithMany()
+                        .HasForeignKey("SourceLoanTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("LoanFlow.Domain.Entities.Payment", "SourcePayment")
+                        .WithMany()
+                        .HasForeignKey("SourcePaymentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("AppliedToSchedule");
 
                     b.Navigation("Loan");
+
+                    b.Navigation("SourceLoanTransaction");
+
+                    b.Navigation("SourcePayment");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.TransactionReversal", b =>

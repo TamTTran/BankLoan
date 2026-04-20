@@ -1538,6 +1538,65 @@ input, select, textarea { font: inherit; outline: none; }
   font-style: italic;
 }
 
+.loan-product-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.product-empty-state {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.product-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.75rem;
+  margin-top: 0.4rem;
+}
+
+.product-meta-row-spaced {
+  justify-content: space-between;
+  margin-top: 1rem;
+}
+
+.product-description {
+  margin-top: 0.9rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.product-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.product-checkbox {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.product-checkbox input {
+  width: 1rem;
+  height: 1rem;
+}
+
 @media (max-width: 1180px) {
   .collections-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -1548,6 +1607,14 @@ input, select, textarea { font: inherit; outline: none; }
 
 @media (max-width: 560px) {
   .collections-summary { grid-template-columns: 1fr; }
+  .loan-product-toolbar {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .product-meta-row-spaced {
+    flex-direction: column;
+    align-items: flex-start;
+  }
   .timeline-header {
     flex-direction: column;
     align-items: flex-start;

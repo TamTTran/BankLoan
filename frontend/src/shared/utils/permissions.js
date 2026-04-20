@@ -2,6 +2,8 @@ export function buildPermissions(role) {
   const isRole = (...roles) => roles.includes(role);
   return {
     createCustomer:     isRole('Admin', 'LoanOfficer'),
+    createProduct:      isRole('Admin', 'LoanOfficer'),
+    updateProduct:      isRole('Admin'),
     createApplication:  isRole('Admin', 'LoanOfficer'),
     submitApplication:  isRole('Admin', 'LoanOfficer'),
     approveApplication: isRole('Admin', 'Approver'),
@@ -23,8 +25,16 @@ export function buildPermissions(role) {
     viewReports:        isRole('Admin', 'Manager'),
     viewApprovalReport: isRole('Admin', 'Manager', 'Approver'),
 
+    // Wave 4 & 5 — Ops, Approvals & Advanced Lending
+    viewApprovalsNav:      isRole('Admin', 'Approver', 'Manager'),
+    decideApproval:        isRole('Admin', 'Approver', 'Manager'),
+    viewSystemOpsNav:      isRole('Admin'),
+    runBatchJobs:          isRole('Admin'),
+    requestRestructure:    isRole('Admin', 'Manager', 'LoanOfficer'),
+    requestWriteOff:       isRole('Admin', 'Manager'),
+    requestManualAdjust:   isRole('Admin', 'Manager', 'LoanOfficer'),
+
     // For navigation layout visibility
     viewProductsNav:    isRole('Admin', 'LoanOfficer', 'Approver', 'Manager'),
   };
 }
-

@@ -423,13 +423,58 @@ public class LoanService : ILoanService
         _db.Payments.Add(payment);
         await SaveChangesWithConcurrencyHandlingAsync("Loan was modified by another transaction while recording payment. Reload and retry.");
 
-        _db.LoanTransactions.Add(new LoanTransaction
+        var loanTx = new LoanTransaction
         {
             LoanId = loanId,
             PaymentId = payment.Id,
             TransactionType = "Payment",
             Amount = req.Amount
-        });
+        };
+        _db.LoanTransactions.Add(loanTx);
+        await SaveChangesWithConcurrencyHandlingAsync("Loan was modified by another transaction while recording payment. Reload and retry.");
+
+        // ── Ledger Chain: write PaymentAllocation per component ──────────────
+        // LateFee allocations
+        var paidFees = pendingFees.Where(f => f.Status == LateFeeStatus.Paid).ToList();
+        foreach (var fee in paidFees)
+        {
+            _db.PaymentAllocations.Add(new PaymentAllocation
+            {
+                PaymentId = payment.Id,
+                LoanTransactionId = loanTx.Id,
+                ScheduleId = fee.ScheduleId,
+                LateFeeId = fee.Id,
+                AllocationType = "LateFee",
+                Amount = fee.FeeAmount
+            });
+        }
+
+        // Principal/Interest allocations per schedule
+        foreach (var schedule in unpaidSchedules)
+        {
+            var interestAlloc = schedule.InterestPaid > 0 ? schedule.InterestPaid : 0m;
+            var principalAlloc = schedule.PrincipalPaid > 0 ? schedule.PrincipalPaid : 0m;
+
+            if (interestAlloc > 0)
+                _db.PaymentAllocations.Add(new PaymentAllocation
+                {
+                    PaymentId = payment.Id,
+                    LoanTransactionId = loanTx.Id,
+                    ScheduleId = schedule.Id,
+                    AllocationType = "Interest",
+                    Amount = interestAlloc
+                });
+
+            if (principalAlloc > 0)
+                _db.PaymentAllocations.Add(new PaymentAllocation
+                {
+                    PaymentId = payment.Id,
+                    LoanTransactionId = loanTx.Id,
+                    ScheduleId = schedule.Id,
+                    AllocationType = "Principal",
+                    Amount = principalAlloc
+                });
+        }
 
         _db.AuditLogs.Add(new AuditLog
         {
@@ -501,9 +546,22 @@ public class LoanService : ILoanService
             {
                 LoanId = loanId,
                 Amount = overpayment,
-                Reason = suspenseReason
+                Reason = suspenseReason,
+                // Ledger chain: trace back to the originating payment
+                SourcePaymentId = payment.Id,
+                SourceLoanTransactionId = loanTx.Id
             };
             _db.SuspenseTransactions.Add(suspense);
+
+            // PaymentAllocation entry for the suspense portion
+            _db.PaymentAllocations.Add(new PaymentAllocation
+            {
+                PaymentId = payment.Id,
+                LoanTransactionId = loanTx.Id,
+                ScheduleId = null,
+                AllocationType = "Suspense",
+                Amount = overpayment
+            });
             
             _db.AuditLogs.Add(new AuditLog
             {
