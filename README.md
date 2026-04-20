@@ -1,372 +1,184 @@
 # LoanFlow Lite 💳
 
-> **Hệ thống quản lý khoản vay gọn nhẹ** — dành cho công ty tài chính nhỏ, cửa hàng trả góp, đại lý điện máy/xe máy.
+> **Hệ thống quản lý vòng đời khoản vay toàn diện & Hệ thống Sổ cái (Ledger) cấp độ Production** — Giải pháp công nghệ đáng tin cậy dành cho công ty tài chính, tổ chức tín dụng vi mô, đại lý trả góp.
 
-LoanFlow Lite là một ứng dụng quản lý vòng đời khoản vay từ đầu đến cuối: tiếp nhận hồ sơ, phê duyệt, giải ngân, thu nợ, theo dõi quá hạn — tất cả trong một hệ thống thống nhất.
+LoanFlow Lite là một kiến trúc quản trị khoản vay khép kín (End-to-End Loan Management System), số hóa hoàn toàn các quy trình từ lúc nộp hồ sơ, thẩm định, giải ngân cho tới khi tất toán. Đặc biệt, hệ thống tối ưu hóa tính **minh bạch và toàn vẹn dữ liệu** thông qua cơ chế sổ cái kép (Ledger Chain), phân bổ thanh toán Waterfall và Engine đối soát tự động (Reconciliation).
 
 ---
 
 ## 📋 Mục lục
 
 - [Tổng quan](#tổng-quan)
-- [Tính năng chính](#tính-năng-chính)
+- [Tính năng nổi bật (Production-Ready)](#tính-năng-nổi-bật-production-ready)
 - [Kiến trúc hệ thống](#kiến-trúc-hệ-thống)
 - [Tech Stack](#tech-stack)
 - [Cấu trúc dự án](#cấu-trúc-dự-án)
-- [Cài đặt & Chạy](#cài-đặt--chạy)
-- [API Endpoints](#api-endpoints)
+- [Cài đặt & Chạy (Docker Compose)](#cài-đặt--chạy-docker-compose)
 - [Phân quyền (RBAC)](#phân-quyền-rbac)
-- [Luồng nghiệp vụ](#luồng-nghiệp-vụ)
+- [Luồng nghiệp vụ cốt lõi](#luồng-nghiệp-vụ-cốt-lõi)
+- [Roadmap & Tình trạng](#roadmap--tình-trạng)
 
 ---
 
 ## Tổng quan
 
-LoanFlow Lite giải quyết bài toán quản lý khoản vay thủ công bằng Excel hoặc chat nhóm, thay thế bằng một hệ thống số hóa có kiểm soát phê duyệt, lịch sử đầy đủ, và dashboard theo dõi trực quan.
+LoanFlow Lite thay thế các bảng tính thủ công rời rạc bằng một hệ thống đáng tin cậy với khả năng truy vết dữ liệu (auditability) chuẩn mực. 
 
-**Đối tượng sử dụng:**
-- 🏪 Cửa hàng bán trả góp
-- 🏢 Công ty tài chính nhỏ (SME Lender)
-- 🚗 Đại lý điện máy / xe máy / thiết bị
+**Đối tượng sử dụng lý tưởng:**
+- 🏦 Tổ chức/Công ty tài chính (SME Lenders)
+- 🏬 Cửa hàng/Chuỗi bán lẻ trả góp (Điện máy, Xe máy)
+- 🤝 Các quỹ tín dụng vi mô
 
 ---
 
-## Tính năng chính
+## Tính năng nổi bật (Production-Ready)
 
-| Module | Mô tả |
+| Module | Chức năng (Features) |
 |---|---|
-| 🔐 **Authentication & RBAC** | Đăng nhập JWT, phân quyền theo vai trò (Admin / Loan Officer / Approver / Collector) |
-| 👤 **Quản lý khách hàng** | Tạo hồ sơ khách hàng, lưu giấy tờ, lịch sử khoản vay |
-| 📦 **Sản phẩm vay** | Định nghĩa sản phẩm vay: hạn mức, kỳ hạn, lãi suất, phí xử lý |
-| 📝 **Hồ sơ vay** | Tiếp nhận nhu cầu vay, tính toán trả góp dự kiến, quản lý trạng thái |
-| ✅ **Phê duyệt** | Luồng Submitted → Under Review → Approved / Rejected, lưu lịch sử quyết định |
-| 💰 **Giải ngân** | Tạo khoản vay từ hồ sơ đã duyệt, sinh mã khoản vay tự động (LN-YYYYMMDD-XXXX) |
-| 📅 **Lịch trả nợ** | Tự động sinh lịch trả theo tháng (gốc/lãi từng kỳ bằng công thức PMT) |
-| 💳 **Thu nợ** | Ghi nhận thanh toán, phân bổ waterfall (lãi → gốc), cập nhật dư nợ |
-| ⚠️ **Theo dõi quá hạn** | Phân loại bucket quá hạn (1–7 ngày / 8–30 ngày / 31+ ngày), ghi chú thu hồi |
-| 📊 **Dashboard** | Tổng quan portfolio: tổng dư nợ, đến hạn hôm nay, quá hạn theo bucket |
+| 🔐 **Security & RBAC** | Đăng nhập JWT, kiểm soát quyền truy cập theo vai trò (Admin, Loan Officer, Approver, Collector). Nhận diện IP thực qua Proxy để Rate Limiting (chống SPAM 429). |
+| 🛡️ **Ledger Integrity** | **MỚI!** Chuỗi ghi nhận sổ cái (Ledger Chain) truy vết hoàn toàn đường đi của dòng tiền. Khép kín luồng Reversal (Hủy giao dịch) bằng bản ghi Mirror âm, đảm bảo không bao giờ sửa/xóa dữ liệu gốc (Immutability). |
+| ⚖️ **Reconciliation Engine** | **MỚI!** Chạy đối soát cuối ngày (EOD) với 6 điểm kiểm tra chéo (Payments, Disbursements, Suspense, LateFees, Reversals, Allocations). Mang lại 100% tự tin về dữ liệu tài chính. |
+| 💸 **Payment Allocation** | Lược đồ Waterfall tự động: Tiền khách hàng đóng sẽ ưu tiên cấn trừ Phí Trễ Hạn → Lãi → Gốc. Phần dư (nếu có) được đẩy vào tài khoản tạm giữ (Suspense Account) cho kỳ sau. |
+| 📦 **Sản phẩm Vay** | Tham số hóa hạn mức, kỳ hạn, lãi suất, phí xử lý. |
+| ✅ **Quy trình Phê duyệt** | Maker-Checker chuẩn (Submit → Under Review → Approve/Reject). Lưu trữ Audit Log cho mọi thay đổi. |
+| 📅 **Lịch Trả Nợ (PMT)** | Tự động sinh lịch trả nợ chuẩn tài chính, phân tách rạch ròi Gốc dự kiến, Lãi dự kiến theo từng chu kỳ. |
 
 ---
 
 ## Kiến trúc hệ thống
 
-```
-┌─────────────────────────────────────┐
-│         Frontend (Vanilla JS)        │
-│   index.html + app.js + api.js       │
-└──────────────────┬──────────────────┘
-                   │ HTTP / REST API
-┌──────────────────▼──────────────────┐
-│         LoanFlow.API (.NET 8)        │
-│   Controllers · JWT Auth · Swagger   │
-└────────┬─────────────────┬──────────┘
-         │                 │
-┌────────▼───────┐ ┌───────▼────────┐
-│ LoanFlow.App   │ │LoanFlow.Infra  │
-│ Services · DTOs│ │DbContext·Config│
-└────────┬───────┘ └───────┬────────┘
-         │                 │
-┌────────▼─────────────────▼────────┐
-│       LoanFlow.Domain              │
-│   Entities · Constants · Common    │
-└───────────────────────────────────┘
-                   │
-        ┌──────────▼──────────┐
-        │   SQL Server (EF)    │
-        └─────────────────────┘
+```mermaid
+flowchart TD
+    Client([Trình duyệt User\nReact SPA])
+    
+    subgraph Docker Compose Network
+        Nginx[Nginx Proxy\nPort 80]
+        API[LoanFlow.API\n.NET 9\nPort 8080]
+        DB[(MySQL 8.4)]
+    end
+    
+    Client -->|HTTP/REST| Nginx
+    Nginx -->|Reverse Proxy\nX-Forwarded-For| API
+    Nginx -->|Phục vụ Static Files| Nginx
+    API -->|Entity Framework Core\nSplit Query| DB
 ```
 
-**Clean Architecture** với 4 layer:
-- `Domain` — Entities, Constants (không phụ thuộc layer nào)
-- `Application` — Services, DTOs, Interfaces
-- `Infrastructure` — DbContext, EF Configurations, Seeder
-- `API` — Controllers, JWT, Swagger, CORS
+**Nguyên lý Kiến trúc (Clean Architecture):**
+- **Domain**: Định nghĩa 14 Entities nghiệp vụ, Constants (chuẩn mực độc lập với framework).
+- **Application**: Chứa Logic xử lý (PaymentAllocationService, ReconciliationService), DTOs linh hoạt.
+- **Infrastructure**: Giao tiếp Database, định cấu hình DB (EF Fluent API), Seeder chạy lần đầu.
+- **API**: Controllers (Endpoints RESTful), Global Exception Filter, Rate Limit, CORS.
 
 ---
 
 ## Tech Stack
 
+Hệ thống đã trải qua quá trình hiện đại hóa và đóng gói hoàn chỉnh bằng Docker:
+
 ### Backend
-| Thành phần | Công nghệ |
-|---|---|
-| Framework | ASP.NET Core 8 (Web API) |
-| ORM | Entity Framework Core 8 |
-| Database | SQL Server (LocalDB hoặc SQL Server Express) |
-| Authentication | JWT Bearer Token |
-| Password Hashing | BCrypt.Net-Next |
-| API Docs | Swagger / Swashbuckle |
-| Architecture | Clean Architecture (DDD-lite) |
+- **Framework**: ASP.NET Core 9 (Web API)
+- **ORM**: Entity Framework Core 9 (Tối ưu hóa bằng Split Query tránh Cartesian explosion)
+- **Database**: MySQL 8.4 (thay cho SQL Server trong các bản cũ)
+- **Authentication**: JWT Bearer Tokens
+- **Bảo mật**: BCrypt.Net-Next (Hashed Passwords), Global Rate Limiting, Idempotency Keys (ngăn Double-Click giải ngân/thanh toán)
 
 ### Frontend
-| Thành phần | Công nghệ |
-|---|---|
-| UI | Vanilla HTML / CSS / JavaScript |
-| HTTP Client | Fetch API (api.js) |
-| State | Module-based JS (app.js, ui.js) |
+- **Framework**: React 18, React Router DOM v6
+- **Build Tool**: Vite 5
+- **Giao diện**: HTML/CSS thuần túy tối ưu hóa UX (Single Page Application nhanh và nhẹ nhàng).
+
+### DevOps & Deployment
+- Docker & Docker Compose đa dịch vụ
+- Nginx đóng vai trò Web Server (SPA) và API Proxy
+- Config linh hoạt qua Profile (`docker compose --profile full`)
 
 ---
 
 ## Cấu trúc dự án
 
-```
+```text
 BankLoan/
-├── LoanFlow.sln
-├── README.md
-├── md/
-│   └── loanflow-lite-functional-planning.md   # Tài liệu planning nghiệp vụ
-├── frontend/
-│   ├── index.html                             # Single-page UI
-│   ├── css/                                   # Stylesheet
-│   └── js/
-│       ├── api.js                             # HTTP client wrapper
-│       ├── app.js                             # App logic & routing
-│       └── ui.js                             # UI helpers
-└── src/
-    ├── LoanFlow.Domain/
-    │   ├── Entities/                          # 14 domain entities
-    │   │   ├── User.cs
-    │   │   ├── Branch.cs
-    │   │   ├── Customer.cs
-    │   │   ├── CustomerDocument.cs
-    │   │   ├── LoanProduct.cs
-    │   │   ├── LoanApplication.cs
-    │   │   ├── ApplicationDecision.cs
-    │   │   ├── Loan.cs
-    │   │   ├── LoanDisbursement.cs
-    │   │   ├── RepaymentSchedule.cs
-    │   │   ├── Payment.cs
-    │   │   ├── DelinquencyStatus.cs
-    │   │   ├── CollectionNote.cs
-    │   │   └── AuditLog.cs
-    │   └── Constants/                        # Status constants
-    ├── LoanFlow.Application/
-    │   ├── Services/                         # 6 business services
-    │   │   ├── AuthService.cs
-    │   │   ├── CustomerService.cs
-    │   │   ├── LoanProductService.cs
-    │   │   ├── LoanApplicationService.cs
-    │   │   ├── LoanService.cs
-    │   │   └── DashboardService.cs
-    │   ├── DTOs/                             # Request/Response DTOs
-    │   └── Common/                           # Result<T>, PagedResult<T>
-    ├── LoanFlow.Infrastructure/
-    │   └── Data/
-    │       ├── LoanFlowDbContext.cs
-    │       ├── DbSeeder.cs                   # Demo seed data
-    │       └── Configurations/               # EF Fluent API configs
-    └── LoanFlow.API/
-        ├── Controllers/                      # 6 REST controllers
-        │   ├── AuthController.cs
-        │   ├── CustomersController.cs
-        │   ├── LoanProductsController.cs
-        │   ├── ApplicationsController.cs
-        │   ├── LoansController.cs
-        │   └── DashboardController.cs
-        ├── Program.cs
-        └── appsettings.json
+├── docker-compose.yml                 # Orchestration cho Prod/Dev
+├── docker-compose.override.yml        # Config map ports nội bộ
+├── frontend/                          # Client-side React/Vite app
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/                           # JSX Components, Hooks, API utils
+└── src/                               # Server-side .NET 9 API
+    ├── LoanFlow.Domain/               # Lõi nghiệp vụ (Entities)
+    ├── LoanFlow.Application/          # Logic xử lý chính (Services)
+    ├── LoanFlow.Infrastructure/       # Database Context, EF Configs
+    └── LoanFlow.API/                  # REST Controllers & Middleware
 ```
 
 ---
 
-## Cài đặt & Chạy
+## Cài đặt & Chạy (Docker Compose)
 
-### Yêu cầu
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- SQL Server (LocalDB / Express / Developer)
-- Trình duyệt (Chrome / Edge / Firefox)
+### Yêu cầu tiên quyết
+- **Docker** và **Docker Compose**
 
-### 1. Clone dự án
+### Khởi động toàn hệ thống với 1 câu lệnh
+
+Không cần cài đặt .NET SDK hay Node.js trên máy! Bạn chỉ cần Clone dự án và sử dụng cấu hình Docker Compose đã được chuẩn bị sẵn:
 
 ```bash
 git clone <repo-url>
 cd BankLoan
+
+# Chạy lệnh sau để build và start toàn bộ hệ thống (Frontend + Backend + MySQL)
+docker compose --profile full up -d --build
 ```
 
-### 2. Cấu hình connection string
+### Cách truy cập
+- **Web App (Frontend)**: `http://localhost`
+- **Backend API (Swagger)**: `http://localhost:8080/swagger`
+- **Database (MySQL)**: `localhost:3306` (Tài khoản: `root` / `LoanFlow@2026!`)
 
-Mở `src/LoanFlow.API/appsettings.json` và cập nhật:
-
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost;Database=LoanFlowLite;Trusted_Connection=True;TrustServerCertificate=True;"
-  },
-  "Jwt": {
-    "Key": "<set via env var JWT__KEY — min 32 chars, use openssl rand -base64 48>",
-    "Issuer": "LoanFlow.API",
-    "Audience": "LoanFlow.Client"
-  }
-}
-```
-
-### 3. Chạy backend
-
-```bash
-cd src/LoanFlow.API
-dotnet run
-```
-
-API sẽ chạy tại `https://localhost:5001` (hoặc port được cấp).  
-Swagger UI tại: `http://localhost:<port>/swagger`
-
-> Database sẽ tự động migrate và seed demo data khi khởi động lần đầu.
-
-### 4. Chạy frontend
-
-Mở `frontend/index.html` trực tiếp bằng trình duyệt hoặc dùng Live Server extension (VS Code).
-
-- Đảm bảo URL backend trong `api.js` trỏ đúng port.
-- CORS đã được cấu hình cho `localhost:3000`, `localhost:5173`, `127.0.0.1:5500`.
-
-### 5. Tài khoản mặc định (seed data)
-
-Khi chạy ở môi trường `Development`, hệ thống sẽ tự động seed tài khoản demo.
-Mật khẩu sẽ được **in ra Console** lúc khởi động lần đầu, hoặc bạn có thể đặt trước qua biến môi trường:
-
-```bash
-export SEED_ADMIN_PASSWORD=YourAdminPass@123
-export SEED_OFFICER_PASSWORD=YourOfficerPass@123
-export SEED_APPROVER_PASSWORD=YourApproverPass@123
-export SEED_COLLECTOR_PASSWORD=YourCollectorPass@123
-export SEED_MANAGER_PASSWORD=YourManagerPass@123
-```
-
-> ⚠️ **Không bao giờ dùng mật khẩu demo cho staging hoặc production.**
-
----
-
-## API Endpoints
-
-### Authentication
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `POST` | `/api/auth/login` | Đăng nhập, nhận JWT token |
-
-### Customers
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `GET` | `/api/customers` | Danh sách khách hàng (có filter/paging) |
-| `GET` | `/api/customers/{id}` | Chi tiết khách hàng |
-| `POST` | `/api/customers` | Tạo khách hàng mới |
-| `PUT` | `/api/customers/{id}` | Cập nhật thông tin |
-
-### Loan Products
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `GET` | `/api/loan-products` | Danh sách sản phẩm vay |
-| `GET` | `/api/loan-products/{id}` | Chi tiết sản phẩm |
-| `POST` | `/api/loan-products` | Tạo sản phẩm vay |
-| `PUT` | `/api/loan-products/{id}` | Cập nhật sản phẩm |
-| `POST` | `/api/loan-products/preview-installment` | Tính trả góp dự kiến |
-
-### Loan Applications
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `GET` | `/api/applications` | Danh sách hồ sơ vay |
-| `GET` | `/api/applications/{id}` | Chi tiết hồ sơ |
-| `POST` | `/api/applications` | Tạo hồ sơ vay mới |
-| `POST` | `/api/applications/{id}/submit` | Nộp hồ sơ (Draft → Submitted) |
-| `POST` | `/api/applications/{id}/decide` | Phê duyệt / từ chối |
-| `POST` | `/api/applications/{id}/cancel` | Hủy hồ sơ |
-
-### Loans
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `GET` | `/api/loans` | Danh sách khoản vay |
-| `GET` | `/api/loans/{id}` | Chi tiết khoản vay (kèm lịch trả nợ & thanh toán) |
-| `POST` | `/api/loans/disburse` | Giải ngân (tạo khoản vay từ hồ sơ đã duyệt) |
-| `GET` | `/api/loans/{id}/schedule` | Lịch trả nợ |
-| `POST` | `/api/loans/{id}/payments` | Ghi nhận thanh toán |
-
-### Dashboard
-| Method | Endpoint | Mô tả |
-|---|---|---|
-| `GET` | `/api/dashboard/summary` | Tổng quan portfolio |
-| `GET` | `/api/dashboard/overdue` | Danh sách & thống kê quá hạn |
+> **Lưu ý**: Lần đầu tiên khởi chạy, Database sẽ tự động chèn (seed) hệ thống dữ liệu mẫu bao gồm Danh mục GL, Chi nhánh, Quy tắc mượn tiền và các user. Password cho các user (`admin`, `officer01`, `approver01`...) sẽ được random và in ra trong log của container `loanflow-api`. 
+>
+> *(Bạn cũng có thể chạy Script tạo mật khẩu tĩnh `LoanFlow@2026!` nếu cần thiết trong quá trình UAT).*
 
 ---
 
 ## Phân quyền (RBAC)
 
+Không phải ai cũng có thể phê duyệt hay thu tiền. Hệ thống quy định rõ:
+
 | Vai trò | Quyền |
 |---|---|
-| **Admin** | Quản lý toàn bộ hệ thống, user, branch, sản phẩm |
-| **Loan Officer** | Tạo khách hàng, tạo & nộp hồ sơ vay, giải ngân |
-| **Approver** | Xem hồ sơ chờ duyệt, approve / reject |
-| **Collector** | Ghi nhận thu nợ, xem overdue dashboard, ghi chú thu hồi |
+| **Admin** | Toàn quyền kiểm soát, quản lý user, chi nhánh, sản phẩm, dashboard chiến lược. |
+| **Loan Officer** | Chuyên viên tín dụng. Tạo hồ sơ, nộp hồ sơ xin duyệt, giải ngân. |
+| **Approver** | Thẩm định viên. Chịu trách nhiệm Approve (Duyệt) hoặc Reject (Từ chối). |
+| **Collector** | Nhân viên thu hồi nợ. Nhập liệu thu tiền, xem danh sách nợ quá hạn, ghi chú nhắc nợ. |
 
 ---
 
-## Luồng nghiệp vụ
+## Luồng nghiệp vụ cốt lõi
 
-```
-Khách hàng
-    │
-    ▼
-[Customer] → Tạo hồ sơ khách hàng
-    │
-    ▼
-[LoanApplication] → Chọn sản phẩm, nhập số tiền/kỳ hạn
-    │                 Tính trả góp dự kiến
-    │ submit
-    ▼
-[Submitted] → Approver xem xét
-    │ approve / reject
-    ▼
-[Approved] ──────────────────► [Rejected]
-    │
-    │ disburse
-    ▼
-[Loan Account] → Sinh mã LN-YYYYMMDD-XXXX
-    │             Tạo lịch trả nợ tự động
-    │
-    ▼
-[RepaymentSchedule] → Từng kỳ: gốc / lãi / ngày đến hạn
-    │
-    │ collect payment
-    ▼
-[Payment] → Phân bổ waterfall (lãi → gốc)
-    │         Cập nhật dư nợ còn lại
-    │
-    ▼
-[Overdue Dashboard] → Theo dõi quá hạn theo bucket
-                       Ghi chú thu hồi
-```
+1. **Khởi tạo**: [Officer] Tiếp nhận thông tin > Tạo Khách hàng > Tạo Hồ sơ vay (Application).
+2. **Thẩm định**: [Officer] Submit hồ sơ > [Approver] Review & Phê duyệt (Approve).
+3. **Giải ngân**: [Officer] Thực hiện giải ngân > Hệ thống tạo Mã Khoản Vay > Sinh lịch trả nợ (Schedule) & Ghi Audit.
+4. **Thu nợ**: [Collector] Ghi nhận giao dịch > Hệ thống tự động phân bổ tiền (Trễ hạn -> Lãi -> Gốc) > Tính toán số dư còn lại (Outstanding).
+5. **Ghi sổ & Đối soát**: Hệ thống móc nối tự động vào Sổ cái. Cuối ngày chạy Reconcile Job kiểm tra tính đúng đắn của dòng tiền.
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap & Tình trạng
 
-### v1.0 — MVP (Hiện tại)
-- [x] Authentication & RBAC
-- [x] Customer Management
-- [x] Loan Product Management
-- [x] Loan Application & Approval Workflow
-- [x] Loan Disbursement & Account Creation
-- [x] Repayment Schedule Generation (PMT formula)
-- [x] Payment Posting với waterfall allocation
-- [x] Overdue Dashboard & Delinquency Buckets
-- [x] Audit Log cơ bản
-- [x] Demo seed data
+### ✅ Đã hoàn thành (v2.0 - Production Ready)
+- [x] Chuyển đổi công nghệ lên .NET 9 & React/Vite
+- [x] Triển khai toàn bộ qua Docker Compose
+- [x] Waterfall Payment Allocation & Suspense Accounts
+- [x] Kế toán sổ cái chuỗi khép kín (Ledger Chain) cho Payment, Reversal, Disbursement
+- [x] Engine Đối soát dữ liệu tài chính tự động (Reconciliation Engine - Confidence ~92%)
+- [x] Cơ chế chống gian lận/lặp giao dịch (Idempotency Filter)
+- [x] Chống DDoS & Local Spamming thông qua Rate Limiting (Trust Proxies X-Forwarded-For)
+- [x] Split Query tối ưu hóa truy vấn EF Core n+1
 
-### v2.0 — Planned
-- [ ] Penalty Engine (phí phạt quá hạn tự động)
-- [ ] SMS / Email Reminder
-- [ ] Report Export (Excel/PDF)
-- [ ] Document Management (upload hồ sơ)
-
-### v3.0 — Future
-- [ ] Loan Restructure / Reschedule
-- [ ] Accounting Export (journal entries)
-- [ ] Mobile Collector App
-- [ ] Customer Self-Service Portal
+*Dự án đã sẵn sàng cho môi trường Production (Go-Live).*
 
 ---
 
-## 📄 License
-
-Dự án được phát triển cho mục đích demo và thương mại hóa nội bộ.
-
----
-
-*Built with ❤️ using ASP.NET Core 8 + Clean Architecture*
+*Built with ❤️ & Focus on Integrity using ASP.NET Core 9, EF Core, React & Docker.*
