@@ -115,6 +115,9 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<bool>("IsAutoApprove")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<decimal>("MaxAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -122,6 +125,9 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<decimal>("MinAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("MinCicScore")
+                        .HasColumnType("int");
 
                     b.Property<string>("ProductType")
                         .HasMaxLength(30)
@@ -618,6 +624,12 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<int>("AssignedToUserId")
                         .HasColumnType("int");
 
+                    b.Property<string>("BankAccountNumber")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("BankCode")
+                        .HasColumnType("longtext");
+
                     b.Property<int?>("BranchId")
                         .HasColumnType("int");
 
@@ -634,6 +646,14 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<DateTime>("DateOfBirth")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("EkycStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateTime?>("EkycVerifiedAt")
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("FullName")
@@ -812,6 +832,48 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.ToTable("DunningStrategies");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.EContract", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ClientIpAddress")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("varchar(45)");
+
+                    b.Property<string>("ContractNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<int>("LoanId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MockDigitalSignature")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("PdfContentHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("SignedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoanId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_EContracts_LoanId");
+
+                    b.ToTable("EContracts");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.EkycVerification", b =>
                 {
                     b.Property<int>("Id")
@@ -839,6 +901,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
+
+                    b.Property<decimal?>("LivenessScore")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("decimal(5,1)");
 
                     b.Property<decimal?>("OcrConfidence")
                         .HasPrecision(5, 1)
@@ -1259,6 +1325,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("VirtualAccountNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ApplicationId")
@@ -1274,6 +1344,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_Loans_Status");
+
+                    b.HasIndex("VirtualAccountNo")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Loans_VirtualAccountNo");
 
                     b.ToTable("Loans");
                 });
@@ -2127,6 +2201,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<int>("CreatedByUserId")
                         .HasColumnType("int");
 
+                    b.Property<string>("ExternalReferenceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
                     b.Property<int>("LoanId")
                         .HasColumnType("int");
 
@@ -2145,6 +2223,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("ExternalReferenceId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Payments_ExternalReferenceId");
 
                     b.HasIndex("LoanId")
                         .HasDatabaseName("IX_Payments_LoanId");
@@ -2868,6 +2950,17 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.EContract", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.Loan", "Loan")
+                        .WithMany()
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Loan");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.EkycVerification", b =>
