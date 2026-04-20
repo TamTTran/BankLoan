@@ -18,6 +18,9 @@ public class Loan
     public string Status { get; set; } = "PendingDisbursement"; // PendingDisbursement | Active | Overdue | Closed
     public decimal OutstandingAmount { get; set; }
 
+    // Phase 4: Virtual Account for Payments
+    public string? VirtualAccountNo { get; set; }
+
     // ── Phase 3: NPL & Classification ────────────────────────────────────────
     public int CurrentClassification { get; set; } = LoanClassification.Group1_Standard;
     public decimal ProvisionAmount { get; set; } = 0;

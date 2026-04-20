@@ -12,6 +12,7 @@ public class EkycResultDto
     public string? FullNameExtracted { get; set; }
     public decimal FaceMatchScore { get; set; }
     public decimal OcrConfidence { get; set; }
+    public decimal LivenessScore { get; set; }
     public bool IsSuccess { get; set; }
     public string? ErrorMessage { get; set; }
     public string? RawJson { get; set; }
@@ -33,6 +34,7 @@ public class EkycVerificationDto
     public string? FullNameExtracted { get; set; }
     public decimal? FaceMatchScore { get; set; }
     public decimal? OcrConfidence { get; set; }
+    public decimal? LivenessScore { get; set; }
     public string Status { get; set; } = "";
     public string Provider { get; set; } = "";
 }
@@ -80,21 +82,40 @@ public class EkycService : IEkycService
                 verification.FullNameExtracted = result.FullNameExtracted;
                 verification.FaceMatchScore = result.FaceMatchScore;
                 verification.OcrConfidence = result.OcrConfidence;
+                verification.LivenessScore = result.LivenessScore;
                 verification.RawResponse = result.RawJson;
 
-                // Auto-determine status based on scores
-                if (result.FaceMatchScore >= 80 && result.OcrConfidence >= 85)
+                // Auto-determine status based on scores (Digital Finance 2345/QĐ-NHNN policy)
+                if (result.FaceMatchScore >= 80 && result.OcrConfidence >= 85 && result.LivenessScore >= 95)
+                {
                     verification.Status = "Verified";
+                    customer.EkycStatus = "Verified";
+                    customer.EkycVerifiedAt = DateTime.UtcNow;
+
+                    // Sync OCR data back to customer master to ensure truth matching CCCD
+                    if (!string.IsNullOrWhiteSpace(result.FullNameExtracted) && customer.FullName != result.FullNameExtracted)
+                    {
+                        customer.FullName = result.FullNameExtracted;
+                    }
+                }
                 else if (result.FaceMatchScore >= 60)
+                {
                     verification.Status = "ManualReview";
+                    customer.EkycStatus = "ManualReview";
+                }
                 else
+                {
                     verification.Status = "Rejected";
+                    customer.EkycStatus = "Rejected";
+                }
             }
             else
             {
                 verification.Status = "Rejected";
+                customer.EkycStatus = "Rejected";
                 verification.RawResponse = JsonSerializer.Serialize(new { error = result.ErrorMessage });
             }
+            _db.Customers.Update(customer);
         }
         catch (Exception ex)
         {
@@ -123,6 +144,7 @@ public class EkycService : IEkycService
             FullNameExtracted = verification.FullNameExtracted,
             FaceMatchScore = verification.FaceMatchScore,
             OcrConfidence = verification.OcrConfidence,
+            LivenessScore = verification.LivenessScore,
             Status = verification.Status, Provider = verification.Provider
         });
     }
@@ -140,6 +162,7 @@ public class EkycService : IEkycService
                 FullNameExtracted = e.FullNameExtracted,
                 FaceMatchScore = e.FaceMatchScore,
                 OcrConfidence = e.OcrConfidence,
+                LivenessScore = e.LivenessScore,
                 Status = e.Status, Provider = e.Provider
             })
             .ToListAsync();

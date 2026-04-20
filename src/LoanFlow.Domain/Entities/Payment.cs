@@ -7,6 +7,7 @@ public class Payment
     public DateOnly PaymentDate { get; set; }
     public decimal Amount { get; set; }
     public string PaymentMethod { get; set; } = default!;   // Cash | BankTransfer
+    public string? ExternalReferenceId { get; set; }        // Stores Webhook TxId to prevent duplicate payments
     public string? Remarks { get; set; }
     public int CreatedByUserId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

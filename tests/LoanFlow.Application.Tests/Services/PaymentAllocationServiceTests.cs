@@ -53,11 +53,12 @@ public class PaymentAllocationServiceTests
         accountingService
             .Setup(x => x.PostJournalAsync(It.IsAny<JournalEntryDto>()))
             .ReturnsAsync(Result.Success(new JournalEntry()));
+        var paymentGatewayService = new Mock<IPaymentGatewayService>();
         var clock = new TestBusinessClock(
             utcNow: new DateTime(2026, 1, 15, 1, 0, 0, DateTimeKind.Utc),
             localNow: new DateTime(2026, 1, 15, 8, 0, 0, DateTimeKind.Unspecified),
             businessDate: new DateOnly(2026, 1, 15));
-        var svcFees = new LoanService(db, lateFeeService.Object, clock, accountingService.Object);
+        var svcFees = new LoanService(db, lateFeeService.Object, clock, accountingService.Object, paymentGatewayService.Object);
         
         var paymentResult = await svcFees.RecordPaymentAsync(1, new RecordPaymentRequest
         {
@@ -127,11 +128,12 @@ public class PaymentAllocationServiceTests
         accountingService
             .Setup(x => x.PostJournalAsync(It.IsAny<JournalEntryDto>()))
             .ReturnsAsync(Result.Success(new JournalEntry()));
+        var paymentGatewayService = new Mock<IPaymentGatewayService>();
         var clock = new TestBusinessClock(
             utcNow: new DateTime(2026, 1, 15, 1, 0, 0, DateTimeKind.Utc),
             localNow: new DateTime(2026, 1, 15, 8, 0, 0, DateTimeKind.Unspecified),
             businessDate: new DateOnly(2026, 1, 15));
-        var service = new LoanService(db, lateFeeService.Object, clock, accountingService.Object);
+        var service = new LoanService(db, lateFeeService.Object, clock, accountingService.Object, paymentGatewayService.Object);
 
         var firstPayment = await service.RecordPaymentAsync(1, new RecordPaymentRequest
         {

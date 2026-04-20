@@ -56,11 +56,13 @@ public class LoanSettlementServiceTests
         accountingService
             .Setup(x => x.PostJournalAsync(It.IsAny<JournalEntryDto>()))
             .ReturnsAsync(Result.Success(new JournalEntry()));
-        var clock = new TestBusinessClock(
-            utcNow: new DateTime(2026, 1, 15, 1, 0, 0, DateTimeKind.Utc),
-            localNow: new DateTime(2026, 1, 15, 8, 0, 0, DateTimeKind.Unspecified),
-            businessDate: new DateOnly(2026, 1, 15));
-        var svc = new LoanService(db, lateFeeService.Object, clock, accountingService.Object);
+        var businessClockMock = new Mock<IBusinessClock>();
+        businessClockMock.Setup(c => c.UtcNow).Returns(DateTime.UtcNow);
+        businessClockMock.Setup(c => c.TodayBusinessDate()).Returns(DateOnly.FromDateTime(DateTime.UtcNow));
+        var accountingMock = new Mock<IAccountingService>();
+        var paymentGatewayMock = new Mock<IPaymentGatewayService>();
+
+        var svc = new LoanService(db, lateFeeService.Object, businessClockMock.Object, accountingMock.Object, paymentGatewayMock.Object);
 
         var result = await svc.EarlySettleAsync(1, new EarlySettleRequest
         {

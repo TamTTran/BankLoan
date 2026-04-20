@@ -76,11 +76,12 @@ public class LedgerReconciliationEndToEndTests
             .Setup(x => x.CalculateLateFeesAsync(1, It.IsAny<DateOnly>()))
             .ReturnsAsync(Result.Success());
         var accountingService = new AccountingService(db);
+        var paymentGatewayService = new Mock<IPaymentGatewayService>();
         var businessClock = new TestBusinessClock(
             utcNow: utcNow,
             localNow: new DateTime(2026, 1, 15, 16, 0, 0, DateTimeKind.Unspecified),
             businessDate: new DateOnly(2026, 1, 15));
-        var loanService = new LoanService(db, lateFeeService.Object, businessClock, accountingService);
+        var loanService = new LoanService(db, lateFeeService.Object, businessClock, accountingService, paymentGatewayService.Object);
 
         var result = await loanService.RecordPaymentAsync(1, new RecordPaymentRequest
         {

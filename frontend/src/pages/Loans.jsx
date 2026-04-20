@@ -10,6 +10,7 @@ import { useToast } from '../context/ToastContext';
 import { LoanDetailModal } from '../features/loans/components/LoanDetailModal';
 import { DisburseModal } from '../features/loans/components/DisburseModal';
 import { PaymentModal } from '../features/loans/components/PaymentModal';
+import { EContractModal } from '../features/loans/components/EContractModal';
 import { useLoans } from '../features/loans/hooks/useLoans';
 
 export default function Loans() {
@@ -20,6 +21,33 @@ export default function Loans() {
   const [detailId, setDetailId]   = useState(null);
   const [disburseId, setDisburseId] = useState(null);
   const [paymentId, setPaymentId]   = useState(null);
+  const [contractId, setContractId] = useState(null);
+
+  const handleTestWebhook = async (vaNumber) => {
+    try {
+      const amount = prompt("Nhập số tiền chuyển khoản giả lập cho " + vaNumber + ":", "1000000");
+      if (!amount) return;
+      const res = await fetch('/api/webhooks/bank-transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          virtualAccountNo: vaNumber,
+          amount: parseFloat(amount),
+          transactionId: "MOCK-" + Date.now(),
+          description: "Khach hang thanh toan"
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast('Đã ghi nhận thanh toán qua Webhook!', 'success');
+        refresh();
+      } else {
+        toast('Lỗi: ' + data.message, 'error');
+      }
+    } catch(e) {
+      toast('Lỗi Webhook: ' + e.message, 'error');
+    }
+  };
 
   return (
     <div className="page">
@@ -47,7 +75,10 @@ export default function Loans() {
               const pct = l.approvedAmount ? Math.round((1-outstanding/l.approvedAmount)*100) : 0;
               return (
                 <tr key={l.id}>
-                  <td><span className="code-badge">{l.loanAccountNo}</span></td>
+                  <td>
+                    <span className="code-badge">{l.loanAccountNo}</span>
+                    {l.virtualAccountNo && <div className="cell-sub mt-1" style={{fontSize: '0.75rem', color: 'var(--primary)'}}>VA: {l.virtualAccountNo}</div>}
+                  </td>
                   <td><div className="cell-main">{l.customer?.fullName||'—'}</div><div className="cell-sub">{l.customer?.phone}</div></td>
                   <td><span className="cell-sub">{l.product?.productName}</span></td>
                   <td>{formatCurrency(l.approvedAmount)}</td>
@@ -61,8 +92,12 @@ export default function Loans() {
                   <td>
                     <div className="action-btns">
                       <Button size="sm" variant="outline" onClick={()=>setDetailId(l.id)}>📋 Chi tiết</Button>
+                      {l.status==='PendingDisbursement' && can.disburse     && <Button size="sm" variant="outline" onClick={()=>setContractId(l.id)}>✍️ Ký HĐ</Button>}
                       {l.status==='PendingDisbursement' && can.disburse     && <Button size="sm" variant="primary" onClick={()=>setDisburseId(l.id)}>💵 Giải ngân</Button>}
                       {l.status==='Active'              && can.recordPayment && <Button size="sm" variant="success" onClick={()=>setPaymentId(l.id)}>💰 Thu tiền</Button>}
+                      {(l.status==='Active' || l.status==='Overdue') && l.virtualAccountNo && (
+                         <Button size="sm" variant="outline" onClick={()=>handleTestWebhook(l.virtualAccountNo)} title="Giả lập KH chuyển khoản qua Webhook" style={{borderColor: 'var(--green)', color: 'var(--green)'}}>🏦 Test Webhook</Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -74,6 +109,7 @@ export default function Loans() {
       </Card>
 
       {detailId   && <LoanDetailModal  loanId={detailId}   onClose={()=>setDetailId(null)}/>}
+      {contractId && <EContractModal   loanId={contractId} onClose={()=>setContractId(null)} onDone={()=>{setContractId(null);refresh();}}/>}
       {disburseId && <DisburseModal    loanId={disburseId} onClose={()=>setDisburseId(null)} onDone={()=>{setDisburseId(null);refresh();}}/>}
       {paymentId  && <PaymentModal     loanId={paymentId}  onClose={()=>setPaymentId(null)}  onDone={()=>{setPaymentId(null);refresh();}}/>}
     </div>

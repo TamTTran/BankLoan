@@ -11,6 +11,8 @@ public class CustomerDto
     public string Status { get; set; } = default!;
     public int? CreditScore { get; set; }
     public string? CreditStatus { get; set; }
+    public string EkycStatus { get; set; } = "Pending";
+    public DateTime? EkycVerifiedAt { get; set; }
     public int AssignedToUserId { get; set; }
     public string? AssignedToFullName { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -26,6 +28,7 @@ public class CustomerListItemDto
     public string Status { get; set; } = default!;
     public int? CreditScore { get; set; }
     public string? CreditStatus { get; set; }
+    public string EkycStatus { get; set; } = "Pending";
     public string? AssignedToFullName { get; set; }
     public DateTime CreatedAt { get; set; }
 }

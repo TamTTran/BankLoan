@@ -9,8 +9,12 @@ public class Customer
     public string Address { get; set; } = default!;
     public DateTime DateOfBirth { get; set; }
     public string Status { get; set; } = "Active";          // Active | Inactive
+    public string EkycStatus { get; set; } = "Pending";     // Pending | Verified | Rejected | ManualReview
+    public DateTime? EkycVerifiedAt { get; set; }
     public int? CreditScore { get; set; }
     public string? CreditStatus { get; set; }
+    public string? BankAccountNumber { get; set; }
+    public string? BankCode { get; set; }
     public int CreatedByUserId { get; set; }
     public int AssignedToUserId { get; set; }             // nhân viên đang phụ trách
     public int? BranchId { get; set; }                    // chi nhánh quản lý

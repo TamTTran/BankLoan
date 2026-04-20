@@ -31,13 +31,15 @@ public class LoanService : ILoanService
     private readonly ILateFeeService _lateFeeService;
     private readonly IBusinessClock _businessClock;
     private readonly IAccountingService _accountingService;
+    private readonly IPaymentGatewayService _paymentGatewayService;
 
-    public LoanService(LoanFlowDbContext db, ILateFeeService lateFeeService, IBusinessClock businessClock, IAccountingService accountingService)
+    public LoanService(LoanFlowDbContext db, ILateFeeService lateFeeService, IBusinessClock businessClock, IAccountingService accountingService, IPaymentGatewayService paymentGatewayService)
     {
         _db = db;
         _lateFeeService = lateFeeService;
         _businessClock = businessClock;
         _accountingService = accountingService;
+        _paymentGatewayService = paymentGatewayService;
     }
 
     // ── GET /loans ──────────────────────────────────────────────────────────
@@ -180,6 +182,10 @@ public class LoanService : ILoanService
             NewValuesJson = AuditHelper.ToJson(new { loanAccountNo = loanNo, applicationId })
         });
         await _db.SaveChangesAsync(); // single roundtrip — EF resolves loan.Id
+        
+        // Phase 4: Generate Virtual Account Number
+        loan.VirtualAccountNo = $"VA{loan.Id:D8}";
+        await _db.SaveChangesAsync();
 
         return await GetByIdAsync(loan.Id);
     }
@@ -205,6 +211,7 @@ public class LoanService : ILoanService
             return Result.Failure<LoanDto>(ex.Message);
         }
         var loan = await _db.Loans
+            .Include(l => l.Customer)
             .Include(l => l.Product)
             .Include(l => l.LoanCollaterals)
             .FirstOrDefaultAsync(l => l.Id == loanId);
@@ -218,6 +225,10 @@ public class LoanService : ILoanService
         // DISB-VAL-003
         if (await _db.LoanDisbursements.AnyAsync(d => d.LoanId == loanId))
             return Result.Failure<LoanDto>("DISB-VAL-003: Loan already disbursed.");
+
+        // DFI-VAL-004: E-Contract Must Be Signed
+        if (!await _db.EContracts.AnyAsync(e => e.LoanId == loanId))
+            return Result.Failure<LoanDto>("APP-VAL-006: E-Contract is not signed. Digital signature is required before disbursement.");
 
         // Collateral LTV Validation (Phase 3)
         if (loan.Product != null && loan.Product.RequiresCollateral)
@@ -297,6 +308,36 @@ public class LoanService : ILoanService
                 EntityId = loanId,
                 NewValuesJson = AuditHelper.ToJson(new { disbursedAmount = req.DisbursedAmount, disbursementDate = req.DisbursementDate })
             });
+
+            // Phase 4: Auto-Disbursement (Sync via NAPAS Gateway)
+            if (!string.IsNullOrWhiteSpace(loan.Customer.BankAccountNumber) && !string.IsNullOrWhiteSpace(loan.Customer.BankCode))
+            {
+                var gatewayResult = await _paymentGatewayService.TransferToCustomerAsync(
+                    loan.Customer.BankCode,
+                    loan.Customer.BankAccountNumber,
+                    req.DisbursedAmount,
+                    $"Disbursement for Loan {loan.LoanAccountNo}"
+                );
+
+                if (!gatewayResult.IsSuccess)
+                {
+                    await tx.RollbackAsync();
+                    return Result.Failure<LoanDto>($"Auto-Disbursement Gateway Failed: {gatewayResult.Error}");
+                }
+
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    ActorUserId = userId,
+                    ActionCode = "AutoDisbursementSuccess",
+                    EntityType = "Loan",
+                    EntityId = loanId,
+                    NewValuesJson = AuditHelper.ToJson(new { transactionId = gatewayResult.Value.TransactionId })
+                });
+            }
+            else 
+            {
+                // For MVP, if no bank account is setup, we assume it's disbursed via Cash/Internal
+            }
 
             await SaveChangesWithConcurrencyHandlingAsync("Loan was modified while disbursing. Reload the loan and retry.");
             await tx.CommitAsync();
@@ -1090,6 +1131,7 @@ public class LoanService : ILoanService
         MaturityDate = l.MaturityDate,
         Status = l.Status,
         OutstandingAmount = l.OutstandingAmount,
+        VirtualAccountNo = l.VirtualAccountNo,
         CreatedAt = l.CreatedAt
     };
 

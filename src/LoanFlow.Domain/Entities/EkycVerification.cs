@@ -20,6 +20,9 @@ public class EkycVerification
     /// <summary>OCR extraction confidence 0-100</summary>
     public decimal? OcrConfidence { get; set; }
 
+    /// <summary>Liveness detection confidence 0-100</summary>
+    public decimal? LivenessScore { get; set; }
+
     /// <summary>Pending | Verified | Rejected | ManualReview</summary>
     public string Status { get; set; } = "Pending";
 

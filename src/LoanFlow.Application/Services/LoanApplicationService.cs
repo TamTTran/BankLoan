@@ -25,12 +25,14 @@ public class LoanApplicationService : ILoanApplicationService
     private readonly LoanFlowDbContext _db;
     private readonly ILoanProductService _productService;
     private readonly IApprovalRuleService _approvalRuleService;
+    private readonly ICicService _cicService;
 
-    public LoanApplicationService(LoanFlowDbContext db, ILoanProductService productService, IApprovalRuleService approvalRuleService)
+    public LoanApplicationService(LoanFlowDbContext db, ILoanProductService productService, IApprovalRuleService approvalRuleService, ICicService cicService)
     {
         _db = db;
         _productService = productService;
         _approvalRuleService = approvalRuleService;
+        _cicService = cicService;
     }
 
     public async Task<PagedResult<LoanApplicationDto>> GetListAsync(ApplicationFilterRequest filter)
@@ -91,6 +93,10 @@ public class LoanApplicationService : ILoanApplicationService
         var customer = await _db.Customers.FindAsync(req.CustomerId);
         if (customer is null) return Result.Failure<LoanApplicationDto>("APP-VAL-003: Customer not found.");
         if (customer.Status != "Active") return Result.Failure<LoanApplicationDto>("Customer is not active.");
+
+        // Digital Finance Policy: Block loan origination without biometrics
+        if (customer.EkycStatus != "Verified")
+            return Result.Failure<LoanApplicationDto>("APP-VAL-005: Khách hàng chưa hoàn tất sinh trắc học eKYC theo chuẩn tài chính số.");
 
         // APP-VAL-004
         var product = await _db.LoanProducts.FindAsync(req.ProductId);
@@ -189,7 +195,44 @@ public class LoanApplicationService : ILoanApplicationService
         if (entity.Customer.Status != "Active") return Result.Failure("APP-SUB-002: Customer is not active.");
         if (entity.Product.Status != "Active") return Result.Failure("APP-SUB-002: Product is not active.");
 
-        entity.Status = ApplicationStatus.Submitted;
+        // DFI-STP-001: Straight-Through Processing (Auto-Approve via Rule Engine)
+        var requiredRules = (await _approvalRuleService.GetRequiredRulesForApplicationAsync(id)).ToList();
+        var stpRule = requiredRules.FirstOrDefault(r => r.IsAutoApprove);
+
+        if (stpRule != null && entity.Customer.EkycStatus == "Verified")
+        {
+            var cicRes = await _cicService.InquireCicAsync(entity.CustomerId, userId);
+            if (cicRes.IsSuccess && cicRes.Value.CicScore >= stpRule.MinCicScore)
+            {
+                entity.Status = ApplicationStatus.Approved;
+                
+                _db.ApplicationDecisions.Add(new ApplicationDecision
+                {
+                    ApplicationId = id,
+                    Decision = "Approved",
+                    DecidedByUserId = userId, // Auto trigger by the one submitting
+                    DecisionReason = $"Auto-Approved STP (CIC: {cicRes.Value.CicScore} >= {stpRule.MinCicScore})"
+                });
+
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    ActorUserId = userId,
+                    ActionCode = "AUTO_APPROVED",
+                    EntityType = "Application",
+                    EntityId = entity.Id,
+                    NewValuesJson = AuditHelper.ToJson(new { cicScore = cicRes.Value.CicScore, ruleId = stpRule.Id })
+                });
+            }
+            else
+            {
+                entity.Status = ApplicationStatus.Submitted;
+            }
+        }
+        else
+        {
+            entity.Status = ApplicationStatus.Submitted;
+        }
+
         entity.SubmittedAt = DateTime.UtcNow;
         entity.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();

@@ -15,5 +15,7 @@ public class ApprovalRule
     public decimal MaxAmount { get; set; }              // up to this amount
     public int RequiredLevel { get; set; }              // 1, 2, or 3
     public string ApproverRole { get; set; } = default!; // required role for this level
+    public int? MinCicScore { get; set; }               // required CIC score to auto-approve
+    public bool IsAutoApprove { get; set; } = false;    // triggers Straight-Through Processing
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -65,6 +65,7 @@ public class LoanFlowDbContext : DbContext
     public DbSet<AccountingPeriod> AccountingPeriods => Set<AccountingPeriod>();
     public DbSet<CicInquiry> CicInquiries => Set<CicInquiry>();
     public DbSet<EkycVerification> EkycVerifications => Set<EkycVerification>();
+    public DbSet<EContract> EContracts => Set<EContract>();
     public DbSet<Branch> Branches => Set<Branch>();
 
     // ── Banking Upgrade: Phase 5 (Operations) ────────────────────────────
@@ -181,6 +182,8 @@ public class LoanFlowDbContext : DbContext
         {
             b.HasIndex(l => l.Status).HasDatabaseName("IX_Loans_Status");
             b.HasIndex(l => l.LoanAccountNo).IsUnique().HasDatabaseName("IX_Loans_LoanAccountNo");
+            b.HasIndex(l => l.VirtualAccountNo).IsUnique().HasDatabaseName("IX_Loans_VirtualAccountNo");
+            b.Property(l => l.VirtualAccountNo).HasMaxLength(50);
             b.Property(l => l.RowVersion).IsRowVersion();
         });
 
@@ -201,6 +204,8 @@ public class LoanFlowDbContext : DbContext
         {
             b.HasIndex(p => p.PaymentDate).HasDatabaseName("IX_Payments_PaymentDate");
             b.HasIndex(p => p.LoanId).HasDatabaseName("IX_Payments_LoanId");
+            b.HasIndex(p => p.ExternalReferenceId).IsUnique().HasDatabaseName("IX_Payments_ExternalReferenceId");
+            b.Property(p => p.ExternalReferenceId).HasMaxLength(100);
         });
 
         modelBuilder.Entity<LateFee>(b =>
@@ -233,6 +238,15 @@ public class LoanFlowDbContext : DbContext
         {
             b.HasIndex(c => c.Phone).IsUnique().HasDatabaseName("IX_Customers_Phone");
             b.HasIndex(c => c.IdNumber).IsUnique().HasDatabaseName("IX_Customers_IdNumber");
+            b.Property(c => c.EkycStatus).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<EContract>(b =>
+        {
+            b.HasIndex(e => e.LoanId).IsUnique().HasDatabaseName("IX_EContracts_LoanId");
+            b.Property(e => e.ContractNumber).HasMaxLength(50);
+            b.Property(e => e.PdfContentHash).HasMaxLength(100);
+            b.Property(e => e.ClientIpAddress).HasMaxLength(45);
         });
 
         modelBuilder.Entity<PendingApprovalRequest>(b =>
@@ -381,6 +395,7 @@ public class LoanFlowDbContext : DbContext
             b.Property(e => e.Provider).HasMaxLength(20);
             b.Property(e => e.FaceMatchScore).HasPrecision(5, 1);
             b.Property(e => e.OcrConfidence).HasPrecision(5, 1);
+            b.Property(e => e.LivenessScore).HasPrecision(5, 1);
             b.HasOne(e => e.Customer).WithMany().HasForeignKey(e => e.CustomerId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(e => e.RequestedBy).WithMany().HasForeignKey(e => e.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
         });

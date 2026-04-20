@@ -59,6 +59,7 @@ public class CustomerService : ICustomerService
                 Status = c.Status,
                 CreditScore = c.CreditScore,
                 CreditStatus = c.CreditStatus,
+                EkycStatus = c.EkycStatus,
                 AssignedToFullName = c.AssignedToUser != null ? c.AssignedToUser.FullName : null,
                 CreatedAt = c.CreatedAt
             })
@@ -252,6 +253,8 @@ public class CustomerService : ICustomerService
         Status = c.Status,
         CreditScore = c.CreditScore,
         CreditStatus = c.CreditStatus,
+        EkycStatus = c.EkycStatus,
+        EkycVerifiedAt = c.EkycVerifiedAt,
         AssignedToUserId = c.AssignedToUserId,
         AssignedToFullName = c.AssignedToUser?.FullName,
         CreatedAt = c.CreatedAt,

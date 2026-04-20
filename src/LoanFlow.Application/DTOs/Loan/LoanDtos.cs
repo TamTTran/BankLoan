@@ -16,6 +16,7 @@ public class LoanDto
     public DateOnly? MaturityDate { get; set; }
     public string Status { get; set; } = default!;
     public decimal OutstandingAmount { get; set; }
+    public string? VirtualAccountNo { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<ScheduleItemDto> Schedule { get; set; } = [];
     public List<PaymentDto> Payments { get; set; } = [];

@@ -19,18 +19,20 @@ public class MockEkycProvider : IEkycProvider
 
         var faceMatchScore = Math.Round((decimal)(85 + rng.NextDouble() * 15), 1);
         var ocrConfidence = Math.Round((decimal)(88 + rng.NextDouble() * 12), 1);
+        var livenessScore = Math.Round((decimal)(95 + rng.NextDouble() * 5), 1); // Follow latest digital finance policy
 
         var result = new EkycResultDto
         {
             FullNameExtracted = fullName,
             FaceMatchScore = faceMatchScore,
             OcrConfidence = ocrConfidence,
+            LivenessScore = livenessScore,
             IsSuccess = true,
             RawJson = JsonSerializer.Serialize(new
             {
                 provider = "MOCK",
                 timestamp = DateTime.UtcNow,
-                idNumber, idType, fullNameExtracted = fullName, faceMatchScore, ocrConfidence,
+                idNumber, idType, fullNameExtracted = fullName, faceMatchScore, ocrConfidence, livenessScore,
                 disclaimer = "This is mock data for development purposes only."
             })
         };

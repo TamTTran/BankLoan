@@ -18,12 +18,14 @@ public class LoansController : ControllerBase
     private readonly ILoanService _service;
     private readonly ICollateralService _collateralService;
     private readonly IApprovalFlowService _approvalFlowService;
+    private readonly IEContractService _eContractService;
 
-    public LoansController(ILoanService service, ICollateralService collateralService, IApprovalFlowService approvalFlowService)
+    public LoansController(ILoanService service, ICollateralService collateralService, IApprovalFlowService approvalFlowService, IEContractService eContractService)
     {
         _service = service;
         _collateralService = collateralService;
         _approvalFlowService = approvalFlowService;
+        _eContractService = eContractService;
     }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -73,6 +75,29 @@ public class LoansController : ControllerBase
                 LoanId = id,
                 Request = request
             });
+    }
+
+    // ── EContract ────────────────────────────────────────────────────────────
+
+    /// <summary>POST /loans/{id}/sign-contract</summary>
+    [HttpPost("loans/{id:int}/sign-contract")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer}")]
+    public async Task<IActionResult> SignContract(int id)
+    {
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var result = await _eContractService.SignContractAsync(id, ip);
+        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
+        return Ok(new { success = true, data = result.Value });
+    }
+
+    /// <summary>GET /loans/{id}/contract</summary>
+    [HttpGet("loans/{id:int}/contract")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Manager}")]
+    public async Task<IActionResult> GetContract(int id)
+    {
+        var result = await _eContractService.GetByLoanIdAsync(id);
+        if (!result.IsSuccess) return NotFound(new { success = false, error = new { message = result.Error } });
+        return Ok(new { success = true, data = result.Value });
     }
 
     // ── Schedule ─────────────────────────────────────────────────────────────

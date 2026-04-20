@@ -13,6 +13,8 @@ public class ApprovalRuleDto
     public decimal MaxAmount { get; set; }
     public int RequiredLevel { get; set; }
     public string ApproverRole { get; set; } = default!;
+    public int? MinCicScore { get; set; }
+    public bool IsAutoApprove { get; set; }
 }
 
 public class CreateApprovalRuleRequest
@@ -22,6 +24,8 @@ public class CreateApprovalRuleRequest
     public decimal MaxAmount { get; set; }
     public int RequiredLevel { get; set; }
     public string ApproverRole { get; set; } = default!;
+    public int? MinCicScore { get; set; }
+    public bool IsAutoApprove { get; set; }
 }
 
 public interface IApprovalRuleService
@@ -46,7 +50,8 @@ public class ApprovalRuleService : IApprovalRuleService
             .Select(r => new ApprovalRuleDto
             {
                 Id = r.Id, ProductType = r.ProductType, MinAmount = r.MinAmount,
-                MaxAmount = r.MaxAmount, RequiredLevel = r.RequiredLevel, ApproverRole = r.ApproverRole
+                MaxAmount = r.MaxAmount, RequiredLevel = r.RequiredLevel, ApproverRole = r.ApproverRole,
+                MinCicScore = r.MinCicScore, IsAutoApprove = r.IsAutoApprove
             })
             .ToListAsync();
     }
@@ -62,7 +67,9 @@ public class ApprovalRuleService : IApprovalRuleService
             MinAmount = req.MinAmount,
             MaxAmount = req.MaxAmount,
             RequiredLevel = req.RequiredLevel,
-            ApproverRole = req.ApproverRole
+            ApproverRole = req.ApproverRole,
+            MinCicScore = req.MinCicScore,
+            IsAutoApprove = req.IsAutoApprove
         };
 
         _db.ApprovalRules.Add(entity);
@@ -71,7 +78,8 @@ public class ApprovalRuleService : IApprovalRuleService
         return Result.Success(new ApprovalRuleDto
         {
             Id = entity.Id, ProductType = entity.ProductType, MinAmount = entity.MinAmount,
-            MaxAmount = entity.MaxAmount, RequiredLevel = entity.RequiredLevel, ApproverRole = entity.ApproverRole
+            MaxAmount = entity.MaxAmount, RequiredLevel = entity.RequiredLevel, ApproverRole = entity.ApproverRole,
+            MinCicScore = entity.MinCicScore, IsAutoApprove = entity.IsAutoApprove
         });
     }
 
@@ -101,7 +109,8 @@ public class ApprovalRuleService : IApprovalRuleService
             .Select(r => new ApprovalRuleDto
             {
                 Id = r.Id, ProductType = r.ProductType, MinAmount = r.MinAmount,
-                MaxAmount = r.MaxAmount, RequiredLevel = r.RequiredLevel, ApproverRole = r.ApproverRole
+                MaxAmount = r.MaxAmount, RequiredLevel = r.RequiredLevel, ApproverRole = r.ApproverRole,
+                MinCicScore = r.MinCicScore, IsAutoApprove = r.IsAutoApprove
             })
             .ToListAsync();
 

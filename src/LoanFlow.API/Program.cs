@@ -60,6 +60,7 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IReversalService, ReversalService>();
 builder.Services.AddScoped<IReconciliationService, ReconciliationService>();
 builder.Services.AddScoped<ICollectionService, CollectionService>();
+builder.Services.AddScoped<IPaymentGatewayService, MockPaymentGatewayService>(); // Phase 4
 builder.Services.AddScoped<IReportingService, ReportingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -87,6 +88,7 @@ builder.Services.AddScoped<ILoanTopUpService, LoanTopUpService>();
 builder.Services.AddScoped<ICollateralLifecycleService, CollateralLifecycleService>();
 builder.Services.AddScoped<IDunningService, DunningService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
+builder.Services.AddScoped<IEContractService, EContractService>();
 builder.Services.AddScoped<IDataExportService, DataExportService>();
 builder.Services.AddScoped<ILoanAdjustmentService, LoanAdjustmentService>();
 
