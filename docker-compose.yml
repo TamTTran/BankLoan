@@ -57,6 +57,8 @@ services:
       Jwt__Key: "${JWT_KEY}"
       Jwt__Issuer: "LoanFlow.API"
       Jwt__Audience: "LoanFlow.Client"
+      Cors__AllowedOrigins__0: "http://localhost"
+      Cors__AllowedOrigins__1: "https://localhost"
       # Daily overdue background job (UTC+7 = 01:00 UTC)
       BackgroundJobs__DailyOverdue__RunHourUtc: "18"
       BackgroundJobs__DailyOverdue__RunMinuteUtc: "0"

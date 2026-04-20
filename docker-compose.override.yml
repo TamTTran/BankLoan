@@ -16,8 +16,8 @@ services:
     ports:
       - "3306:3306"    # Expose to localhost so VS can connect directly
     environment:
-      MYSQL_PASSWORD: "LoanFlow@2026!"
-      MYSQL_ROOT_PASSWORD: "LoanFlow@2026!"
+      MYSQL_PASSWORD: "${DB_PASSWORD}"
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD}"
 
   # API runs in Visual Studio / dotnet watch locally — disable container version
   api:
