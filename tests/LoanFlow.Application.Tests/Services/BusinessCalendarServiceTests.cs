@@ -41,6 +41,17 @@ public class BusinessCalendarServiceTests
     }
 
     [Fact]
+    public void ResolveBusinessDate_Should_MoveToNextBusinessDay_AtExactCutoff()
+    {
+        var service = CreateService();
+        var utc = new DateTime(2026, 4, 20, 10, 0, 0, DateTimeKind.Utc); // 17:00 local Monday
+
+        var businessDate = service.ResolveBusinessDate(utc);
+
+        businessDate.Should().Be(new DateOnly(2026, 4, 21));
+    }
+
+    [Fact]
     public void ResolveBusinessDate_Should_SkipWeekendAndHoliday()
     {
         var service = CreateService("2026-04-20");
@@ -52,6 +63,36 @@ public class BusinessCalendarServiceTests
     }
 
     [Fact]
+    public void NextBusinessDay_Should_Skip_Weekend_And_Holidays()
+    {
+        var service = CreateService("2026-04-20");
+
+        var next = service.NextBusinessDay(new DateOnly(2026, 4, 17)); // Friday
+
+        next.Should().Be(new DateOnly(2026, 4, 21));
+    }
+
+    [Fact]
+    public void PreviousBusinessDay_Should_Skip_Weekend_And_Holidays()
+    {
+        var service = CreateService("2026-04-21");
+
+        var previous = service.PreviousBusinessDay(new DateOnly(2026, 4, 22)); // Wednesday, Tuesday is holiday
+
+        previous.Should().Be(new DateOnly(2026, 4, 20));
+    }
+
+    [Fact]
+    public void IsAfterCutoff_Should_Treat_ExactCutoff_As_AfterCutoff()
+    {
+        var service = CreateService();
+
+        var isAfterCutoff = service.IsAfterCutoff(new DateTime(2026, 4, 20, 17, 0, 0));
+
+        isAfterCutoff.Should().BeTrue();
+    }
+
+    [Fact]
     public void GetBusinessDayUtcRange_Should_MapVietnamMidnightToUtcWindow()
     {
         var service = CreateService();
@@ -60,5 +101,16 @@ public class BusinessCalendarServiceTests
 
         startUtc.Should().Be(new DateTime(2026, 4, 17, 10, 0, 0, DateTimeKind.Utc));
         endUtc.Should().Be(new DateTime(2026, 4, 18, 10, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void GetBusinessDayUtcRange_Should_Chain_Cleanly_Across_AdjacentBusinessDates()
+    {
+        var service = CreateService();
+
+        var first = service.GetBusinessDayUtcRange(new DateOnly(2026, 4, 20));
+        var second = service.GetBusinessDayUtcRange(new DateOnly(2026, 4, 21));
+
+        first.EndUtc.Should().Be(second.StartUtc);
     }
 }
