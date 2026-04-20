@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -119,6 +120,13 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<LoanFlowDbContext>("database");
 
 // === Rate Limiting ===
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -127,7 +135,7 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 5,
+                PermitLimit = 100, // Increased to avoid 429 during UAT/demo
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
@@ -175,6 +183,8 @@ builder.Services.AddCors(options =>
 
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 // === Middleware ===
 app.UseMiddleware<ExceptionHandlingMiddleware>();
