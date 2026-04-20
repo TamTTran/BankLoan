@@ -134,7 +134,14 @@ pnpm-debug.log*
 
 # ── .NET SDK telemetry & tool cache ───────────────────────
 .dotnet/
+.dotnet-cli/
 .dotnet-tools/
+
+# ── Build temp (EF migrations tool output) ────────────────
+.buildtmp/
+
+# ── Scratch / temporary dev scripts ───────────────────────
+scratch/
 
 # ── Gemini / AI agent workspace ───────────────────────────
 .gemini/
