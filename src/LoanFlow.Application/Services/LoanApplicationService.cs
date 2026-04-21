@@ -98,6 +98,17 @@ public class LoanApplicationService : ILoanApplicationService
         if (customer.EkycStatus != "Verified")
             return Result.Failure<LoanApplicationDto>("APP-VAL-005: Khách hàng chưa hoàn tất sinh trắc học eKYC theo chuẩn tài chính số.");
 
+        // Exposure Limit Check
+        var limit = await _db.ExposureLimits.FirstOrDefaultAsync(e => e.CustomerId == req.CustomerId);
+        decimal maxExposure = limit?.MaxExposure ?? 500000000m; // 500M default if not configured
+
+        var currentExposure = await _db.Loans
+            .Where(l => l.CustomerId == req.CustomerId && (l.Status == LoanStatus.Active || l.Status == LoanStatus.Overdue))
+            .SumAsync(l => l.OutstandingAmount);
+
+        if (currentExposure + req.RequestedAmount > maxExposure)
+            return Result.Failure<LoanApplicationDto>($"APP-VAL-006: Requested amount exceeds customer exposure limit. Max: {maxExposure:N0}, Current: {currentExposure:N0}, Requested: {req.RequestedAmount:N0}");
+
         // APP-VAL-004
         var product = await _db.LoanProducts.FindAsync(req.ProductId);
         if (product is null) return Result.Failure<LoanApplicationDto>("APP-VAL-004: Product not found.");
@@ -194,6 +205,40 @@ public class LoanApplicationService : ILoanApplicationService
         // APP-SUB-002: customer and product must be active
         if (entity.Customer.Status != "Active") return Result.Failure("APP-SUB-002: Customer is not active.");
         if (entity.Product.Status != "Active") return Result.Failure("APP-SUB-002: Product is not active.");
+
+        // DTI Check
+        if (entity.Customer.MonthlyIncome > 0)
+        {
+            var previewReq = new InstallmentPreviewRequest 
+            { 
+                ProductId = entity.ProductId, 
+                Amount = entity.RequestedAmount, 
+                TenorMonths = entity.RequestedTenorMonths 
+            };
+            var previewRes = await _productService.PreviewInstallmentAsync(previewReq);
+            if (previewRes.IsSuccess)
+            {
+                var newEmi = previewRes.Value.MonthlyInstallment;
+                
+                var activeLoans = await _db.Loans
+                    .Include(l => l.RepaymentSchedules)
+                    .Where(l => l.CustomerId == entity.CustomerId && (l.Status == LoanStatus.Active || l.Status == LoanStatus.Overdue))
+                    .ToListAsync();
+                    
+                var existingEmi = activeLoans.Sum(l => 
+                {
+                    var firstUnpaid = l.RepaymentSchedules.FirstOrDefault(s => s.Status != InstallmentStatus.Paid);
+                    return firstUnpaid != null ? firstUnpaid.PrincipalDue + firstUnpaid.InterestDue : 0m;
+                });
+                var dti = (existingEmi + newEmi) / entity.Customer.MonthlyIncome.Value;
+                
+                var maxDtiConfig = await _db.SystemConfigs.FirstOrDefaultAsync(s => s.Key == "MaxDTI");
+                decimal maxDti = maxDtiConfig != null && decimal.TryParse(maxDtiConfig.Value, out var v) ? v : 0.70m;
+                
+                if (dti > maxDti)
+                    return Result.Failure($"APP-VAL-007: DTI limit exceeded. Max: {maxDti:P0}, Current: {dti:P0}.");
+            }
+        }
 
         // DFI-STP-001: Straight-Through Processing (Auto-Approve via Rule Engine)
         var requiredRules = (await _approvalRuleService.GetRequiredRulesForApplicationAsync(id)).ToList();

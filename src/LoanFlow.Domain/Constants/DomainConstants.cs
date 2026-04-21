@@ -156,6 +156,7 @@ public static class AuditActions
     public const string CollectionNoteAdded = "COLLECTION_NOTE_ADDED";
     public const string LoanEarlySettled = "LOAN_EARLY_SETTLED";
     public const string LateFeeWaived = "LATE_FEE_WAIVED";
+    public const string LateFeeWaiverRequested = "LATE_FEE_WAIVER_REQUESTED";
     public const string CollateralCreated = "COLLATERAL_CREATED";
     public const string CollateralUpdated = "COLLATERAL_UPDATED";
     public const string CreditCheckPerformed = "CREDIT_CHECK_PERFORMED";
@@ -226,6 +227,7 @@ public static class ReconciliationExceptionType
     public const string LateFeeMismatch = "LateFeeMismatch";
     public const string SuspenseMismatch = "SuspenseMismatch";
     public const string OutstandingMismatch = "OutstandingMismatch";
+    public const string TrialBalanceMismatch = "TrialBalanceMismatch";
 }
 
 // ── Wave 3: Collection Workflow ─────────────────────────────────────────────

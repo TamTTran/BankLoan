@@ -69,6 +69,7 @@ public class RecordPaymentRequest
     public decimal Amount { get; set; }
     public string PaymentMethod { get; set; } = default!;
     public string? Remarks { get; set; }
+    public string? ExternalReferenceId { get; set; }
 }
 
 // POST /loans/{id}/collection-notes (§17.10)

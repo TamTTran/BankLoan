@@ -18,6 +18,7 @@ public class Customer
     public int CreatedByUserId { get; set; }
     public int AssignedToUserId { get; set; }             // nhân viên đang phụ trách
     public int? BranchId { get; set; }                    // chi nhánh quản lý
+    public decimal? MonthlyIncome { get; set; }           // VND — phục vụ tính toán DTI
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

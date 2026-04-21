@@ -207,11 +207,36 @@ public class ReconciliationService : IReconciliationService
             totalSuspenseTransactions,
             $"Suspense allocation total ({totalSuspenseAllocations:N2}) does not match suspense transaction total ({totalSuspenseTransactions:N2}).");
 
+        var journalLinesForDay = await _db.JournalEntryLines
+            .Include(l => l.JournalEntry)
+            .Where(l => l.JournalEntry.BusinessDate == businessDate)
+            .ToListAsync();
+
+        var totalDr = journalLinesForDay.Sum(l => l.DebitAmount);
+        var totalCr = journalLinesForDay.Sum(l => l.CreditAmount);
+
+        ReconcileAggregate(
+            report,
+            existingOpenExceptions,
+            businessDate,
+            userId,
+            ReconciliationExceptionType.TrialBalanceMismatch,
+            totalDr,
+            totalCr,
+            $"Trial Balance mismatch for the day: Total Debits ({totalDr:N2}) does not match Total Credits ({totalCr:N2}).");
+
         var activeLoans = await _db.Loans
             .Include(l => l.RepaymentSchedules)
             .Include(l => l.LateFees)
             .Where(l => l.Status == LoanStatus.Active || l.Status == LoanStatus.Overdue)
             .ToListAsync();
+
+        var activeLoanIds = activeLoans.Select(l => l.Id).ToList();
+        var pendingSuspenseByLoan = await _db.SuspenseTransactions
+            .Where(s => activeLoanIds.Contains(s.LoanId) && s.Status == SuspenseStatus.Pending)
+            .GroupBy(s => s.LoanId)
+            .Select(g => new { LoanId = g.Key, TotalAmount = g.Sum(s => s.Amount) })
+            .ToDictionaryAsync(k => k.LoanId, v => v.TotalAmount);
 
         foreach (var loan in activeLoans)
         {
@@ -221,9 +246,8 @@ public class ReconciliationService : IReconciliationService
             var pendingLateFees = loan.LateFees
                 .Where(f => f.Status == LateFeeStatus.Pending)
                 .Sum(f => f.FeeAmount);
-            var pendingSuspense = await _db.SuspenseTransactions
-                .Where(s => s.LoanId == loan.Id && s.Status == SuspenseStatus.Pending)
-                .SumAsync(s => s.Amount);
+            
+            var pendingSuspense = pendingSuspenseByLoan.TryGetValue(loan.Id, out var amount) ? amount : 0m;
 
             report.TotalOutstandingComputedAmount += computedOutstanding;
             report.TotalOutstandingStoredAmount += loan.OutstandingAmount;

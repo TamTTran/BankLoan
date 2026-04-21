@@ -341,6 +341,7 @@ public class LoanFlowDbContext : DbContext
             b.Property(a => a.AccountName).HasMaxLength(100);
             b.Property(a => a.AccountType).HasMaxLength(20);
             b.Property(a => a.Balance).HasPrecision(18, 2);
+            b.Property(a => a.RowVersion).IsRowVersion();
         });
 
         modelBuilder.Entity<JournalEntry>(b =>

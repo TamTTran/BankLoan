@@ -258,22 +258,25 @@ public class LoanService : ILoanService
             loan.Status = LoanStatus.Active;
             loan.UpdatedAt = _businessClock.UtcNow;
 
-            _db.LoanDisbursements.Add(new LoanDisbursement
+            var loanDisbursement = new LoanDisbursement
             {
                 LoanId = loanId,
                 DisbursedAmount = req.DisbursedAmount,
                 DisbursementDate = req.DisbursementDate,
                 RecordedByUserId = userId,
+                DisbursementMethod = "Cash",
                 CreatedAt = _businessClock.UtcNow
-            });
+            };
+            _db.LoanDisbursements.Add(loanDisbursement);
 
-            _db.LoanTransactions.Add(new LoanTransaction
+            var loanTx = new LoanTransaction
             {
                 LoanId = loanId,
                 TransactionType = "Disbursement",
                 Amount = req.DisbursedAmount,
                 CreatedAt = _businessClock.UtcNow
-            });
+            };
+            _db.LoanTransactions.Add(loanTx);
 
             // §12.5 Rule 5 + §13.2: Generate repayment schedule — Flat or ReducingBalance
             if (loan.InterestMethod == Domain.Constants.InterestMethod.ReducingBalance)
@@ -309,8 +312,17 @@ public class LoanService : ILoanService
                 NewValuesJson = AuditHelper.ToJson(new { disbursedAmount = req.DisbursedAmount, disbursementDate = req.DisbursementDate })
             });
 
-            // Phase 4: Auto-Disbursement (Sync via NAPAS Gateway)
-            if (!string.IsNullOrWhiteSpace(loan.Customer.BankAccountNumber) && !string.IsNullOrWhiteSpace(loan.Customer.BankCode))
+            var isAutoDisburse = !string.IsNullOrWhiteSpace(loan.Customer.BankAccountNumber) && !string.IsNullOrWhiteSpace(loan.Customer.BankCode);
+            if (isAutoDisburse)
+            {
+                loanDisbursement.DisbursementMethod = "BankTransfer";
+            }
+
+            await SaveChangesWithConcurrencyHandlingAsync("Loan was modified while disbursing. Reload the loan and retry.");
+            await tx.CommitAsync();
+
+            // Phase 4: Auto-Disbursement (Sync via NAPAS Gateway) AFTER TX Commit
+            if (isAutoDisburse)
             {
                 var gatewayResult = await _paymentGatewayService.TransferToCustomerAsync(
                     loan.Customer.BankCode,
@@ -321,26 +333,47 @@ public class LoanService : ILoanService
 
                 if (!gatewayResult.IsSuccess)
                 {
-                    await tx.RollbackAsync();
-                    return Result.Failure<LoanDto>($"Auto-Disbursement Gateway Failed: {gatewayResult.Error}");
+                    // Compensating action
+                    loanDisbursement.DisbursementMethod = "Failed";
+                    var reversal = new TransactionReversal
+                    {
+                        LoanId = loanId,
+                        OriginalTransactionId = loanTx.Id,
+                        ReversalType = "DisbursementCorrection",
+                        OriginalAmount = req.DisbursedAmount,
+                        ReversedAmount = 0,
+                        Reason = "Auto-Disbursement Gateway Failed: " + gatewayResult.Error,
+                        Status = "Pending",
+                        RequestedByUserId = userId
+                    };
+                    _db.TransactionReversals.Add(reversal);
+
+                    _db.AuditLogs.Add(new AuditLog
+                    {
+                        ActorUserId = userId,
+                        ActionCode = "AutoDisbursementFailed",
+                        EntityType = "Loan",
+                        EntityId = loanId,
+                        NewValuesJson = AuditHelper.ToJson(new { error = gatewayResult.Error })
+                    });
+
+                    await _db.SaveChangesAsync();
+                    return Result.Failure<LoanDto>($"Auto-Disbursement Gateway Failed: {gatewayResult.Error}. Disburse record marked as failed. Reversal requested.");
                 }
-
-                _db.AuditLogs.Add(new AuditLog
+                else
                 {
-                    ActorUserId = userId,
-                    ActionCode = "AutoDisbursementSuccess",
-                    EntityType = "Loan",
-                    EntityId = loanId,
-                    NewValuesJson = AuditHelper.ToJson(new { transactionId = gatewayResult.Value.TransactionId })
-                });
-            }
-            else 
-            {
-                // For MVP, if no bank account is setup, we assume it's disbursed via Cash/Internal
+                    _db.AuditLogs.Add(new AuditLog
+                    {
+                        ActorUserId = userId,
+                        ActionCode = "AutoDisbursementSuccess",
+                        EntityType = "Loan",
+                        EntityId = loanId,
+                        NewValuesJson = AuditHelper.ToJson(new { transactionId = gatewayResult.Value.TransactionId })
+                    });
+                    await _db.SaveChangesAsync();
+                }
             }
 
-            await SaveChangesWithConcurrencyHandlingAsync("Loan was modified while disbursing. Reload the loan and retry.");
-            await tx.CommitAsync();
             return await GetByIdAsync(loanId);
         }
         catch (DbUpdateConcurrencyException ex)
@@ -495,6 +528,7 @@ public class LoanService : ILoanService
             Amount = req.Amount,
             PaymentMethod = req.PaymentMethod,
             Remarks = req.Remarks,
+            ExternalReferenceId = req.ExternalReferenceId,
             CreatedByUserId = userId,
             CreatedAt = _businessClock.UtcNow
         };
