@@ -666,6 +666,9 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
+                    b.Property<decimal?>("MonthlyIncome")
+                        .HasColumnType("decimal(65,30)");
+
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -1056,6 +1059,11 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp(6)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -1517,6 +1525,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     b.Property<DateOnly>("DisbursementDate")
                         .HasColumnType("date");
+
+                    b.Property<string>("DisbursementMethod")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<int>("LoanId")
                         .HasColumnType("int");
