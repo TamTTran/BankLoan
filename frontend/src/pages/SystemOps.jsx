@@ -7,19 +7,19 @@ import { systemApi } from '../features/system/api/systemApi';
 
 export default function SystemOps() {
   const [dateStr, setDateStr] = useState('');
-  const toast = useToast();
+  const { toast } = useToast();
 
   const handleRunJobs = async (type) => {
     try {
       if (type === 'eod') {
         const res = await systemApi.runEod(dateStr);
-        toast.success(`Chạy EOD thành công! Processed: ${res.totalProcessed || 0}`);
+        toast(`Chạy EOD thành công! Processed: ${res.totalProcessed || 0}`, 'success');
       } else {
         const res = await systemApi.runOverdue(dateStr);
-        toast.success(`Chạy Overdue thành công! Processed: ${res.totalProcessed || 0}`);
+        toast(`Chạy Overdue thành công! Processed: ${res.totalProcessed || 0}`, 'success');
       }
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Lỗi hệ thống');
+      toast(e.response?.data?.message || 'Lỗi hệ thống', 'error');
     }
   };
 

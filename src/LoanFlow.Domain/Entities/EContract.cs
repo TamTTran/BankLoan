@@ -7,9 +7,13 @@ public class EContract
     public string ContractNumber { get; set; } = default!;
     
     // Electronic Signature Details
+    // Electronic Signature Details
     public string PdfContentHash { get; set; } = default!; // SHA-256
-    public string MockDigitalSignature { get; set; } = default!; // Mock RSA Signature
+    public string DigitalSignature { get; set; } = default!; // RSA Signature from CA
     public string ClientIpAddress { get; set; } = default!;
+    
+    // Archive
+    public string? PdfStoragePath { get; set; } // Path to stored PDF
 
     public DateTime SignedAt { get; set; } = DateTime.UtcNow;
 

@@ -285,16 +285,32 @@ public class LoanService : ILoanService
                 GenerateSchedule(loan, req.DisbursementDate);
 
             // Phase 3: Post Disbursement Journal Entry
+            var debitCode = await _accountingService.GetAccountCodeAsync("Disbursement", true);
+            var creditCode = await _accountingService.GetAccountCodeAsync("Disbursement", false);
+
+            var journalLines = new List<JournalEntryLineDto>
+            {
+                new JournalEntryLineDto { AccountCode = debitCode, DebitAmount = req.DisbursedAmount, CreditAmount = 0, LineDescription = "Loan Principal Disbursement" }
+            };
+
+            if (loan.ProcessingFee > 0)
+            {
+                var feeIncomeCode = await _accountingService.GetAccountCodeAsync("ProcessingFee", false);
+                var netCashOutflow = req.DisbursedAmount - loan.ProcessingFee;
+                journalLines.Add(new JournalEntryLineDto { AccountCode = creditCode, DebitAmount = 0, CreditAmount = netCashOutflow, LineDescription = "Net Cash Outflow" });
+                journalLines.Add(new JournalEntryLineDto { AccountCode = feeIncomeCode, DebitAmount = 0, CreditAmount = loan.ProcessingFee, LineDescription = "Processing Fee Deduced Upfront" });
+            }
+            else
+            {
+                journalLines.Add(new JournalEntryLineDto { AccountCode = creditCode, DebitAmount = 0, CreditAmount = req.DisbursedAmount, LineDescription = "Cash Outflow" });
+            }
+
             var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
             {
                 ReferenceNumber = $"DISB-{loanId}-{DateTime.UtcNow:yyyyMMddHHmmss}",
                 BusinessDate = req.DisbursementDate,
                 Description = $"Disbursement for Loan {loan.LoanAccountNo}",
-                Lines = new List<JournalEntryLineDto>
-                {
-                    new JournalEntryLineDto { AccountCode = "1301", DebitAmount = req.DisbursedAmount, CreditAmount = 0, LineDescription = "Loan Principal Disbursement" },
-                    new JournalEntryLineDto { AccountCode = "1001", DebitAmount = 0, CreditAmount = req.DisbursedAmount, LineDescription = "Cash Outflow" }
-                }
+                Lines = journalLines
             });
 
             if (!journalResult.IsSuccess)
@@ -596,31 +612,35 @@ public class LoanService : ILoanService
         });
 
         // Phase 3: Post Payment Journal Entry
+        var cashCode = await _accountingService.GetAccountCodeAsync("Repayment_Principal", true);
+        var prinCode = await _accountingService.GetAccountCodeAsync("Repayment_Principal", false);
+        var intCode = await _accountingService.GetAccountCodeAsync("Repayment_Interest", false);
+        var feeCode = await _accountingService.GetAccountCodeAsync("Repayment_LateFee", false);
+        var suspCode = await _accountingService.GetAccountCodeAsync("Overpayment_Suspense", false);
+
         var journalLines = new List<JournalEntryLineDto>
         {
-            new JournalEntryLineDto { AccountCode = "1001", DebitAmount = req.Amount, CreditAmount = 0, LineDescription = "Cash Inflow" }
+            new JournalEntryLineDto { AccountCode = cashCode, DebitAmount = req.Amount, CreditAmount = 0, LineDescription = "Cash Inflow" }
         };
 
         if (totalPrincipalToPay > 0)
         {
-            journalLines.Add(new JournalEntryLineDto { AccountCode = "1301", DebitAmount = 0, CreditAmount = totalPrincipalToPay, LineDescription = "Principal Repayment" });
+            journalLines.Add(new JournalEntryLineDto { AccountCode = prinCode, DebitAmount = 0, CreditAmount = totalPrincipalToPay, LineDescription = "Principal Repayment" });
         }
 
         if (totalInterestToPay > 0)
         {
-            journalLines.Add(new JournalEntryLineDto { AccountCode = "1302", DebitAmount = 0, CreditAmount = totalInterestToPay, LineDescription = "Interest Receivable Repayment" });
+            journalLines.Add(new JournalEntryLineDto { AccountCode = intCode, DebitAmount = 0, CreditAmount = totalInterestToPay, LineDescription = "Interest Receivable Repayment" });
         }
         
         if (totalLateFeeToPay > 0)
         {
-            // Assuming LateFee Receivable is 1303 
-            journalLines.Add(new JournalEntryLineDto { AccountCode = "1303", DebitAmount = 0, CreditAmount = totalLateFeeToPay, LineDescription = "Late Fee Repayment" });
+            journalLines.Add(new JournalEntryLineDto { AccountCode = feeCode, DebitAmount = 0, CreditAmount = totalLateFeeToPay, LineDescription = "Late Fee Repayment" });
         }
 
         if (overpayment > 0)
         {
-            // 2001 -> Suspense Liability (will seed it)
-            journalLines.Add(new JournalEntryLineDto { AccountCode = "2001", DebitAmount = 0, CreditAmount = overpayment, LineDescription = "Overpayment to Suspense" });
+            journalLines.Add(new JournalEntryLineDto { AccountCode = suspCode, DebitAmount = 0, CreditAmount = overpayment, LineDescription = "Overpayment to Suspense" });
         }
 
         var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
@@ -900,19 +920,25 @@ public class LoanService : ILoanService
         });
         
         // Post Accounting Journal Entry for Early Settlement
+        var esCashCode = await _accountingService.GetAccountCodeAsync("Repayment_Principal", true);
+        var esPrinCode = await _accountingService.GetAccountCodeAsync("Repayment_Principal", false);
+        var esIntCode = await _accountingService.GetAccountCodeAsync("Repayment_Interest", false);
+        var esFeeCode = await _accountingService.GetAccountCodeAsync("Repayment_LateFee", false);
+        var esEarlyCode = await _accountingService.GetAccountCodeAsync("Repayment_EarlySettleFee", false);
+
         var journalLines = new List<JournalEntryLineDto>
         {
-            new JournalEntryLineDto { AccountCode = "1001", DebitAmount = totalAmount, CreditAmount = 0, LineDescription = "Cash Inflow from Early Settle" }
+            new JournalEntryLineDto { AccountCode = esCashCode, DebitAmount = totalAmount, CreditAmount = 0, LineDescription = "Cash Inflow from Early Settle" }
         };
 
         if (preview.RemainingPrincipal > 0)
-            journalLines.Add(new JournalEntryLineDto { AccountCode = "1301", DebitAmount = 0, CreditAmount = preview.RemainingPrincipal, LineDescription = "Principal Repaid" });
+            journalLines.Add(new JournalEntryLineDto { AccountCode = esPrinCode, DebitAmount = 0, CreditAmount = preview.RemainingPrincipal, LineDescription = "Principal Repaid" });
         if (preview.ProRataInterest > 0)
-            journalLines.Add(new JournalEntryLineDto { AccountCode = "1302", DebitAmount = 0, CreditAmount = preview.ProRataInterest, LineDescription = "Interest Repaid" });
+            journalLines.Add(new JournalEntryLineDto { AccountCode = esIntCode, DebitAmount = 0, CreditAmount = preview.ProRataInterest, LineDescription = "Interest Repaid" });
         if (preview.UnpaidLateFees > 0)
-            journalLines.Add(new JournalEntryLineDto { AccountCode = "1303", DebitAmount = 0, CreditAmount = preview.UnpaidLateFees, LineDescription = "Late Fees Repaid" });
+            journalLines.Add(new JournalEntryLineDto { AccountCode = esFeeCode, DebitAmount = 0, CreditAmount = preview.UnpaidLateFees, LineDescription = "Late Fees Repaid" });
         if (preview.EarlySettlementFee > 0)
-            journalLines.Add(new JournalEntryLineDto { AccountCode = "4004", DebitAmount = 0, CreditAmount = preview.EarlySettlementFee, LineDescription = "Early Settlement Fee Income" });
+            journalLines.Add(new JournalEntryLineDto { AccountCode = esEarlyCode, DebitAmount = 0, CreditAmount = preview.EarlySettlementFee, LineDescription = "Early Settlement Fee Income" });
 
         var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
         {

@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
 import { useToast } from '../../../context/ToastContext';
-import { api } from '../../../utils/api';
+import { httpClient } from '../../../shared/api/httpClient';
 
 export function EContractModal({ loanId, onClose, onDone }) {
-  const { addToast } = useToast();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [signing, setSigning] = useState(false);
   const [contract, setContract] = useState(null);
@@ -17,7 +17,7 @@ export function EContractModal({ loanId, onClose, onDone }) {
 
   const checkContract = async () => {
     try {
-      const res = await api.get(`/loans/${loanId}/contract`);
+      const res = await httpClient('GET', `/loans/${loanId}/contract`);
       if (res.success && res.data) {
         setContract(res.data);
         setStep(2);
@@ -27,7 +27,7 @@ export function EContractModal({ loanId, onClose, onDone }) {
       if (err.response?.status === 404) {
         setStep(0);
       } else {
-        addToast({ type: 'error', message: 'Lỗi kiểm tra hợp đồng: ' + err.message });
+        toast('Lỗi kiểm tra hợp đồng: ' + err.message, 'error');
       }
     } finally {
       setLoading(false);
@@ -41,13 +41,13 @@ export function EContractModal({ loanId, onClose, onDone }) {
     // Fake an animation delay for "Bank-grade Digital experience"
     setTimeout(async () => {
       try {
-        const res = await api.post(`/loans/${loanId}/sign-contract`);
+        const res = await httpClient('POST', `/loans/${loanId}/sign-contract`);
         setContract(res.data);
         setStep(2);
-        addToast({ type: 'success', message: 'Ký số thành công! Hợp đồng đã được lưu vết.' });
+        toast('Ký số thành công! Hợp đồng đã được lưu vết.', 'success');
         if(onDone) setTimeout(onDone, 1500);
       } catch (err) {
-        addToast({ type: 'error', message: err.message || 'Lỗi khi ký hợp đồng' });
+        toast(err.message || 'Lỗi khi ký hợp đồng', 'error');
         setStep(0);
       } finally {
         setSigning(false);

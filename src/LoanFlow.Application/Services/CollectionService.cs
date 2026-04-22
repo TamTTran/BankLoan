@@ -80,6 +80,7 @@ public interface ICollectionService
     Task<Result> AddCollectionActionAsync(int loanId, CollectionActionDto dto, int userId);
     Task<IEnumerable<CollectionActionItemDto>> GetCollectionHistoryAsync(int loanId);
     Task<int> CheckBrokenPromisesAsync(DateOnly businessDate);
+    Task<int> ApplyEscalationRulesAsync(DateOnly businessDate);
     Task<CollectionSummaryDto> GetCollectionSummaryAsync();
 }
 
@@ -386,5 +387,78 @@ public class CollectionService : ICollectionService
             PromisesBroken = promisesBroken,
             TotalOverdueAmount = totalOverdueAmount
         };
+    }
+
+    public async Task<int> ApplyEscalationRulesAsync(DateOnly businessDate)
+    {
+        var rules = await _db.EscalationRules.Where(r => r.Status == "Active").ToListAsync();
+        if (!rules.Any()) return 0;
+        
+        var overdueLoans = await _db.Loans
+            .Include(l => l.RepaymentSchedules)
+            .Where(l => l.Status == LoanStatus.Overdue)
+            .ToListAsync();
+            
+        int actionsTaken = 0;
+        
+        foreach (var loan in overdueLoans)
+        {
+            var earliestOverdue = loan.RepaymentSchedules
+                .Where(s => s.RemainingDueAmount > 0)
+                .OrderBy(s => s.DueDate)
+                .FirstOrDefault();
+                
+            if (earliestOverdue == null) continue;
+            
+            int dpd = businessDate.DayNumber - earliestOverdue.DueDate.DayNumber;
+            if (dpd <= 0) continue;
+            
+            // Re-evaluate bucket matching Escalation Rules
+            foreach (var rule in rules)
+            {
+                bool matches = false;
+                switch (rule.DpdCondition)
+                {
+                    case ">": matches = dpd > rule.DpdThreshold; break;
+                    case ">=": matches = dpd >= rule.DpdThreshold; break;
+                    case "==": matches = dpd == rule.DpdThreshold; break;
+                    case "<": matches = dpd < rule.DpdThreshold; break;
+                    case "<=": matches = dpd <= rule.DpdThreshold; break;
+                }
+                
+                if (matches)
+                {
+                    // Prevent duplicate escalations of the exact same type on the same date
+                    var alreadyEscalated = await _db.CollectionActions.AnyAsync(a => 
+                        a.LoanId == loan.Id && 
+                        a.ActionType == "SystemEscalation" && 
+                        a.Notes!.Contains(rule.ActionToTake) &&
+                        a.ActionDate == businessDate);
+                        
+                    if (!alreadyEscalated)
+                    {
+                        var ca = new CollectionAction
+                        {
+                            LoanId = loan.Id,
+                            CollectorUserId = 0, // System
+                            ActionType = "SystemEscalation",
+                            ActionDate = businessDate,
+                            Outcome = "Escalated",
+                            Notes = $"Auto-Escalated due to rule: {dpd} DPD {rule.DpdCondition} {rule.DpdThreshold}. Target Action: {rule.ActionToTake}. Assigned bucket: {rule.Bucket}",
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _db.CollectionActions.Add(ca);
+                        actionsTaken++;
+                    }
+                }
+            }
+        }
+        
+        if (actionsTaken > 0)
+        {
+            await _db.SaveChangesAsync();
+        }
+        
+        return actionsTaken;
     }
 }

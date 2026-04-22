@@ -8,7 +8,7 @@ import { formatDate } from '../utils/format';
 export default function Approvals() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const toast = useToast();
+  const { toast } = useToast();
 
   const loadApprovals = async () => {
     setLoading(true);
@@ -32,10 +32,10 @@ export default function Approvals() {
     try {
       // Simulate backend call
       // await systemApi.decideApproval(id, { decision, reason: 'OK' });
-      toast.success(`Duyệt yêu cầu #${id} thành công!`);
+      toast(`Duyệt yêu cầu #${id} thành công!`, 'success');
       setData(prev => prev.filter(x => x.id !== id));
     } catch (e) {
-      toast.error('Lỗi duyệt yêu cầu');
+      toast('Lỗi duyệt yêu cầu', 'error');
     }
   };
 

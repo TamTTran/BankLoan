@@ -4,6 +4,9 @@ using LoanFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace LoanFlow.Application.Services;
 
@@ -13,8 +16,9 @@ public class EContractDto
     public int LoanId { get; set; }
     public string ContractNumber { get; set; } = default!;
     public string PdfContentHash { get; set; } = default!;
-    public string MockDigitalSignature { get; set; } = default!;
+    public string DigitalSignature { get; set; } = default!;
     public string ClientIpAddress { get; set; } = default!;
+    public string? PdfStoragePath { get; set; }
     public DateTime SignedAt { get; set; }
 }
 
@@ -24,13 +28,32 @@ public interface IEContractService
     Task<Result<EContractDto>> GetByLoanIdAsync(int loanId);
 }
 
+public interface ICertificateAuthorityProvider
+{
+    Task<string> SignHashAsync(string hashStr);
+}
+
+// Mock implementation of the CA provider
+public class MockCertificateAuthorityProvider : ICertificateAuthorityProvider
+{
+    public Task<string> SignHashAsync(string hashStr)
+    {
+        // Simulated VNPT-CA / FPT-CA remote signing
+        var simulatedSignature = Convert.ToBase64String(Encoding.UTF8.GetBytes($"RSA_SIGNED_{hashStr}_BY_VNPT_CA_{Guid.NewGuid()}"));
+        return Task.FromResult(simulatedSignature);
+    }
+}
+
 public class EContractService : IEContractService
 {
     private readonly LoanFlowDbContext _db;
+    private readonly ICertificateAuthorityProvider _caProvider;
 
-    public EContractService(LoanFlowDbContext db)
+    public EContractService(LoanFlowDbContext db, ICertificateAuthorityProvider caProvider)
     {
         _db = db;
+        _caProvider = caProvider;
+        QuestPDF.Settings.License = LicenseType.Community;
     }
 
     public async Task<Result<EContractDto>> SignContractAsync(int loanId, string ipAddress)
@@ -45,31 +68,68 @@ public class EContractService : IEContractService
         var existing = await _db.EContracts.FirstOrDefaultAsync(e => e.LoanId == loanId);
         if (existing != null) return Result.Failure<EContractDto>("Contract is already signed.");
 
-        // 1. Generate Virtual Contract Document Text
-        var contractContent = $"LOAN CONTRACT\n" +
-                              $"No: {loan.LoanAccountNo}\n" +
-                              $"Borrower: {loan.Customer.FullName}\n" +
-                              $"ID Number: {loan.Customer.IdNumber}\n" +
-                              $"Principal: {loan.ApprovedAmount:N0} VND\n" +
-                              $"Tenor: {loan.TenorMonths} months\n" +
-                              $"Signed at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC\n";
+        // 1. Generate Virtual Contract Document Text using QuestPDF
+        var pdfBytes = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(2, Unit.Centimetre);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(x => x.FontSize(12));
 
-        // 2. Hash Document (SHA-256)
+                page.Header()
+                    .Text("LOAN CONTRACT (DIGITAL)")
+                    .SemiBold().FontSize(20).FontColor(Colors.Blue.Darken2);
+
+                page.Content()
+                    .PaddingVertical(1, Unit.Centimetre)
+                    .Column(x =>
+                    {
+                        x.Spacing(20);
+                        x.Item().Text($"Contract Number: CT-{loan.LoanAccountNo}");
+                        x.Item().Text($"Borrower Name: {loan.Customer.FullName}");
+                        x.Item().Text($"ID Number: {loan.Customer.IdNumber}");
+                        x.Item().Text($"Principal Amount: {loan.ApprovedAmount:N0} VND");
+                        x.Item().Text($"Tenor: {loan.TenorMonths} months");
+                        x.Item().Text($"Interest Rate: {loan.MonthlyInterestRate}% per month");
+                        x.Item().Text($"Electronic Signature Client IP: {ipAddress}");
+                        x.Item().Text($"Signed Timestamp: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+                    });
+
+                page.Footer()
+                    .AlignCenter()
+                    .Text(x =>
+                    {
+                        x.Span("Page ");
+                        x.CurrentPageNumber();
+                    });
+            });
+        }).GeneratePdf();
+
+        // 2. Archive PDF (simulated file storage)
+        var storageDir = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "EContracts");
+        if (!Directory.Exists(storageDir)) Directory.CreateDirectory(storageDir);
+        var fileName = $"CT_{loan.LoanAccountNo}_{Guid.NewGuid()}.pdf";
+        var filePath = Path.Combine(storageDir, fileName);
+        await File.WriteAllBytesAsync(filePath, pdfBytes);
+
+        // 3. Hash Document (SHA-256)
         using var sha256 = SHA256.Create();
-        var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(contractContent));
+        var hashBytes = sha256.ComputeHash(pdfBytes);
         var hashString = Convert.ToHexString(hashBytes);
 
-        // 3. Mock RSA Private Key Signature for the Hash
-        // In a real system, this is signed by a HSM (Hardware Security Module) API.
-        var mockRsaSignature = Convert.ToBase64String(Encoding.UTF8.GetBytes($"SIGNED_RSA_{hashString}_KEY{Guid.NewGuid()}"));
+        // 4. Remote CA Digital Signature
+        var rsaSignature = await _caProvider.SignHashAsync(hashString);
 
         var contract = new EContract
         {
             LoanId = loanId,
             ContractNumber = "CT-" + loan.LoanAccountNo,
             PdfContentHash = hashString,
-            MockDigitalSignature = mockRsaSignature,
+            DigitalSignature = rsaSignature,
             ClientIpAddress = ipAddress,
+            PdfStoragePath = filePath,
             SignedAt = DateTime.UtcNow
         };
 
@@ -77,11 +137,11 @@ public class EContractService : IEContractService
 
         _db.AuditLogs.Add(new AuditLog
         {
-            ActorUserId = 0, // System context or user context depending on how it's called
+            ActorUserId = 0, 
             ActionCode = "CONTRACT_SIGNED",
             EntityType = "EContract",
             EntityId = 0, // will be generated
-            NewValuesJson = AuditHelper.ToJson(new { loanId = loanId, hash = hashString })
+            NewValuesJson = AuditHelper.ToJson(new { loanId = loanId, hash = hashString, filePath })
         });
 
         await _db.SaveChangesAsync(); // save to get ID
@@ -92,8 +152,9 @@ public class EContractService : IEContractService
             LoanId = contract.LoanId,
             ContractNumber = contract.ContractNumber,
             PdfContentHash = contract.PdfContentHash,
-            MockDigitalSignature = contract.MockDigitalSignature,
+            DigitalSignature = contract.DigitalSignature,
             ClientIpAddress = contract.ClientIpAddress,
+            PdfStoragePath = contract.PdfStoragePath,
             SignedAt = contract.SignedAt
         });
     }
@@ -109,8 +170,9 @@ public class EContractService : IEContractService
             LoanId = e.LoanId,
             ContractNumber = e.ContractNumber,
             PdfContentHash = e.PdfContentHash,
-            MockDigitalSignature = e.MockDigitalSignature,
+            DigitalSignature = e.DigitalSignature,
             ClientIpAddress = e.ClientIpAddress,
+            PdfStoragePath = e.PdfStoragePath,
             SignedAt = e.SignedAt
         });
     }

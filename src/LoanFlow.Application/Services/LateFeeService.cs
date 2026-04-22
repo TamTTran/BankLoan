@@ -118,6 +118,9 @@ public class LateFeeService : ILateFeeService
 
             if (accrualDelta > 0)
             {
+                var debitCode = await _accountingService.GetAccountCodeAsync("LateFee_Accrual", true);
+                var creditCode = await _accountingService.GetAccountCodeAsync("LateFee_Accrual", false);
+
                 var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
                 {
                     ReferenceNumber = $"LATEFEE-ACCR-{loan.Id}-S{schedule.Id}-{_businessClock.TodayBusinessDate():yyMMddHHmmss}",
@@ -125,8 +128,8 @@ public class LateFeeService : ILateFeeService
                     Description = $"Late Fee Accrual for Loan {loan.LoanAccountNo}",
                     Lines = new List<JournalEntryLineDto>
                     {
-                        new JournalEntryLineDto { AccountCode = "1303", DebitAmount = accrualDelta, CreditAmount = 0, LineDescription = "Late Fee Receivable" },
-                        new JournalEntryLineDto { AccountCode = "4002", DebitAmount = 0, CreditAmount = accrualDelta, LineDescription = "Late Fee Income" }
+                        new JournalEntryLineDto { AccountCode = debitCode, DebitAmount = accrualDelta, CreditAmount = 0, LineDescription = "Late Fee Receivable" },
+                        new JournalEntryLineDto { AccountCode = creditCode, DebitAmount = 0, CreditAmount = accrualDelta, LineDescription = "Late Fee Income" }
                     }
                 });
                 
@@ -161,6 +164,9 @@ public class LateFeeService : ILateFeeService
         });
         
         // Reverse Late Fee Income
+        var debitCode = await _accountingService.GetAccountCodeAsync("LateFee_Waiver", true);
+        var creditCode = await _accountingService.GetAccountCodeAsync("LateFee_Waiver", false);
+
         var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
         {
             ReferenceNumber = $"LATEWF-{lateFee.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}",
@@ -168,8 +174,8 @@ public class LateFeeService : ILateFeeService
             Description = $"Late Fee Waived for LateFeeId {lateFee.Id}",
             Lines = new List<JournalEntryLineDto>
             {
-                new JournalEntryLineDto { AccountCode = "4002", DebitAmount = lateFee.FeeAmount, CreditAmount = 0, LineDescription = "Late Fee Income Reversal" },
-                new JournalEntryLineDto { AccountCode = "1303", DebitAmount = 0, CreditAmount = lateFee.FeeAmount, LineDescription = "Late Fee Receivable Reversal" }
+                new JournalEntryLineDto { AccountCode = debitCode, DebitAmount = lateFee.FeeAmount, CreditAmount = 0, LineDescription = "Late Fee Income Reversal" },
+                new JournalEntryLineDto { AccountCode = creditCode, DebitAmount = 0, CreditAmount = lateFee.FeeAmount, LineDescription = "Late Fee Receivable Reversal" }
             }
         });
 

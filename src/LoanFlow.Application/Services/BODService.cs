@@ -27,11 +27,11 @@ public class BodService : IBodService
     {
         // 1. Validate GL Trial Balance = 0 for the previous/current days
         var glAccounts = await _db.GLAccounts.ToListAsync();
-        var totalDebits = glAccounts.Sum(a => a.DebitBalance);
-        var totalCredits = glAccounts.Sum(a => a.CreditBalance);
+        var totalDebits = glAccounts.Where(a => a.AccountType == "Asset" || a.AccountType == "Expense").Sum(a => a.Balance);
+        var totalCredits = glAccounts.Where(a => a.AccountType == "Liability" || a.AccountType == "Equity" || a.AccountType == "Revenue").Sum(a => a.Balance);
         if (totalDebits != totalCredits)
         {
-            return Result.Failure($"Cannot run BOD. Trial balance mismatch: Total Debits {totalDebits:N2} != Total Credits {totalCredits:N2}");
+            return Result.Failure($"Cannot run BOD. Trial balance mismatch: Assets/Expenses {totalDebits:N2} != Liab/Eq/Rev {totalCredits:N2}");
         }
 
         // 2. Advance Current Business Date in SystemConfigs

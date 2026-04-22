@@ -25,6 +25,7 @@ public class JournalEntryLineDto
 public interface IAccountingService
 {
     Task<Result<JournalEntry>> PostJournalAsync(JournalEntryDto request);
+    Task<string> GetAccountCodeAsync(string transactionType, bool isDebit);
 }
 
 public class AccountingService : IAccountingService
@@ -114,5 +115,30 @@ public class AccountingService : IAccountingService
         // The caller will flush the changes.
         
         return Result.Success(entry);
+    }
+
+    public async Task<string> GetAccountCodeAsync(string transactionType, bool isDebit)
+    {
+        var mapping = await _db.GLAccountMappings
+            .FirstOrDefaultAsync(m => m.TransactionType == transactionType && m.Status == "Active");
+
+        if (mapping == null)
+        {
+            // Fallbacks for hardcoded mappings if DB is not seeded
+            return transactionType switch
+            {
+                "Disbursement" => isDebit ? "1301" : "1001",
+                "Repayment_Principal" => isDebit ? "1001" : "1301",
+                "Repayment_Interest" => isDebit ? "1001" : "1302",
+                "Repayment_LateFee" => isDebit ? "1001" : "1303",
+                "Repayment_EarlySettleFee" => isDebit ? "1001" : "4004",
+                "Overpayment_Suspense" => isDebit ? "1001" : "2001",
+                "LateFee_Accrual" => isDebit ? "1303" : "4002",
+                "LateFee_Waiver" => isDebit ? "4002" : "1303",
+                _ => throw new InvalidOperationException($"No GLAccountMapping found for TransactionType: {transactionType}")
+            };
+        }
+
+        return isDebit ? mapping.DebitAccountCode : mapping.CreditAccountCode;
     }
 }

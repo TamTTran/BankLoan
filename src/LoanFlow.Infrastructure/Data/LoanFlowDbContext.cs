@@ -58,6 +58,8 @@ public class LoanFlowDbContext : DbContext
     // ── Banking Upgrade: Phase 3 (Accounting) ────────────────────────────
     public DbSet<GLAccount> GLAccounts => Set<GLAccount>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+    public DbSet<GLAccountMapping> GLAccountMappings => Set<GLAccountMapping>();
+    public DbSet<EscalationRule> EscalationRules => Set<EscalationRule>();
     public DbSet<JournalEntryLine> JournalEntryLines => Set<JournalEntryLine>();
 
     // ── Banking Upgrade: Phase 4 (Enterprise) ────────────────────────────

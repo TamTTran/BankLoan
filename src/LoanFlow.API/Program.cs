@@ -66,6 +66,7 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ISmsService, NullSmsService>();
 builder.Services.AddScoped<IEndOfDayService, EndOfDayService>();
+builder.Services.AddScoped<IBodService, BodService>();
 builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 builder.Services.AddScoped<IApprovalFlowService, ApprovalFlowService>();
 builder.Services.AddScoped<ILoanAdjustmentService, LoanAdjustmentService>();
@@ -89,6 +90,7 @@ builder.Services.AddScoped<ICollateralLifecycleService, CollateralLifecycleServi
 builder.Services.AddScoped<IDunningService, DunningService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IEContractService, EContractService>();
+builder.Services.AddScoped<ICertificateAuthorityProvider, MockCertificateAuthorityProvider>();
 builder.Services.AddScoped<IDataExportService, DataExportService>();
 builder.Services.AddScoped<ILoanAdjustmentService, LoanAdjustmentService>();
 

@@ -12,6 +12,7 @@ public static class DbSeeder
         if (await db.Users.AnyAsync()) return; // Already seeded
 
         await SeedGLAccountsAsync(db);
+        await SeedGLAccountMappingsAsync(db);
 
         // Phase 4: Seed branches first (users reference them)
         var branches = await SeedBranchesAsync(db);
@@ -78,6 +79,7 @@ public static class DbSeeder
             
             new GLAccount { AccountCode = "4001", AccountName = "Interest Income", AccountType = GLAccountType.Income },
             new GLAccount { AccountCode = "4002", AccountName = "Late Fee Income", AccountType = GLAccountType.Income },
+            new GLAccount { AccountCode = "4003", AccountName = "Processing Fee Income", AccountType = GLAccountType.Income },
             new GLAccount { AccountCode = "4004", AccountName = "Early Settle Fee Income", AccountType = GLAccountType.Income },
             new GLAccount { AccountCode = "4005", AccountName = "Recovery Income", AccountType = GLAccountType.Income },
             
@@ -85,6 +87,27 @@ public static class DbSeeder
             new GLAccount { AccountCode = "5002", AccountName = "Write-Off Expense", AccountType = GLAccountType.Expense },
         };
         db.GLAccounts.AddRange(accounts);
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedGLAccountMappingsAsync(LoanFlowDbContext db)
+    {
+        if (await db.GLAccountMappings.AnyAsync()) return;
+
+        var mappings = new List<GLAccountMapping>
+        {
+            new GLAccountMapping { TransactionType = "Disbursement", DebitAccountCode = "1301", CreditAccountCode = "1001", Description = "Loan Disbursement" },
+            new GLAccountMapping { TransactionType = "ProcessingFee", DebitAccountCode = "1001", CreditAccountCode = "4003", Description = "Processing Fee Deduction" },
+            new GLAccountMapping { TransactionType = "Repayment_Principal", DebitAccountCode = "1001", CreditAccountCode = "1301", Description = "Principal Repayment" },
+            new GLAccountMapping { TransactionType = "Repayment_Interest", DebitAccountCode = "1001", CreditAccountCode = "1302", Description = "Interest Repayment" },
+            new GLAccountMapping { TransactionType = "Repayment_LateFee", DebitAccountCode = "1001", CreditAccountCode = "1303", Description = "Late Fee Repayment" },
+            new GLAccountMapping { TransactionType = "Overpayment_Suspense", DebitAccountCode = "1001", CreditAccountCode = "2001", Description = "Overpayment to Suspense" },
+            new GLAccountMapping { TransactionType = "Repayment_EarlySettleFee", DebitAccountCode = "1001", CreditAccountCode = "4004", Description = "Early Settlement Fee Income" },
+            new GLAccountMapping { TransactionType = "LateFee_Accrual", DebitAccountCode = "1303", CreditAccountCode = "4002", Description = "Late Fee Accrual" },
+            new GLAccountMapping { TransactionType = "LateFee_Waiver", DebitAccountCode = "4002", CreditAccountCode = "1303", Description = "Late Fee Waiver" }
+        };
+
+        db.GLAccountMappings.AddRange(mappings);
         await db.SaveChangesAsync();
     }
 
