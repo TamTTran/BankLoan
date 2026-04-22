@@ -10,8 +10,22 @@ using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
+using Serilog;
+using Serilog.Formatting.Compact;
 
-var builder = WebApplication.CreateBuilder(args);
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console(new CompactJsonFormatter())
+    .CreateBootstrapLogger();
+
+try
+{
+    var builder = WebApplication.CreateBuilder(args);
+
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .WriteTo.Console(new CompactJsonFormatter()));
 
 // === Startup Validation ===
 var connString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -253,8 +267,16 @@ if (migrateOnly)
     return;
 }
 
-app.Run();
-
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
 static bool ShouldRunMigrationsOnStartup(WebApplication app)
 {
     var configuredValue = app.Configuration["DB_MIGRATE_ON_STARTUP"];

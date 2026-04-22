@@ -45,6 +45,7 @@ public class EndOfDayService : IEndOfDayService
     private readonly IReconciliationService _reconciliationService;
     private readonly ICollectionService _collectionService;
     private readonly INotificationService _notificationService;
+    private readonly ISmsService _smsService;
     private readonly LoanFlowDbContext _db;
     private readonly ILogger<EndOfDayService> _logger;
     private readonly IBusinessClock _businessClock;
@@ -56,6 +57,7 @@ public class EndOfDayService : IEndOfDayService
         IReconciliationService reconciliationService,
         ICollectionService collectionService,
         INotificationService notificationService,
+        ISmsService smsService,
         LoanFlowDbContext db,
         ILogger<EndOfDayService> logger,
         IBusinessClock businessClock)
@@ -66,6 +68,7 @@ public class EndOfDayService : IEndOfDayService
         _reconciliationService = reconciliationService;
         _collectionService = collectionService;
         _notificationService = notificationService;
+        _smsService = smsService;
         _db = db;
         _logger = logger;
         _businessClock = businessClock;
@@ -182,6 +185,17 @@ public class EndOfDayService : IEndOfDayService
             // SYSTEM REMAINS LOCKED SO IT CANNOT BE CORRUPTED BY USERS!!
             report.Errors++;
             report.ErrorMessages.Add($"Exception: {ex.Message}");
+
+            // Send Emergency SMS
+            try 
+            {
+                var adminPhone = await _db.SystemConfigs.Where(c => c.Key == "AdminPhone").Select(c => c.Value).FirstOrDefaultAsync(ct) ?? "0900000000";
+                await _smsService.SendAsync(adminPhone, $"URGENT: EOD failed at step {batch.LastCompletedStep + 1}. System is LOCKED. Error: {ex.Message}");
+            }
+            catch (Exception smsEx)
+            {
+                _logger.LogError(smsEx, "Failed to send emergency SMS alert for EOD failure.");
+            }
         }
 
         report.CompletedAt = _businessClock.UtcNow;
