@@ -22,7 +22,7 @@ public class BranchFilterMiddleware
     {
         if (context.User.Identity?.IsAuthenticated == true)
         {
-            var userIdClaim = context.User.FindFirst("UserId")?.Value;
+            var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var roleClaim = context.User.FindFirst(ClaimTypes.Role)?.Value;
 
             if (userIdClaim != null && int.TryParse(userIdClaim, out var userId))

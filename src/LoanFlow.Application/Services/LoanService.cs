@@ -1166,10 +1166,16 @@ public class LoanService : ILoanService
     {
         var year = _businessClock.LocalNow.Year;
         var prefix = $"LN-{year}-";
+        var substringStart = prefix.Length + 1;
+        var likePattern = $"{prefix}%";
 
         // Use raw SQL with locking to prevent race condition on concurrent CreateLoan
+        // Parameters are passed via {0}, {1} — EF Core parameterizes them safely.
         var maxSeq = await _db.Database
-            .SqlQueryRaw<int?>($"SELECT MAX(CAST(SUBSTRING(LoanAccountNo, {prefix.Length + 1}) AS UNSIGNED)) AS Value FROM Loans WHERE LoanAccountNo LIKE '{prefix}%' FOR UPDATE")
+            .SqlQueryRaw<int?>(
+                "SELECT MAX(CAST(SUBSTRING(LoanAccountNo, {0}) AS UNSIGNED)) AS Value FROM Loans WHERE LoanAccountNo LIKE {1} FOR UPDATE",
+                substringStart,
+                likePattern)
             .FirstOrDefaultAsync();
 
         int seq = (maxSeq ?? 0) + 1;

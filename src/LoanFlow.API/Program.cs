@@ -92,7 +92,6 @@ builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IEContractService, EContractService>();
 builder.Services.AddScoped<ICertificateAuthorityProvider, MockCertificateAuthorityProvider>();
 builder.Services.AddScoped<IDataExportService, DataExportService>();
-builder.Services.AddScoped<ILoanAdjustmentService, LoanAdjustmentService>();
 
 // === EOD Application Services ===
 builder.Services.AddScoped<IAccrualJobService, AccrualJobService>();
@@ -196,7 +195,6 @@ app.UseForwardedHeaders();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
-app.UseRateLimiter();
 
 // Swagger — Development only
 if (app.Environment.IsDevelopment())
