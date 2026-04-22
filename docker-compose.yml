@@ -100,6 +100,20 @@ services:
         limits:
           memory: 128m
 
+  # ────────────────────────────────────────────────────
+  # Prometheus Metrics
+  # ────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: loanflow-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
 
 volumes:
   mysqldata:

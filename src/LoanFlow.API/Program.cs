@@ -12,6 +12,10 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Serilog.Formatting.Compact;
+using Azure.Identity;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Resources;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(new CompactJsonFormatter())
@@ -20,6 +24,15 @@ Log.Logger = new LoggerConfiguration()
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+
+    // M11: Azure Key Vault Integration
+    var keyVaultUri = builder.Configuration["KeyVaultUri"];
+    if (!string.IsNullOrWhiteSpace(keyVaultUri))
+    {
+        builder.Configuration.AddAzureKeyVault(
+            new Uri(keyVaultUri),
+            new DefaultAzureCredential());
+    }
 
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
@@ -56,6 +69,20 @@ builder.Services.AddDbContext<LoanFlowDbContext>(options =>
 builder.Services.Configure<BusinessDateOptions>(builder.Configuration.GetSection("BusinessDate"));
 builder.Services.AddSingleton<IBusinessCalendarService, BusinessCalendarService>();
 builder.Services.AddSingleton<IBusinessClock, BusinessClock>();
+
+// H2: OpenTelemetry Configuration
+var otel = builder.Services.AddOpenTelemetry();
+otel.ConfigureResource(resource => resource.AddService("LoanFlow.API"));
+otel.WithMetrics(metrics => metrics
+    .AddAspNetCoreInstrumentation()
+    .AddHttpClientInstrumentation()
+    .AddRuntimeInstrumentation()
+    .AddProcessInstrumentation()
+    .AddPrometheusExporter());
+otel.WithTracing(tracing => tracing
+    .AddAspNetCoreInstrumentation()
+    .AddHttpClientInstrumentation()
+    .AddEntityFrameworkCoreInstrumentation());
 
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -245,6 +272,7 @@ app.MapControllers();
 
 // Health endpoint for Docker / load-balancer probes (no auth required)
 app.MapHealthChecks("/health");
+app.MapPrometheusScrapingEndpoint();
 
 var migrateOnStartup = ShouldRunMigrationsOnStartup(app);
 var migrateOnly = args.Contains("--migrate-only", StringComparer.OrdinalIgnoreCase);
