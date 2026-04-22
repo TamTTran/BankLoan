@@ -133,6 +133,7 @@ public class AccountingService : IAccountingService
                 "Repayment_LateFee" => isDebit ? "1001" : "1303",
                 "Repayment_EarlySettleFee" => isDebit ? "1001" : "4004",
                 "Overpayment_Suspense" => isDebit ? "1001" : "2001",
+                "ProcessingFee" => isDebit ? "1001" : "4003",
                 "LateFee_Accrual" => isDebit ? "1303" : "4002",
                 "LateFee_Waiver" => isDebit ? "4002" : "1303",
                 _ => throw new InvalidOperationException($"No GLAccountMapping found for TransactionType: {transactionType}")

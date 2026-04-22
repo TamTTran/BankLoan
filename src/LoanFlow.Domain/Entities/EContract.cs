@@ -5,8 +5,6 @@ public class EContract
     public int Id { get; set; }
     public int LoanId { get; set; }
     public string ContractNumber { get; set; } = default!;
-    
-    // Electronic Signature Details
     // Electronic Signature Details
     public string PdfContentHash { get; set; } = default!; // SHA-256
     public string DigitalSignature { get; set; } = default!; // RSA Signature from CA

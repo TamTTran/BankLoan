@@ -48,6 +48,8 @@ public class EContractService : IEContractService
 {
     private readonly LoanFlowDbContext _db;
     private readonly ICertificateAuthorityProvider _caProvider;
+    private const string ContractStorageRoot = "App_Data";
+    private const string ContractStorageFolder = "EContracts";
 
     public EContractService(LoanFlowDbContext db, ICertificateAuthorityProvider caProvider)
     {
@@ -107,10 +109,11 @@ public class EContractService : IEContractService
             });
         }).GeneratePdf();
 
-        // 2. Archive PDF (simulated file storage)
-        var storageDir = Path.Combine(Directory.GetCurrentDirectory(), "App_Data", "EContracts");
+        // 2. Archive PDF (simulated local storage)
+        var storageDir = Path.Combine(AppContext.BaseDirectory, ContractStorageRoot, ContractStorageFolder);
         if (!Directory.Exists(storageDir)) Directory.CreateDirectory(storageDir);
         var fileName = $"CT_{loan.LoanAccountNo}_{Guid.NewGuid()}.pdf";
+        var storageKey = Path.Combine(ContractStorageFolder, fileName).Replace('\\', '/');
         var filePath = Path.Combine(storageDir, fileName);
         await File.WriteAllBytesAsync(filePath, pdfBytes);
 
@@ -129,22 +132,36 @@ public class EContractService : IEContractService
             PdfContentHash = hashString,
             DigitalSignature = rsaSignature,
             ClientIpAddress = ipAddress,
-            PdfStoragePath = filePath,
+            PdfStoragePath = storageKey,
             SignedAt = DateTime.UtcNow
         };
 
         _db.EContracts.Add(contract);
 
-        _db.AuditLogs.Add(new AuditLog
+        try
         {
-            ActorUserId = 0, 
-            ActionCode = "CONTRACT_SIGNED",
-            EntityType = "EContract",
-            EntityId = 0, // will be generated
-            NewValuesJson = AuditHelper.ToJson(new { loanId = loanId, hash = hashString, filePath })
-        });
+            await _db.SaveChangesAsync(); // save to get ID
 
-        await _db.SaveChangesAsync(); // save to get ID
+            _db.AuditLogs.Add(new AuditLog
+            {
+                ActorUserId = 0,
+                ActionCode = "CONTRACT_SIGNED",
+                EntityType = "EContract",
+                EntityId = contract.Id,
+                NewValuesJson = AuditHelper.ToJson(new { loanId, hash = hashString, storageKey })
+            });
+
+            await _db.SaveChangesAsync();
+        }
+        catch
+        {
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+
+            throw;
+        }
 
         return Result.Success(new EContractDto
         {

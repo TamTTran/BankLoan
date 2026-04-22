@@ -1,4 +1,5 @@
 using LoanFlow.Application.Services;
+using LoanFlow.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
@@ -8,8 +9,7 @@ namespace LoanFlow.API.Controllers;
 
 [ApiController]
 [Route("api/bod")]
-[Authorize] // Assuming we want it authorized (typically System Admin)
-// [Authorize(Policy = "RequireAdmin")]
+[Authorize(Roles = $"{Roles.Admin},{Roles.Manager}")]
 public class BodController : ControllerBase
 {
     private readonly IBodService _bodService;
