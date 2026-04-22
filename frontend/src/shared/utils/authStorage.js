@@ -1,13 +1,15 @@
+let inMemoryToken = null;
+
 export function getToken() {
-  return localStorage.getItem('lf_token');
+  return inMemoryToken;
 }
 
 export function setToken(token) {
-  localStorage.setItem('lf_token', token);
+  inMemoryToken = token;
 }
 
 export function clearToken() {
-  localStorage.removeItem('lf_token');
+  inMemoryToken = null;
   localStorage.removeItem('lf_user');
 }
 

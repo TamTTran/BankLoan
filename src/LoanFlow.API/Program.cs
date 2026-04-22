@@ -43,6 +43,11 @@ builder.Services.Configure<BusinessDateOptions>(builder.Configuration.GetSection
 builder.Services.AddSingleton<IBusinessCalendarService, BusinessCalendarService>();
 builder.Services.AddSingleton<IBusinessClock, BusinessClock>();
 
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 1_048_576; // 1MB limit to prevent oversized payload DoS
+});
+
 // === Services ===
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
@@ -140,7 +145,17 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100, // Increased to avoid 429 during UAT/demo
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+
+    options.AddPolicy("RefreshRateLimit", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));

@@ -1,6 +1,12 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace LoanFlow.Application.DTOs.Auth;
 
-public record LoginRequest(string Username, string Password, string? DeviceId = null, string? DeviceName = null);
+public record LoginRequest(
+    [Required] string Username, 
+    [Required] string Password, 
+    string? DeviceId = null, 
+    string? DeviceName = null);
 
 /// <summary>
 /// Internal service response — carries the plain refresh token to the controller.

@@ -69,6 +69,7 @@ public class AuthController : ControllerBase
     /// <summary>POST /auth/refresh — AUTH-002 (token via HttpOnly cookie)</summary>
     [HttpPost("refresh")]
     [AllowAnonymous]
+    [EnableRateLimiting("RefreshRateLimit")]
     public async Task<IActionResult> Refresh()
     {
         var plainToken = ReadRefreshTokenCookie();

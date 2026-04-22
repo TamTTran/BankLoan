@@ -38,6 +38,9 @@ public class AdminUserService : IAdminUserService
         if (await _db.Users.AnyAsync(u => u.Username == request.Username))
             return Result.Failure<int>("Username already exists.");
 
+        if (!System.Text.RegularExpressions.Regex.IsMatch(request.Password, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$"))
+            return Result.Failure<int>("Password must be at least 12 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.");
+
         var user = new User
         {
             Username = request.Username,

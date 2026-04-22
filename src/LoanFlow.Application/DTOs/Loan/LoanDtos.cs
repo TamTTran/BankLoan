@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace LoanFlow.Application.DTOs.Loan;
 
 public class LoanDto
@@ -58,24 +60,37 @@ public class CreateLoanRequest
 // POST /loans/{id}/disburse (§17.8)
 public class DisburseRequest
 {
+    [Required]
     public DateOnly DisbursementDate { get; set; }
+    [Required]
+    [Range(0.01, double.MaxValue, ErrorMessage = "Amount must be greater than zero.")]
     public decimal DisbursedAmount { get; set; }
 }
 
 // POST /loans/{id}/payments (§17.9)
 public class RecordPaymentRequest
 {
+    [Required]
     public DateOnly PaymentDate { get; set; }
+    [Required]
+    [Range(0.01, double.MaxValue, ErrorMessage = "Amount must be greater than zero.")]
     public decimal Amount { get; set; }
+    [Required]
+    [StringLength(50)]
     public string PaymentMethod { get; set; } = default!;
+    [StringLength(500)]
     public string? Remarks { get; set; }
+    [StringLength(100)]
     public string? ExternalReferenceId { get; set; }
 }
 
 // POST /loans/{id}/collection-notes (§17.10)
 public class AddCollectionNoteRequest
 {
+    [Required]
     public DateOnly NoteDate { get; set; }
+    [Required]
+    [StringLength(1000, MinimumLength = 1)]
     public string NoteText { get; set; } = default!;
 }
 
@@ -115,6 +130,7 @@ public class LoanFilterRequest
 
 public class EarlySettleRequest
 {
+    [Required]
     public DateOnly SettlementDate { get; set; }
     public bool WaiveFee { get; set; } = false;
 }
