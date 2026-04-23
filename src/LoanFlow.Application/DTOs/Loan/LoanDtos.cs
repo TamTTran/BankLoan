@@ -123,6 +123,7 @@ public class LoanFilterRequest
     public string? Status { get; set; }
     public int? CustomerId { get; set; }
     public int Page { get; set; } = 1;
+    [Range(1, 100, ErrorMessage = "PageSize must be between 1 and 100.")]
     public int PageSize { get; set; } = 20;
 }
 

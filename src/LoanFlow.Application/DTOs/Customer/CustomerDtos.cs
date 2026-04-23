@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace LoanFlow.Application.DTOs.Customer;
 
 public class CustomerDto
@@ -56,6 +58,7 @@ public class CustomerFilterRequest
 {
     public string? Search { get; set; }  // name | phone | idNumber
     public int Page { get; set; } = 1;
+    [Range(1, 100, ErrorMessage = "PageSize must be between 1 and 100.")]
     public int PageSize { get; set; } = 20;
 }
 

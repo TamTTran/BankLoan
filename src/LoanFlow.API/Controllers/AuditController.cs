@@ -20,6 +20,7 @@ public class AuditController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAuditLogs([FromQuery] string? entityType, [FromQuery] int? entityId, [FromQuery] int? userId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
+        pageSize = Math.Clamp(pageSize, 1, 100);
         var result = await _auditService.GetAuditLogsAsync(entityType, entityId, userId, fromDate, toDate, page, pageSize);
         return Ok(new { success = true, data = result });
     }

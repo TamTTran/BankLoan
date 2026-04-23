@@ -26,6 +26,9 @@ jobs:
     - name: Test
       run: dotnet test --no-build --verbosity normal
 
+    - name: Check vulnerable dependencies (M5)
+      run: dotnet list src/LoanFlow.API/LoanFlow.API.csproj package --vulnerable --include-transitive 2>&1 | tee /tmp/nuget_audit.txt; grep -q "has the following vulnerable packages" /tmp/nuget_audit.txt && exit 1 || exit 0
+
   build-and-test-frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -46,3 +49,6 @@ jobs:
       
     - name: Test
       run: npm test -- --passWithNoTests
+
+    - name: Security audit (M5)
+      run: npm audit --audit-level=high

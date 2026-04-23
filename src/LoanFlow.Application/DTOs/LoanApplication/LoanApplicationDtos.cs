@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace LoanFlow.Application.DTOs.LoanApplication;
 
 public class LoanApplicationDto
@@ -61,5 +63,6 @@ public class ApplicationFilterRequest
     public DateTime? FromDate { get; set; }
     public DateTime? ToDate { get; set; }
     public int Page { get; set; } = 1;
+    [Range(1, 100, ErrorMessage = "PageSize must be between 1 and 100.")]
     public int PageSize { get; set; } = 20;
 }

@@ -38,6 +38,14 @@ try
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
+        .Destructure.ByTransforming<object>(obj => obj) // base
+        .Filter.ByExcluding(e =>
+        {
+            // M3: Scrub PII fields from structured log properties
+            var props = e.Properties;
+            return props.ContainsKey("Password") ||
+                   props.ContainsKey("PasswordHash");
+        })
         .WriteTo.Console(new CompactJsonFormatter()));
 
 // === Startup Validation ===

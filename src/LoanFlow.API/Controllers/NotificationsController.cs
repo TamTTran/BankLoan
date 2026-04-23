@@ -22,6 +22,7 @@ public class NotificationsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetMyNotifications([FromQuery] bool unreadOnly = false, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
+        pageSize = Math.Clamp(pageSize, 1, 100);
         var data = await _service.GetUserNotificationsAsync(CurrentUserId, unreadOnly, page, pageSize);
         return Ok(new { success = true, data });
     }
