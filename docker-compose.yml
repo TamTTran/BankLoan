@@ -46,9 +46,14 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
+      - "8443:8443"          # C9: HTTPS port for mTLS
+    volumes:
+      - ./certs:/certs:ro    # C9: Mount internal CA certs
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_URLS: https://+:8443;http://+:8080
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /certs/api.crt
+      ASPNETCORE_Kestrel__Certificates__Default__KeyPath: /certs/api.key
       DOTNET_RUNNING_IN_CONTAINER: "true"
       ConnectionStrings__DefaultConnection: >-
         Server=db;Port=3306;Database=LoanFlowLite;
@@ -89,6 +94,8 @@ services:
         condition: service_healthy
     ports:
       - "80:80"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro  # C9: Mount certs for mTLS to API
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
       interval: 20s
@@ -114,7 +121,35 @@ services:
     depends_on:
       - api
 
+  # ────────────────────────────────────────────────────
+  # Ofelia — DB Backup Scheduler (H7)
+  # Runs backup.sh daily at 02:00 UTC (09:00 ICT)
+  # ────────────────────────────────────────────────────
+  backup-scheduler:
+    image: mcuadros/ofelia:latest
+    container_name: loanflow-backup-scheduler
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./scripts:/scripts:ro
+      - loanflow-backups:/backups
+    environment:
+      DB_PASSWORD: "${DB_PASSWORD}"
+    command: daemon --docker
+    labels:
+      ofelia.job-run.db-backup.schedule: "0 2 * * *"
+      ofelia.job-run.db-backup.image: "mysql:8.4"
+      ofelia.job-run.db-backup.network: "loanflow_default"
+      ofelia.job-run.db-backup.environment: "DB_PASSWORD=${DB_PASSWORD}"
+      ofelia.job-run.db-backup.volume: "/scripts:/scripts:ro,loanflow-backups:/backups"
+      ofelia.job-run.db-backup.command: "sh /scripts/backup.sh"
+
 
 volumes:
   mysqldata:
     name: loanflow-mysqldata
+  loanflow-backups:
+    name: loanflow-backups    # H7: Named volume for persistent DB backups

@@ -163,3 +163,22 @@ ehthumbs.db
 *.swp
 *.orig
 *.log
+
+# ── Security: TLS Certificates (C9) ───────────────────────
+# Private keys must NEVER be committed. Run certs/gen-certs.sh locally.
+certs/*.key
+certs/*.crt
+certs/*.csr
+certs/*.pem
+certs/*.srl
+
+# ── Security: Dev Secrets (H6) ────────────────────────────
+appsettings.Development.json
+*.env
+.env.*
+*.env.local
+
+# ── Database Backups (H7) ─────────────────────────────────
+backups/
+*.sql
+*.sql.gz

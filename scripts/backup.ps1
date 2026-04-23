@@ -2,7 +2,7 @@ param (
     [string]$HostName = "127.0.0.1",
     [string]$Port = "3306",
     [string]$User = "loanflow",
-    [string]$Password = "LoanFlow@2026!",
+    [string]$Password = $env:DB_PASSWORD,  # H7 fix: never hardcode — read from env
     [string]$Database = "LoanFlowLite",
     [string]$BackupDir = "D:\Project\BankLoan\backups"
 )

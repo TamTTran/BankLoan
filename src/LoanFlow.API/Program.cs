@@ -1,4 +1,5 @@
 using LoanFlow.API.Middleware;
+using LoanFlow.API.ExternalServices;
 using LoanFlow.Application.Services;
 using LoanFlow.API.BackgroundJobs;
 using LoanFlow.Infrastructure.Data;
@@ -114,11 +115,22 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IReversalService, ReversalService>();
 builder.Services.AddScoped<IReconciliationService, ReconciliationService>();
 builder.Services.AddScoped<ICollectionService, CollectionService>();
-builder.Services.AddScoped<IPaymentGatewayService, MockPaymentGatewayService>(); // Phase 4
+// H10: Feature-flagged external service registrations (flip flags in appsettings / KeyVault for prod)
+var extSvc = builder.Configuration.GetSection("ExternalServices");
+
+if (extSvc.GetValue<bool>("UseMockPaymentGateway", defaultValue: true))
+    builder.Services.AddScoped<IPaymentGatewayService, MockPaymentGatewayService>();
+else
+    builder.Services.AddHttpClient<IPaymentGatewayService, NapasPaymentGatewayService>();
+
+if (extSvc.GetValue<bool>("UseMockSms", defaultValue: true))
+    builder.Services.AddScoped<ISmsService, NullSmsService>();
+else
+    builder.Services.AddHttpClient<ISmsService, TwilioSmsService>();
+
 builder.Services.AddScoped<IReportingService, ReportingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<ISmsService, NullSmsService>();
 builder.Services.AddScoped<IEndOfDayService, EndOfDayService>();
 builder.Services.AddScoped<IBodService, BodService>();
 builder.Services.AddScoped<IAdminUserService, AdminUserService>();
@@ -131,8 +143,15 @@ builder.Services.AddScoped<IAccountingService, AccountingService>();
 builder.Services.AddScoped<INplReportingService, NplReportingService>();
 builder.Services.AddScoped<IAccountingPeriodService, AccountingPeriodService>();
 builder.Services.AddScoped<IRegulatoryReportingService, RegulatoryReportingService>();
-builder.Services.AddScoped<ICicProvider, LoanFlow.API.ExternalServices.MockCicProvider>();
-builder.Services.AddScoped<IEkycProvider, LoanFlow.API.ExternalServices.MockEkycProvider>();
+if (extSvc.GetValue<bool>("UseMockCic", defaultValue: true))
+    builder.Services.AddScoped<ICicProvider, LoanFlow.API.ExternalServices.MockCicProvider>();
+else
+    builder.Services.AddHttpClient<ICicProvider, LoanFlow.API.ExternalServices.PcbCicProvider>();
+
+if (extSvc.GetValue<bool>("UseMockEkyc", defaultValue: true))
+    builder.Services.AddScoped<IEkycProvider, LoanFlow.API.ExternalServices.MockEkycProvider>();
+else
+    builder.Services.AddHttpClient<IEkycProvider, LoanFlow.API.ExternalServices.FptEkycProvider>();
 builder.Services.AddScoped<ICicService, CicService>();
 builder.Services.AddScoped<IEkycService, EkycService>();
 builder.Services.AddScoped<IBranchService, BranchService>();
