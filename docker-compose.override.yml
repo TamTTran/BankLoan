@@ -25,6 +25,14 @@ services:
       - full            # Only start when: docker compose --profile full up
     environment:
       ASPNETCORE_ENVIRONMENT: Development   # Enables Swagger, hot-reload logs
+      ExternalServices__UseMockPaymentGateway: "true"
+      ExternalServices__UseMockSms: "true"
+      ExternalServices__UseMockCic: "true"
+      ExternalServices__UseMockEkyc: "true"
+      ExternalServices__UseMockCertificateAuthority: "true"
+      Cors__AllowedOrigins__0: "http://localhost"
+      Cors__AllowedOrigins__1: "https://localhost"
+      AllowedHosts: "localhost"
 
   # Frontend runs via: cd frontend && npm run dev
   frontend:

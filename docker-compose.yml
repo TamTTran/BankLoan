@@ -16,8 +16,8 @@ services:
       MYSQL_PASSWORD: "${DB_PASSWORD}"
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
-    ports:
-      - "3306:3306"
+    expose:
+      - "3306"
     volumes:
       - mysqldata:/var/lib/mysql
     healthcheck:
@@ -44,9 +44,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8080:8080"
-      - "8443:8443"          # C9: HTTPS port for mTLS
+    expose:
+      - "8080"
+      - "8443"
     volumes:
       - ./certs:/certs:ro    # C9: Mount internal CA certs
     environment:
@@ -62,8 +62,27 @@ services:
       Jwt__Key: "${JWT_KEY}"
       Jwt__Issuer: "LoanFlow.API"
       Jwt__Audience: "LoanFlow.Client"
-      Cors__AllowedOrigins__0: "http://localhost"
-      Cors__AllowedOrigins__1: "https://localhost"
+      AllowedHosts: "${ALLOWED_HOSTS:-loanflow.local}"
+      Cors__AllowedOrigins__0: "${PUBLIC_APP_ORIGIN:-https://loanflow.local}"
+      Webhook__Secret: "${WEBHOOK_SECRET:-SET_VIA_ENV_OR_USER_SECRETS}"
+      Webhook__SystemActorUsername: "${WEBHOOK_SYSTEM_ACTOR_USERNAME:-system-webhook}"
+      ExternalServices__UseMockPaymentGateway: "${USE_MOCK_PAYMENT_GATEWAY:-false}"
+      ExternalServices__UseMockSms: "${USE_MOCK_SMS:-false}"
+      ExternalServices__UseMockCic: "${USE_MOCK_CIC:-false}"
+      ExternalServices__UseMockEkyc: "${USE_MOCK_EKYC:-false}"
+      ExternalServices__UseMockCertificateAuthority: "${USE_MOCK_CERTIFICATE_AUTHORITY:-false}"
+      ExternalServices__NapasApiUrl: "${NAPAS_API_URL:-SET_VIA_KEYVAULT}"
+      ExternalServices__NapasApiKey: "${NAPAS_API_KEY:-SET_VIA_KEYVAULT}"
+      ExternalServices__PcbApiUrl: "${PCB_API_URL:-SET_VIA_KEYVAULT}"
+      ExternalServices__PcbApiKey: "${PCB_API_KEY:-SET_VIA_KEYVAULT}"
+      ExternalServices__FptEkycApiUrl: "${FPT_EKYC_API_URL:-SET_VIA_KEYVAULT}"
+      ExternalServices__FptEkycApiKey: "${FPT_EKYC_API_KEY:-SET_VIA_KEYVAULT}"
+      ExternalServices__CertificateAuthorityApiUrl: "${CERTIFICATE_AUTHORITY_API_URL:-SET_VIA_KEYVAULT}"
+      ExternalServices__CertificateAuthorityApiKey: "${CERTIFICATE_AUTHORITY_API_KEY:-SET_VIA_KEYVAULT}"
+      Twilio__AccountSid: "${TWILIO_ACCOUNT_SID:-SET_VIA_KEYVAULT}"
+      Twilio__AuthToken: "${TWILIO_AUTH_TOKEN:-SET_VIA_KEYVAULT}"
+      Twilio__FromNumber: "${TWILIO_FROM_NUMBER:-SET_VIA_KEYVAULT}"
+      ForwardedHeaders__KnownProxies__0: "${TRUSTED_PROXY_IP:-}"
       # Daily overdue background job (UTC+7 = 01:00 UTC)
       BackgroundJobs__DailyOverdue__RunHourUtc: "18"
       BackgroundJobs__DailyOverdue__RunMinuteUtc: "0"
@@ -116,8 +135,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    ports:
-      - "9090:9090"
+    expose:
+      - "9090"
     depends_on:
       - api
 

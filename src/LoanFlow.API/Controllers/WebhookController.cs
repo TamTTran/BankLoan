@@ -7,6 +7,7 @@ using LoanFlow.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace LoanFlow.API.Controllers;
 
@@ -17,12 +18,18 @@ public class WebhookController : ControllerBase
     private readonly LoanFlowDbContext _db;
     private readonly ILoanService _loanService;
     private readonly IConfiguration _config;
+    private readonly ILogger<WebhookController> _logger;
 
-    public WebhookController(LoanFlowDbContext db, ILoanService loanService, IConfiguration config)
+    public WebhookController(
+        LoanFlowDbContext db,
+        ILoanService loanService,
+        IConfiguration config,
+        ILogger<WebhookController> logger)
     {
         _db = db;
         _loanService = loanService;
         _config = config;
+        _logger = logger;
     }
 
     public class PaymentWebhookPayload
@@ -62,6 +69,10 @@ public class WebhookController : ControllerBase
         if (payload == null || string.IsNullOrWhiteSpace(payload.TransactionId) || string.IsNullOrWhiteSpace(payload.VirtualAccountNo))
             return BadRequest(new { success = false, message = "Invalid payload" });
 
+        var systemActorId = await ResolveWebhookSystemActorIdAsync();
+        if (systemActorId is null)
+            return StatusCode(500, new { success = false, message = "Webhook system actor is not configured" });
+
         // Wrap Idempotency check AND Payment Recording in one atomic transaction
         await using var tx = await _db.Database.BeginTransactionAsync();
         try
@@ -97,7 +108,7 @@ public class WebhookController : ControllerBase
                 ExternalReferenceId = payload.TransactionId
             };
 
-            var result = await _loanService.RecordPaymentAsync(loan.Id, req, 1);
+            var result = await _loanService.RecordPaymentAsync(loan.Id, req, systemActorId.Value);
 
             if (!result.IsSuccess)
             {
@@ -111,8 +122,42 @@ public class WebhookController : ControllerBase
         catch (Exception ex)
         {
             await tx.RollbackAsync();
-            // Depending on the exception, if it's a DbUpdateException due to unique constraint on ExternalReferenceId, we could return success or conflict.
-            return StatusCode(500, new { success = false, message = "Processing failed: " + ex.Message });
+            _logger.LogError(
+                ex,
+                "Bank-transfer webhook processing failed for transaction {TransactionId} and virtual account {VirtualAccountNo}.",
+                payload.TransactionId,
+                payload.VirtualAccountNo);
+
+            return StatusCode(500, new
+            {
+                success = false,
+                message = "Processing failed",
+                traceId = HttpContext.TraceIdentifier
+            });
         }
+    }
+
+    private async Task<int?> ResolveWebhookSystemActorIdAsync()
+    {
+        var username = _config["Webhook:SystemActorUsername"];
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            _logger.LogError("Webhook:SystemActorUsername is not configured.");
+            return null;
+        }
+
+        var user = await _db.Users
+            .AsNoTracking()
+            .Where(u => u.Username == username)
+            .Select(u => new { u.Id })
+            .FirstOrDefaultAsync();
+
+        if (user is null)
+        {
+            _logger.LogError("Webhook system actor user {Username} was not found.", username);
+            return null;
+        }
+
+        return user.Id;
     }
 }

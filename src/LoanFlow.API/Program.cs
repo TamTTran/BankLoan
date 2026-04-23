@@ -17,6 +17,7 @@ using Azure.Identity;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Resources;
+using System.Net;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(new CompactJsonFormatter())
@@ -70,6 +71,8 @@ if (string.IsNullOrWhiteSpace(jwtAudience))
 {
     throw new InvalidOperationException("FATAL: 'Jwt:Audience' is missing from configuration.");
 }
+
+ValidateProductionConfiguration(builder);
 
 // === Database ===
 builder.Services.AddDbContext<LoanFlowDbContext>(options =>
@@ -163,7 +166,10 @@ builder.Services.AddScoped<ICollateralLifecycleService, CollateralLifecycleServi
 builder.Services.AddScoped<IDunningService, DunningService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IEContractService, EContractService>();
-builder.Services.AddScoped<ICertificateAuthorityProvider, MockCertificateAuthorityProvider>();
+if (extSvc.GetValue<bool>("UseMockCertificateAuthority", defaultValue: true))
+    builder.Services.AddScoped<ICertificateAuthorityProvider, MockCertificateAuthorityProvider>();
+else
+    builder.Services.AddHttpClient<ICertificateAuthorityProvider, ExternalCertificateAuthorityProvider>();
 builder.Services.AddScoped<IDataExportService, DataExportService>();
 
 // === EOD Application Services ===
@@ -201,8 +207,25 @@ builder.Services.AddHealthChecks()
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownNetworks.Clear();
-    options.KnownProxies.Clear();
+    var knownProxies = builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [];
+    var knownNetworks = builder.Configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>() ?? [];
+
+    foreach (var proxy in knownProxies)
+    {
+        if (IPAddress.TryParse(proxy, out var address))
+            options.KnownProxies.Add(address);
+    }
+
+    foreach (var network in knownNetworks)
+    {
+        var parts = network.Split('/', 2, StringSplitOptions.TrimEntries);
+        if (parts.Length == 2
+            && IPAddress.TryParse(parts[0], out var prefix)
+            && int.TryParse(parts[1], out var prefixLength))
+        {
+            options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength));
+        }
+    }
 });
 
 builder.Services.AddRateLimiter(options =>
@@ -342,6 +365,84 @@ static bool ShouldRunMigrationsOnStartup(WebApplication app)
     }
 
     return app.Environment.IsDevelopment();
+}
+
+static void ValidateProductionConfiguration(WebApplicationBuilder builder)
+{
+    if (builder.Environment.IsDevelopment())
+        return;
+
+    var config = builder.Configuration;
+    var externalServices = config.GetSection("ExternalServices");
+
+    var mockFlags = new[]
+    {
+        "UseMockPaymentGateway",
+        "UseMockCic",
+        "UseMockEkyc",
+        "UseMockSms",
+        "UseMockCertificateAuthority"
+    };
+
+    foreach (var flag in mockFlags)
+    {
+        if (externalServices.GetValue<bool>(flag, defaultValue: true))
+            throw new InvalidOperationException($"FATAL: ExternalServices:{flag} must be false in Production.");
+    }
+
+    RequireConfiguredSecret(config, "ExternalServices:NapasApiUrl");
+    RequireConfiguredSecret(config, "ExternalServices:NapasApiKey");
+    RequireConfiguredSecret(config, "ExternalServices:PcbApiUrl");
+    RequireConfiguredSecret(config, "ExternalServices:PcbApiKey");
+    RequireConfiguredSecret(config, "ExternalServices:FptEkycApiUrl");
+    RequireConfiguredSecret(config, "ExternalServices:FptEkycApiKey");
+    RequireConfiguredSecret(config, "ExternalServices:CertificateAuthorityApiUrl");
+    RequireConfiguredSecret(config, "ExternalServices:CertificateAuthorityApiKey");
+    RequireConfiguredSecret(config, "Twilio:AccountSid");
+    RequireConfiguredSecret(config, "Twilio:AuthToken");
+    RequireConfiguredSecret(config, "Twilio:FromNumber");
+
+    var allowedOrigins = config.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+    if (allowedOrigins.Length == 0)
+        throw new InvalidOperationException("FATAL: 'Cors:AllowedOrigins' is missing or empty in Production.");
+
+    if (allowedOrigins.Any(IsLocalhostOrigin)
+        && !config.GetValue<bool>("Cors:AllowLocalhostInProduction", defaultValue: false))
+    {
+        throw new InvalidOperationException("FATAL: localhost CORS origins are not allowed in Production.");
+    }
+
+    var allowedHosts = config["AllowedHosts"];
+    if (string.IsNullOrWhiteSpace(allowedHosts) || allowedHosts.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+        throw new InvalidOperationException("FATAL: 'AllowedHosts' must be set to the production host name(s).");
+
+    var webhookSecret = config["Webhook:Secret"];
+    if (string.IsNullOrWhiteSpace(webhookSecret) || webhookSecret == "SET_VIA_ENV_OR_USER_SECRETS")
+        throw new InvalidOperationException("FATAL: 'Webhook:Secret' must be configured in Production.");
+
+    var webhookActor = config["Webhook:SystemActorUsername"];
+    if (string.IsNullOrWhiteSpace(webhookActor))
+        throw new InvalidOperationException("FATAL: 'Webhook:SystemActorUsername' must be configured in Production.");
+}
+
+static void RequireConfiguredSecret(IConfiguration config, string key)
+{
+    var value = config[key];
+    if (string.IsNullOrWhiteSpace(value)
+        || value.StartsWith("SET_VIA_", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException($"FATAL: '{key}' must be configured in Production.");
+    }
+}
+
+static bool IsLocalhostOrigin(string origin)
+{
+    if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+        return false;
+
+    return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+        || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+        || uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase);
 }
 
 static async Task MigrateWithRetryAsync(WebApplication app)

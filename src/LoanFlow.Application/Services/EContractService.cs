@@ -2,8 +2,11 @@ using LoanFlow.Application.Common;
 using LoanFlow.Domain.Entities;
 using LoanFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -42,6 +45,47 @@ public class MockCertificateAuthorityProvider : ICertificateAuthorityProvider
         var simulatedSignature = Convert.ToBase64String(Encoding.UTF8.GetBytes($"RSA_SIGNED_{hashStr}_BY_VNPT_CA_{Guid.NewGuid()}"));
         return Task.FromResult(simulatedSignature);
     }
+}
+
+public class ExternalCertificateAuthorityProvider : ICertificateAuthorityProvider
+{
+    private readonly HttpClient _httpClient;
+    private readonly IConfiguration _config;
+
+    public ExternalCertificateAuthorityProvider(HttpClient httpClient, IConfiguration config)
+    {
+        _httpClient = httpClient;
+        _config = config;
+    }
+
+    public async Task<string> SignHashAsync(string hashStr)
+    {
+        var apiUrl = _config["ExternalServices:CertificateAuthorityApiUrl"];
+        var apiKey = _config["ExternalServices:CertificateAuthorityApiKey"];
+
+        if (string.IsNullOrWhiteSpace(apiUrl))
+            throw new InvalidOperationException("Certificate authority API URL is not configured.");
+        if (string.IsNullOrWhiteSpace(apiKey))
+            throw new InvalidOperationException("Certificate authority API key is not configured.");
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, apiUrl)
+        {
+            Content = JsonContent.Create(new CertificateSignRequest(hashStr))
+        };
+        request.Headers.Add("X-API-Key", apiKey);
+
+        using var response = await _httpClient.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<CertificateSignResponse>();
+        if (string.IsNullOrWhiteSpace(result?.Signature))
+            throw new InvalidOperationException("Certificate authority returned an empty signature.");
+
+        return result.Signature;
+    }
+
+    private sealed record CertificateSignRequest([property: JsonPropertyName("hash")] string Hash);
+    private sealed record CertificateSignResponse([property: JsonPropertyName("signature")] string Signature);
 }
 
 public class EContractService : IEContractService

@@ -4,13 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 
-const QUICK = [
-  { label: 'Admin', user: 'admin', pass: 'Admin@123' },
-  { label: 'Officer', user: 'officer01', pass: 'Officer@123' },
-  { label: 'Approver', user: 'approver01', pass: 'Approver@123' },
-  { label: 'Collector', user: 'collector01', pass: 'Collector@123' },
-];
-
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -85,18 +78,6 @@ export default function Login() {
               Sign in
             </Button>
           </form>
-
-          <div className="login-hints">
-            <p>Demo accounts for quick access:</p>
-            <div className="hint-grid">
-              {QUICK.map((q) => (
-                <button key={q.user} className="quick-btn" onClick={() => handleSubmit(q.user, q.pass)}>
-                  <span className="quick-btn-role">{q.label}</span>
-                  <span className="quick-btn-user">{q.user}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </section>
       </div>
     </div>

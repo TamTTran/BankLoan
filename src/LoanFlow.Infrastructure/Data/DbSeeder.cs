@@ -156,8 +156,16 @@ public static class DbSeeder
             FullName = "Phạm Anh Dũng",
             Role = Roles.Manager
         };
+        var webhookSystem = new User
+        {
+            Username = "system-webhook",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(ResolvePassword("SEED_WEBHOOK_SYSTEM_PASSWORD")),
+            FullName = "Webhook System Actor",
+            Role = Roles.Admin,
+            Status = "Inactive"
+        };
 
-        db.Users.AddRange(admin, officer, approver, collector, manager);
+        db.Users.AddRange(admin, officer, approver, collector, manager, webhookSystem);
         await db.SaveChangesAsync();
 
         return new SeedUsersResult(admin, officer, approver, collector, manager);
