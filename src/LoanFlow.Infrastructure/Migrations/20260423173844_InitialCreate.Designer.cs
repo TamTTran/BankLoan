@@ -9,11 +9,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace LoanFlow.Infrastructure.Data.Migrations
+namespace LoanFlow.Infrastructure.Migrations
 {
     [DbContext(typeof(LoanFlowDbContext))]
-    [Migration("20260419132633_AddPhase5Operations")]
-    partial class AddPhase5Operations
+    [Migration("20260423173844_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -118,6 +118,9 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<bool>("IsAutoApprove")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<decimal>("MaxAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -125,6 +128,9 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<decimal>("MinAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("MinCicScore")
+                        .HasColumnType("int");
 
                     b.Property<string>("ProductType")
                         .HasMaxLength(30)
@@ -621,6 +627,12 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<int>("AssignedToUserId")
                         .HasColumnType("int");
 
+                    b.Property<string>("BankAccountNumber")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("BankCode")
+                        .HasColumnType("longtext");
+
                     b.Property<int?>("BranchId")
                         .HasColumnType("int");
 
@@ -639,6 +651,14 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<DateTime>("DateOfBirth")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("EkycStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateTime?>("EkycVerifiedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -648,6 +668,9 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
+
+                    b.Property<decimal?>("MonthlyIncome")
+                        .HasColumnType("decimal(65,30)");
 
                     b.Property<string>("Phone")
                         .IsRequired()
@@ -815,6 +838,51 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.ToTable("DunningStrategies");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.EContract", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ClientIpAddress")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("varchar(45)");
+
+                    b.Property<string>("ContractNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("DigitalSignature")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("LoanId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PdfContentHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("PdfStoragePath")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("SignedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoanId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_EContracts_LoanId");
+
+                    b.ToTable("EContracts");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.EkycVerification", b =>
                 {
                     b.Property<int>("Id")
@@ -842,6 +910,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
+
+                    b.Property<decimal?>("LivenessScore")
+                        .HasPrecision(5, 1)
+                        .HasColumnType("decimal(5,1)");
 
                     b.Property<decimal?>("OcrConfidence")
                         .HasPrecision(5, 1)
@@ -928,6 +1000,77 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.ToTable("EmailOtps");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.EodBatchRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("LastCompletedStep")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BusinessDate")
+                        .IsUnique();
+
+                    b.ToTable("EodBatchRecords");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.EscalationRule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActionToTake")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Bucket")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DpdCondition")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("DpdThreshold")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("EscalationRules");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.GLAccount", b =>
                 {
                     b.Property<int>("Id")
@@ -958,6 +1101,11 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<DateTime>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp(6)");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -968,6 +1116,38 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .HasDatabaseName("IX_GLAccounts_AccountCode");
 
                     b.ToTable("GLAccounts");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.GLAccountMapping", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreditAccountCode")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("DebitAccountCode")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("TransactionType")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("GLAccountMappings");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.IdempotencyRecord", b =>
@@ -1016,7 +1196,9 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ReferenceNumber");
+                    b.HasIndex("ReferenceNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_JournalEntries_ReferenceNumber");
 
                     b.ToTable("JournalEntries");
                 });
@@ -1063,6 +1245,9 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AccrualLoanTransactionId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CalculatedAt")
                         .HasColumnType("datetime(6)");
@@ -1221,6 +1406,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("VirtualAccountNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ApplicationId")
@@ -1236,6 +1425,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_Loans_Status");
+
+                    b.HasIndex("VirtualAccountNo")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Loans_VirtualAccountNo");
 
                     b.ToTable("Loans");
                 });
@@ -1405,6 +1598,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     b.Property<DateOnly>("DisbursementDate")
                         .HasColumnType("date");
+
+                    b.Property<string>("DisbursementMethod")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<int>("LoanId")
                         .HasColumnType("int");
@@ -2089,6 +2286,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Property<int>("CreatedByUserId")
                         .HasColumnType("int");
 
+                    b.Property<string>("ExternalReferenceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
                     b.Property<int>("LoanId")
                         .HasColumnType("int");
 
@@ -2108,6 +2309,10 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("ExternalReferenceId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Payments_ExternalReferenceId");
+
                     b.HasIndex("LoanId")
                         .HasDatabaseName("IX_Payments_LoanId");
 
@@ -2115,6 +2320,53 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .HasDatabaseName("IX_Payments_PaymentDate");
 
                     b.ToTable("Payments");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.PaymentAllocation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AllocatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("AllocationType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("LateFeeId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LoanTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PaymentId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ScheduleId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LateFeeId");
+
+                    b.HasIndex("LoanTransactionId")
+                        .HasDatabaseName("IX_PaymentAllocations_LoanTransactionId");
+
+                    b.HasIndex("PaymentId")
+                        .HasDatabaseName("IX_PaymentAllocations_PaymentId");
+
+                    b.HasIndex("ScheduleId");
+
+                    b.ToTable("PaymentAllocations");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.PendingApprovalRequest", b =>
@@ -2363,6 +2615,12 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<int?>("SourceLoanTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SourcePaymentId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -2373,7 +2631,34 @@ namespace LoanFlow.Infrastructure.Data.Migrations
 
                     b.HasIndex("LoanId");
 
+                    b.HasIndex("SourceLoanTransactionId");
+
+                    b.HasIndex("SourcePaymentId");
+
                     b.ToTable("SuspenseTransactions");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.SystemConfig", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("SystemConfigs");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.TransactionReversal", b =>
@@ -2750,6 +3035,17 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.EContract", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.Loan", "Loan")
+                        .WithMany()
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Loan");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.EkycVerification", b =>
@@ -3164,6 +3460,39 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                     b.Navigation("Loan");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.PaymentAllocation", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.LateFee", "LateFeeRef")
+                        .WithMany()
+                        .HasForeignKey("LateFeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("LoanFlow.Domain.Entities.LoanTransaction", "LoanTransaction")
+                        .WithMany()
+                        .HasForeignKey("LoanTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanFlow.Domain.Entities.Payment", "Payment")
+                        .WithMany()
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("LoanFlow.Domain.Entities.RepaymentSchedule", "Schedule")
+                        .WithMany()
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("LateFeeRef");
+
+                    b.Navigation("LoanTransaction");
+
+                    b.Navigation("Payment");
+
+                    b.Navigation("Schedule");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.PendingApprovalRequest", b =>
                 {
                     b.HasOne("LoanFlow.Domain.Entities.User", "ApprovedBy")
@@ -3232,9 +3561,23 @@ namespace LoanFlow.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("LoanFlow.Domain.Entities.LoanTransaction", "SourceLoanTransaction")
+                        .WithMany()
+                        .HasForeignKey("SourceLoanTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("LoanFlow.Domain.Entities.Payment", "SourcePayment")
+                        .WithMany()
+                        .HasForeignKey("SourcePaymentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("AppliedToSchedule");
 
                     b.Navigation("Loan");
+
+                    b.Navigation("SourceLoanTransaction");
+
+                    b.Navigation("SourcePayment");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.TransactionReversal", b =>

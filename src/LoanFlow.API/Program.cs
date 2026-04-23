@@ -289,7 +289,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", p =>
         p.WithOrigins(allowedOrigins)
          .AllowAnyHeader()
-         .AllowAnyMethod()));
+         .AllowAnyMethod()
+         .AllowCredentials()));   // BUG-001: Required for HttpOnly refreshToken cookie
 
 
 

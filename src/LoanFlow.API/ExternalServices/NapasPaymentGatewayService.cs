@@ -43,9 +43,6 @@ public class NapasPaymentGatewayService : IPaymentGatewayService
 
         try
         {
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", _apiKey);
-
             var payload = new
             {
                 bankCode,
@@ -55,9 +52,13 @@ public class NapasPaymentGatewayService : IPaymentGatewayService
                 referenceId = $"LF-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"
             };
 
-            var response = await _httpClient.PostAsync(
-                $"{_apiUrl}/transfers",
-                new StringContent(JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json"));
+            // BUG-002: Use per-request headers instead of DefaultRequestHeaders (thread-safe)
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{_apiUrl}/transfers");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+            request.Content = new StringContent(
+                JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {

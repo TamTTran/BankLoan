@@ -200,11 +200,12 @@ public class EndOfDayService : IEndOfDayService
 
         report.CompletedAt = _businessClock.UtcNow;
 
-        // EOD audit log
+        // EOD audit log — HIGH-002: Use correct action code for success vs failure
+        var auditAction = report.Errors > 0 ? "EodFailed" : AuditActions.EodCompleted;
         _db.AuditLogs.Add(new AuditLog
         {
             ActorUserId = userId,
-            ActionCode = AuditActions.EodCompleted,
+            ActionCode = auditAction,
             EntityType = "EOD",
             EntityId = 0,
             NewValuesJson = AuditHelper.ToJson(new
@@ -212,6 +213,7 @@ public class EndOfDayService : IEndOfDayService
                 businessDate = businessDate.ToString(),
                 duration = report.Duration.TotalSeconds,
                 errors = report.Errors,
+                status = report.Errors > 0 ? "Failed" : "Completed",
                 activeLoans = report.TotalActiveLoans,
                 overdueLoans = report.TotalOverdueLoans
             })

@@ -42,7 +42,7 @@ public class ApprovalFlowController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Roles = "Admin,Manager,Approver")]
     public async Task<IActionResult> GetPendingRequests()
     {
         var requests = await _service.GetPendingRequestsAsync();
@@ -50,7 +50,7 @@ public class ApprovalFlowController : ControllerBase
     }
 
     [HttpPost("{id}/approve")]
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Roles = "Admin,Manager,Approver")]
     public async Task<IActionResult> ApproveRequest(int id)
     {
         var checkerId = GetCurrentUserId();
@@ -61,7 +61,7 @@ public class ApprovalFlowController : ControllerBase
     }
 
     [HttpPost("{id}/reject")]
-    [Authorize(Roles = "Admin,Manager")]
+    [Authorize(Roles = "Admin,Manager,Approver")]
     public async Task<IActionResult> RejectRequest(int id, [FromBody] ProcessApprovalRequest request)
     {
         var checkerId = GetCurrentUserId();

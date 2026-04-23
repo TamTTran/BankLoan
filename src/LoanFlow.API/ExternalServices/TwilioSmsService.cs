@@ -39,8 +39,6 @@ public class TwilioSmsService : ISmsService
         try
         {
             var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_accountSid}:{_authToken}"));
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Basic", credentials);
 
             var payload = new Dictionary<string, string>
             {
@@ -50,7 +48,13 @@ public class TwilioSmsService : ISmsService
             };
 
             var url = $"https://api.twilio.com/2010-04-01/Accounts/{_accountSid}/Messages.json";
-            var response = await _httpClient.PostAsync(url, new FormUrlEncodedContent(payload));
+
+            // BUG-002: Use per-request headers instead of DefaultRequestHeaders (thread-safe)
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+            request.Content = new FormUrlEncodedContent(payload);
+
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {

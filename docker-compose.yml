@@ -66,11 +66,12 @@ services:
       Cors__AllowedOrigins__0: "${PUBLIC_APP_ORIGIN:-https://loanflow.local}"
       Webhook__Secret: "${WEBHOOK_SECRET:-SET_VIA_ENV_OR_USER_SECRETS}"
       Webhook__SystemActorUsername: "${WEBHOOK_SYSTEM_ACTOR_USERNAME:-system-webhook}"
-      ExternalServices__UseMockPaymentGateway: "${USE_MOCK_PAYMENT_GATEWAY:-false}"
-      ExternalServices__UseMockSms: "${USE_MOCK_SMS:-false}"
-      ExternalServices__UseMockCic: "${USE_MOCK_CIC:-false}"
-      ExternalServices__UseMockEkyc: "${USE_MOCK_EKYC:-false}"
-      ExternalServices__UseMockCertificateAuthority: "${USE_MOCK_CERTIFICATE_AUTHORITY:-false}"
+      # BUG-003: Default=true (safe mock) — production .env overrides to false
+      ExternalServices__UseMockPaymentGateway: "${USE_MOCK_PAYMENT_GATEWAY:-true}"
+      ExternalServices__UseMockSms: "${USE_MOCK_SMS:-true}"
+      ExternalServices__UseMockCic: "${USE_MOCK_CIC:-true}"
+      ExternalServices__UseMockEkyc: "${USE_MOCK_EKYC:-true}"
+      ExternalServices__UseMockCertificateAuthority: "${USE_MOCK_CERTIFICATE_AUTHORITY:-true}"
       ExternalServices__NapasApiUrl: "${NAPAS_API_URL:-SET_VIA_KEYVAULT}"
       ExternalServices__NapasApiKey: "${NAPAS_API_KEY:-SET_VIA_KEYVAULT}"
       ExternalServices__PcbApiUrl: "${PCB_API_URL:-SET_VIA_KEYVAULT}"
@@ -113,8 +114,9 @@ services:
         condition: service_healthy
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./certs:/etc/nginx/certs:ro  # C9: Mount certs for mTLS to API
+      - ./certs:/etc/nginx/certs:ro  # TLS for browser traffic and mTLS to API
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
       interval: 20s

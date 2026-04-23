@@ -223,7 +223,7 @@ public class ApprovalFlowService : IApprovalFlowService
                 payload => scope.ServiceProvider
                     .GetRequiredService<IAccountingPeriodService>()
                     .ReopenPeriodAsync(payload.Year, payload.Month, checkerUserId)),
-            _ => Result.Success()
+            _ => Result.Failure($"HIGH-005: Unknown approval action type '{req.ActionType}'. No handler registered.")
         };
     }
 

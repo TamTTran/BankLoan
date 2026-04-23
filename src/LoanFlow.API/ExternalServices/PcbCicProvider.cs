@@ -36,14 +36,15 @@ public class PcbCicProvider : ICicProvider
     {
         try
         {
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", _apiKey);
-
             var payload = new { idNumber, fullName };
 
-            var response = await _httpClient.PostAsync(
-                $"{_apiUrl}/inquiries",
-                new StringContent(JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json"));
+            // BUG-002: Use per-request headers instead of DefaultRequestHeaders (thread-safe)
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{_apiUrl}/inquiries");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+            request.Content = new StringContent(
+                JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {

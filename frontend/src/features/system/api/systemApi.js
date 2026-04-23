@@ -1,12 +1,22 @@
 import { httpClient } from '../../../shared/api/httpClient';
 
-export const systemApi = {
-  // EOD & Overdue Jobs
-  runEod: (dateStr) => httpClient('POST', `/jobs/eod${dateStr ? `?date=${dateStr}` : ''}`),
-  runOverdue: (dateStr) => httpClient('POST', `/jobs/overdue/run${dateStr ? `?date=${dateStr}` : ''}`),
+const withDateQuery = (path, dateStr) => {
+  if (!dateStr) return path;
+  return `${path}?date=${encodeURIComponent(dateStr)}`;
+};
 
-  // Approvals (Maker-Checker)
-  getApprovals: () => httpClient('GET', `/approvals`), // Assuming an endpoint exists or we mock it
-  applyApproval: (id) => httpClient('POST', `/adjustments/${id}/apply`),
-  decideApproval: (id, decision) => httpClient('POST', `/approvals/${id}/decide`, decision)
+export const systemApi = {
+  runEod: (dateStr) => httpClient('POST', withDateQuery('/jobs/eod', dateStr)),
+  runOverdue: (dateStr) => httpClient('POST', withDateQuery('/jobs/overdue/run', dateStr)),
+
+  getApprovals: () => httpClient('GET', '/approval-requests'),
+  approveApproval: (id) => httpClient('POST', `/approval-requests/${id}/approve`),
+  rejectApproval: (id, reason) =>
+    httpClient('POST', `/approval-requests/${id}/reject`, { reason: reason || 'Rejected from approval queue' }),
+  decideApproval: (id, decision, reason) => {
+    if (decision === 'Approve') {
+      return systemApi.approveApproval(id);
+    }
+    return systemApi.rejectApproval(id, reason);
+  },
 };

@@ -67,6 +67,8 @@ public static class DbSeeder
 
     private static async Task SeedGLAccountsAsync(LoanFlowDbContext db)
     {
+        if (await db.GLAccounts.AnyAsync()) return; // Already seeded — idempotent guard
+
         var accounts = new List<GLAccount>
         {
             new GLAccount { AccountCode = "1001", AccountName = "Cash in Bank", AccountType = GLAccountType.Asset },

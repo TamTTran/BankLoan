@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { useToast } from '../context/ToastContext';
@@ -8,59 +8,96 @@ import { formatDate } from '../utils/format';
 export default function Approvals() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [processingId, setProcessingId] = useState(null);
   const { toast } = useToast();
 
   const loadApprovals = async () => {
     setLoading(true);
+
     try {
       const res = await systemApi.getApprovals();
       setData(res?.items || []);
-    } catch {
-      // Mock data if backend is not fully ready for this endpoint yet
-      setData([
-        { id: 101, actionType: 'ManualAdjustment', payload: '{"amount": 5000, "reason":"Lỗi NV"}', status: 'Pending', requestedByUserName: 'nv.sale1', createdAt: new Date().toISOString() },
-        { id: 102, actionType: 'DisbursementCorrect', payload: '{"amount": 2000000}', status: 'Pending', requestedByUserName: 'nv.sale2', createdAt: new Date().toISOString() }
-      ]);
+    } catch (e) {
+      toast(e.message || 'Could not load approval requests', 'error');
+      setData([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { loadApprovals(); }, []);
+  useEffect(() => {
+    loadApprovals();
+  }, []);
 
   const handleDecide = async (id, decision) => {
+    setProcessingId(id);
+
     try {
-      // Simulate backend call
-      // await systemApi.decideApproval(id, { decision, reason: 'OK' });
-      toast(`Duyệt yêu cầu #${id} thành công!`, 'success');
-      setData(prev => prev.filter(x => x.id !== id));
+      await systemApi.decideApproval(id, decision, 'Processed from approval queue');
+      toast(`${decision === 'Approve' ? 'Approved' : 'Rejected'} request #${id}.`, 'success');
+      setData((prev) => prev.filter((x) => x.id !== id));
     } catch (e) {
-      toast('Lỗi duyệt yêu cầu', 'error');
+      toast(e.message || 'Approval action failed', 'error');
+    } finally {
+      setProcessingId(null);
     }
   };
 
   return (
     <div className="page">
-      <div className="page-header"><h2>✅ Bàn làm việc (Phê Duyệt)</h2></div>
+      <div className="page-header">
+        <h2>Approval Queue</h2>
+      </div>
       <Card>
         <table className="data-table">
           <thead>
-            <tr><th>Mã YC</th><th>Loại nghiệp vụ</th><th>Chi tiết</th><th>Người YC</th><th>Ngày YC</th><th>Thao tác</th></tr>
+            <tr>
+              <th>Request ID</th>
+              <th>Action</th>
+              <th>Payload</th>
+              <th>Requested By</th>
+              <th>Requested At</th>
+              <th>Actions</th>
+            </tr>
           </thead>
           <tbody>
-            {loading ? <tr><td colSpan={6}><div className="loading-shimmer"/></td></tr> :
-            !data.length ? <tr><td colSpan={6} className="empty-row">Không có yêu cầu chờ duyệt</td></tr> :
-            data.map(r => (
-              <tr key={r.id}>
-                <td><strong>#{r.id}</strong></td>
-                <td><span className="code-badge">{r.actionType}</span></td>
-                <td><pre style={{margin:0, fontSize:'0.75rem', background:'#f4f4f4', padding:4}}>{r.payload}</pre></td>
-                <td>{r.requestedByUserName}</td>
-                <td>{formatDate(r.createdAt)}</td>
+            {loading ? (
+              <tr>
+                <td colSpan={6}><div className="loading-shimmer" /></td>
+              </tr>
+            ) : !data.length ? (
+              <tr>
+                <td colSpan={6} className="empty-row">No pending approval requests</td>
+              </tr>
+            ) : data.map((request) => (
+              <tr key={request.id}>
+                <td><strong>#{request.id}</strong></td>
+                <td><span className="code-badge">{request.actionType}</span></td>
+                <td>
+                  <pre style={{ margin: 0, fontSize: '0.75rem', background: '#f4f4f4', padding: 4 }}>
+                    {request.payload}
+                  </pre>
+                </td>
+                <td>{request.requestedByUserName}</td>
+                <td>{formatDate(request.createdAt)}</td>
                 <td>
                   <div className="action-btns">
-                    <Button size="sm" variant="success" onClick={() => handleDecide(r.id, 'Approve')}>Duyệt</Button>
-                    <Button size="sm" variant="danger" onClick={() => handleDecide(r.id, 'Reject')}>Từ chối</Button>
+                    <Button
+                      size="sm"
+                      variant="success"
+                      onClick={() => handleDecide(request.id, 'Approve')}
+                      disabled={processingId !== null}
+                    >
+                      {processingId === request.id ? 'Working...' : 'Approve'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => handleDecide(request.id, 'Reject')}
+                      disabled={processingId !== null}
+                    >
+                      Reject
+                    </Button>
                   </div>
                 </td>
               </tr>

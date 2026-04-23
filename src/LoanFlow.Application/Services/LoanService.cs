@@ -447,6 +447,12 @@ public class LoanService : ILoanService
         var lateFeeDue = loan.LateFees.Where(f => f.Status == LateFeeStatus.Pending).Sum(f => f.FeeAmount);
         var totalDue = scheduleDue + lateFeeDue;
 
+        // HIGH-001: Cap overpayment to prevent teller typo creating massive suspense
+        // Allow up to 200% of total due (supports advance payments), minimum floor 10M VND
+        var maxAllowed = Math.Max(totalDue * 2m, 10_000_000m);
+        if (req.Amount > maxAllowed && totalDue > 0)
+            return Result.Failure($"PAY-VAL-004: Amount ({req.Amount:N0}) exceeds maximum allowed ({maxAllowed:N0}). Use Early Settlement for full payoff.");
+
         // §13.6 Payment allocation: LateFee → Interest → Principal
         var remaining = req.Amount; // Unallocated cash pool
         decimal totalLateFeeToPay = 0;
