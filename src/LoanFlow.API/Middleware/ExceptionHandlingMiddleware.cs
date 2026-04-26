@@ -2,6 +2,11 @@ using LoanFlow.Application.Common;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 
+// NOTE: DomainValidationException is safe to expose to clients.
+// Raw InvalidOperationException / ArgumentException from framework code
+// (EF Core, JSON serializer, etc.) now fall through to the 500 handler
+// to avoid leaking internal implementation details.
+
 namespace LoanFlow.API.Middleware;
 
 public class ExceptionHandlingMiddleware
@@ -65,14 +70,14 @@ public class ExceptionHandlingMiddleware
                 : "concurrency";
             problemDetails.Extensions["suggestedAction"] = "Reload the latest state and retry the request.";
         }
-        else if (ex is InvalidOperationException || ex is ArgumentException)
+        else if (ex is DomainValidationException)
         {
             statusCode = StatusCodes.Status400BadRequest;
             errorCode = "VAL_ERR_400";
             problemDetails.Status = statusCode;
             problemDetails.Title = "Bad Request";
             problemDetails.Type = "https://datatracker.ietf.org/doc/html/rfc7231#section-6.5.1";
-            problemDetails.Detail = ex.Message; // Safe to expose domain validation messages to client
+            problemDetails.Detail = ex.Message; // DomainValidationException messages are explicitly safe to expose
         }
         else if (ex is UnauthorizedAccessException)
         {

@@ -136,7 +136,7 @@ public class AccountingService : IAccountingService
                 "ProcessingFee" => isDebit ? "1001" : "4003",
                 "LateFee_Accrual" => isDebit ? "1303" : "4002",
                 "LateFee_Waiver" => isDebit ? "4002" : "1303",
-                _ => throw new InvalidOperationException($"No GLAccountMapping found for TransactionType: {transactionType}")
+                _ => throw new DomainValidationException($"No GLAccountMapping found for TransactionType: {transactionType}")
             };
         }
 

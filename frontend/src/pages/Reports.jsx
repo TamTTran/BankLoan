@@ -1,20 +1,24 @@
 import { useState, useEffect } from 'react';
 import { reportsApi } from '../features/reports/api/reportsApi';
+import { useToast } from '../context/ToastContext';
 
 const TABS = [
   { key: 'portfolio', label: '📊 Danh mục', icon: '📊' },
   { key: 'overdue', label: '📈 Biến động quá hạn', icon: '📈' },
   { key: 'productivity', label: '👥 Hiệu suất thu hồi', icon: '👥' },
   { key: 'approval', label: '✅ Hàng đợi duyệt', icon: '✅' },
+  { key: 'reconciliation', label: '🔄 Lệch sổ (Reconciliation)', icon: '🔄' },
 ];
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
 const pct = (n) => `${Number(n || 0).toFixed(1)}%`;
 
 export default function Reports() {
+  const { toast } = useToast();
   const [tab, setTab] = useState('portfolio');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [resolvingId, setResolvingId] = useState(null);
   const [dateRange, setDateRange] = useState({
     from: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
     to: new Date().toISOString().split('T')[0]
@@ -29,6 +33,12 @@ export default function Reports() {
           case 'overdue': setData(await reportsApi.getOverdueMovement(dateRange.from, dateRange.to)); break;
           case 'productivity': setData(await reportsApi.getCollectionProductivity(dateRange.from, dateRange.to)); break;
           case 'approval': setData(await reportsApi.getApprovalQueue()); break;
+          case 'reconciliation': {
+            // httpClient already unwraps { success, data } — no need to do res.data
+            const recon = await reportsApi.getReconciliationExceptions('');
+            setData(recon);
+            break;
+          }
         }
       } catch (e) { console.error(e); }
       setLoading(false);
@@ -181,6 +191,71 @@ export default function Reports() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Reconciliation Exceptions Report */}
+      {tab === 'reconciliation' && data && (
+        <div>
+          <div className="kpi-grid" style={{ marginBottom: '2rem' }}>
+            <div className="kpi-card kpi-red"><div className="kpi-value">{data.totalCount || 0}</div><div className="kpi-label">Tổng lỗi Lệch sổ</div></div>
+          </div>
+          <div className="table-shell">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Mã khoản vay</th>
+                  <th>Loại lỗi</th>
+                  <th>Khoản lệch</th>
+                  <th>Chi tiết</th>
+                  <th>Trạng thái</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!data.items || data.items.length === 0 ? (
+                  <tr><td colSpan={6} className="empty-row"><div className="empty-state">✅ Không có lỗi lệch sổ nào</div></td></tr>
+                ) : (
+                  data.items.map(ex => (
+                    <tr key={ex.id}>
+                      <td>{ex.loanAccountNo || ex.loanId}</td>
+                      <td><span className="code-badge">{ex.exceptionType}</span></td>
+                      <td className="text-right" style={{ color: 'var(--red)', fontWeight: 'bold' }}>{fmt(ex.discrepancyAmount)}</td>
+                      <td><span className="cell-sub">{ex.description}</span></td>
+                      <td>{ex.status === 'Resolved' ? <span style={{ color: 'var(--green)' }}>Đã xử lý</span> : <span style={{ color: 'var(--red)' }}>Đang chờ</span>}</td>
+                      <td>
+                        {ex.status !== 'Resolved' && (
+                          <button 
+                            className="btn btn-primary" 
+                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem' }}
+                            disabled={resolvingId === ex.id}
+                            onClick={async () => {
+                              const reason = window.prompt('Nhập lý do / hướng xử lý:');
+                              if (!reason?.trim()) return;
+                              setResolvingId(ex.id);
+                              try {
+                                await reportsApi.resolveReconciliationException(ex.id, { resolutionMethod: 'ManualAdjust', remarks: reason.trim() });
+                                toast('Đã xử lý thành công!', 'success');
+                                // Refresh the reconciliation list
+                                const recon = await reportsApi.getReconciliationExceptions('');
+                                setData(recon);
+                              } catch (e) {
+                                toast('Lỗi: ' + (e.message || 'Có lỗi xảy ra'), 'error');
+                              } finally {
+                                setResolvingId(null);
+                              }
+                            }}
+                          >
+                            {resolvingId === ex.id ? 'Đang xử lý...' : 'Xử lý (Resolve)'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

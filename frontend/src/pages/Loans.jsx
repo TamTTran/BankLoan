@@ -11,10 +11,12 @@ import { LoanDetailModal } from '../features/loans/components/LoanDetailModal';
 import { DisburseModal } from '../features/loans/components/DisburseModal';
 import { PaymentModal } from '../features/loans/components/PaymentModal';
 import { EContractModal } from '../features/loans/components/EContractModal';
+import { EarlySettleModal } from '../features/loans/components/EarlySettleModal';
 import { useLoans } from '../features/loans/hooks/useLoans';
 
 export default function Loans() {
   const { can } = useAuth();
+  const { toast } = useToast();
   
   const { data, page, setPage, search, setSearch, status, setStatus, loading, doSearch, refresh } = useLoans();
 
@@ -22,6 +24,7 @@ export default function Loans() {
   const [disburseId, setDisburseId] = useState(null);
   const [paymentId, setPaymentId]   = useState(null);
   const [contractId, setContractId] = useState(null);
+  const [earlySettleId, setEarlySettleId] = useState(null);
 
   const handleTestWebhook = async (vaNumber) => {
     try {
@@ -95,6 +98,7 @@ export default function Loans() {
                       {l.status==='PendingDisbursement' && can.disburse     && <Button size="sm" variant="outline" onClick={()=>setContractId(l.id)}>✍️ Ký HĐ</Button>}
                       {l.status==='PendingDisbursement' && can.disburse     && <Button size="sm" variant="primary" onClick={()=>setDisburseId(l.id)}>💵 Giải ngân</Button>}
                       {l.status==='Active'              && can.recordPayment && <Button size="sm" variant="success" onClick={()=>setPaymentId(l.id)}>💰 Thu tiền</Button>}
+                      {l.status==='Active'              && can.recordPayment && <Button size="sm" variant="danger" onClick={()=>setEarlySettleId(l.id)}>💳 Tất toán</Button>}
                       {(l.status==='Active' || l.status==='Overdue') && l.virtualAccountNo && (
                          <Button size="sm" variant="outline" onClick={()=>handleTestWebhook(l.virtualAccountNo)} title="Giả lập KH chuyển khoản qua Webhook" style={{borderColor: 'var(--green)', color: 'var(--green)'}}>🏦 Test Webhook</Button>
                       )}
@@ -112,6 +116,7 @@ export default function Loans() {
       {contractId && <EContractModal   loanId={contractId} onClose={()=>setContractId(null)} onDone={()=>{setContractId(null);refresh();}}/>}
       {disburseId && <DisburseModal    loanId={disburseId} onClose={()=>setDisburseId(null)} onDone={()=>{setDisburseId(null);refresh();}}/>}
       {paymentId  && <PaymentModal     loanId={paymentId}  onClose={()=>setPaymentId(null)}  onDone={()=>{setPaymentId(null);refresh();}}/>}
+      {earlySettleId && <EarlySettleModal loanId={earlySettleId} onClose={()=>setEarlySettleId(null)} onDone={()=>{setEarlySettleId(null);refresh();}}/>}
     </div>
   );
 }

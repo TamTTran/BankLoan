@@ -135,7 +135,7 @@ public class LateFeeService : ILateFeeService
                 
                 if (!journalResult.IsSuccess)
                 {
-                    throw new InvalidOperationException($"Failed to post Late Fee Journal: {journalResult.Error}");
+                    throw new DomainValidationException($"Failed to post Late Fee Journal: {journalResult.Error}");
                 }
             }
         }
@@ -181,7 +181,7 @@ public class LateFeeService : ILateFeeService
 
         if (!journalResult.IsSuccess)
         {
-            throw new InvalidOperationException($"Failed to post Late Fee Waiver Journal: {journalResult.Error}");
+            throw new DomainValidationException($"Failed to post Late Fee Waiver Journal: {journalResult.Error}");
         }
 
         await SaveChangesWithConcurrencyHandlingAsync();

@@ -181,11 +181,24 @@ public class LoanService : ILoanService
             EntityId = 0, // will be updated after save
             NewValuesJson = AuditHelper.ToJson(new { loanAccountNo = loanNo, applicationId })
         });
-        await _db.SaveChangesAsync(); // single roundtrip — EF resolves loan.Id
-        
-        // Phase 4: Generate Virtual Account Number
-        loan.VirtualAccountNo = $"VA{loan.Id:D8}";
-        await _db.SaveChangesAsync();
+
+        // Wrap both saves in a transaction so a loan never exists without its VirtualAccountNo
+        await using var tx = await _db.Database.BeginTransactionAsync();
+        try
+        {
+            await _db.SaveChangesAsync(); // single roundtrip — EF resolves loan.Id
+
+            // Phase 4: Generate Virtual Account Number (requires loan.Id)
+            loan.VirtualAccountNo = $"VA{loan.Id:D8}";
+            await _db.SaveChangesAsync();
+
+            await tx.CommitAsync();
+        }
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
 
         return await GetByIdAsync(loan.Id);
     }
@@ -195,7 +208,7 @@ public class LoanService : ILoanService
         var eodRunning = await _db.SystemConfigs.FirstOrDefaultAsync(s => s.Key == "IsEodRunning");
         if (eodRunning != null && eodRunning.Value == "true")
         {
-            throw new InvalidOperationException("Hệ thống đang chạy Back-end cuối ngày (EOD). Không thể xử lý giao dịch lúc này.");
+            throw new DomainValidationException("Hệ thống đang chạy Back-end cuối ngày (EOD). Không thể xử lý giao dịch lúc này.");
         }
     }
 
@@ -206,7 +219,7 @@ public class LoanService : ILoanService
         {
             await EnsureSystemNotLockedAsync();
         }
-        catch (InvalidOperationException ex)
+        catch (DomainValidationException ex)
         {
             return Result.Failure<LoanDto>(ex.Message);
         }
@@ -411,7 +424,7 @@ public class LoanService : ILoanService
         {
             await EnsureSystemNotLockedAsync();
         }
-        catch (InvalidOperationException ex)
+        catch (DomainValidationException ex)
         {
             return Result.Failure(ex.Message);
         }
@@ -660,7 +673,7 @@ public class LoanService : ILoanService
         if (!journalResult.IsSuccess)
         {
             await tx.RollbackAsync();
-            throw new InvalidOperationException($"Accounting failed: {journalResult.Error}");
+            throw new DomainValidationException($"Accounting failed: {journalResult.Error}");
         }
 
         // Wave 4 / CF4: Update Suspense vs Advance Payment rule
@@ -846,7 +859,7 @@ public class LoanService : ILoanService
         {
             await EnsureSystemNotLockedAsync();
         }
-        catch (InvalidOperationException ex)
+        catch (DomainValidationException ex)
         {
             return Result.Failure(ex.Message);
         }
@@ -957,7 +970,7 @@ public class LoanService : ILoanService
         if (!journalResult.IsSuccess)
         {
             await tx.RollbackAsync();
-            throw new InvalidOperationException($"Accounting failed: {journalResult.Error}");
+            throw new DomainValidationException($"Accounting failed: {journalResult.Error}");
         }
 
         await SaveChangesWithConcurrencyHandlingAsync("Loan was modified while settling early. Reload and retry.");

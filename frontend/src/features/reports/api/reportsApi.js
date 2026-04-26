@@ -9,4 +9,8 @@ export const reportsApi = {
     httpClient('GET', `/reports/collection-productivity?from=${from}&to=${to}`),
   getApprovalQueue: () =>
     httpClient('GET', '/reports/approval-queue'),
+  getReconciliationExceptions: (status = '', page = 1) =>
+    httpClient('GET', `/reconciliation/exceptions?status=${status}&page=${page}`),
+  resolveReconciliationException: (id, payload) =>
+    httpClient('POST', `/reconciliation/exceptions/${id}/resolve`, payload),
 };

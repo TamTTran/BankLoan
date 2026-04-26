@@ -5,8 +5,10 @@ import { formatCurrency, formatDate, formatPercent } from '../../../utils/format
 import { StatusBadge } from '../../../components/Badge';
 import Modal from '../../../components/Modal';
 import { Button } from '../../../components/ui/Button';
+import { useToast } from '../../../context/ToastContext';
 
 export function LoanDetailModal({ loanId, onClose }) {
+  const { toast } = useToast();
   const [loan, setLoan]         = useState(null);
   const [schedule, setSchedule] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -21,6 +23,19 @@ export function LoanDetailModal({ loanId, onClose }) {
         setPayments(Array.isArray(p) ? p : p?.payments || []);
       }).catch(console.error).finally(() => setLoading(false));
   }, [loanId]);
+
+  const handleAction = async (actionFn, title, promptText) => {
+    const reason = prompt(promptText || `Nhập lý do cho nghiệp vụ ${title}:`);
+    if (reason === null) return;
+    if (!reason.trim()) { toast('Vui lòng nhập lý do.', 'error'); return; }
+    try {
+      await actionFn(loanId, { reason, remarks: reason });
+      toast(`Đã gửi yêu cầu ${title} thành công! Đang chờ phê duyệt.`, 'success');
+      onClose();
+    } catch (e) {
+      toast(`Lỗi khi ${title}: ` + (e.message || 'Có lỗi xảy ra'), 'error');
+    }
+  };
 
   const outstanding = loan?.outstandingAmount ?? loan?.approvedAmount;
   const progress    = loan?.approvedAmount ? Math.round((1 - outstanding/loan.approvedAmount)*100) : 0;
@@ -103,13 +118,13 @@ export function LoanDetailModal({ loanId, onClose }) {
       {tab === 'ops' && (
         <div className="modal-tab-content" style={{padding:'20px'}}>
           <div style={{ display:'flex', gap:'10px', flexWrap:'wrap' }}>
-            <Button variant="outline" onClick={() => alert('Restructure Modal')}>🔄 Cơ cấu lại nợ (Restructure)</Button>
-            <Button variant="outline" onClick={() => alert('Reschedule Modal')}>📅 Dời ngày (Reschedule)</Button>
-            <Button variant="outline" onClick={() => alert('Manual Adjustment')}>📝 Sửa tiền / Miễn giảm (Maker-Checker)</Button>
-            <Button variant="danger" onClick={() => alert('Write-off')}>🗑 Xóa Nợ (Write-off)</Button>
+            <Button variant="outline" onClick={() => handleAction(loanApi.restructure, 'Cơ cấu lại nợ')}>🔄 Cơ cấu lại nợ (Restructure)</Button>
+            <Button variant="outline" onClick={() => handleAction(loanApi.reschedule, 'Dời ngày')}>📅 Dời ngày (Reschedule)</Button>
+            <Button variant="outline" onClick={() => handleAction(loanApi.manualAdjustment, 'Sửa tiền/Miễn giảm')}>📝 Sửa tiền / Miễn giảm (Maker-Checker)</Button>
+            <Button variant="danger" onClick={() => handleAction(loanApi.writeOff, 'Xóa Nợ')}>🗑 Xóa Nợ (Write-off)</Button>
           </div>
           <div style={{ marginTop: '20px', padding: '15px', background: 'var(--bg-card)', borderRadius: '8px', fontSize: '0.85rem' }}>
-            <strong>💡 Hướng dẫn:</strong> Chức năng Cơ cấu lại nợ và Tiễn giảm yêu cầu sự phê duyệt của cấp Quản lý. Các giao dịch này sẽ bay thẳng vào mục phê duyệt. (Tính năng đang chờ kết nối Modal với API).
+            <strong>💡 Hướng dẫn:</strong> Các nghiệp vụ này yêu cầu sự phê duyệt của cấp Quản lý (Maker-Checker). Yêu cầu sẽ bay thẳng vào mục <b>Hàng đợi phê duyệt</b> để quản lý xem xét trước khi có hiệu lực.
           </div>
         </div>
       )}

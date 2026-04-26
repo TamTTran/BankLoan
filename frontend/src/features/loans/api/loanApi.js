@@ -8,6 +8,8 @@ export const loanApi = {
   schedule: (id) => httpClient('GET', `/loans/${id}/schedule`),
   payments: (id) => httpClient('GET', `/loans/${id}/payments`),
   pay: (id, body) => httpClient('POST', `/loans/${id}/payments`, body),
+  previewEarlySettle: (id, date) => httpClient('GET', `/loans/${id}/early-settle-preview?settlementDate=${date}`),
+  earlySettle: (id, body) => httpClient('POST', `/loans/${id}/early-settle`, body),
   addNote: (id, body) => httpClient('POST', `/loans/${id}/collection-notes`, body),
   overdue: () => httpClient('GET', '/overdue'),
   
@@ -17,6 +19,6 @@ export const loanApi = {
   writeOff: (id, body) => httpClient('POST', `/advanced-loans/${id}/write-off`, body),
   
   // Adjustments & Corrections (Maker-Checker)
-  manualAdjustment: (body) => httpClient('POST', `/adjustments/manual-adjustment`, body),
+  manualAdjustment: (id, body) => httpClient('POST', `/adjustments/manual-adjustment`, { loanId: id, ...body }),
   disbursementCorrection: (body) => httpClient('POST', `/adjustments/disbursement-correction`, body)
 };
