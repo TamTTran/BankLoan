@@ -19,6 +19,14 @@ public class Customer
     public int AssignedToUserId { get; set; }             // nhân viên đang phụ trách
     public int? BranchId { get; set; }                    // chi nhánh quản lý
     public decimal? MonthlyIncome { get; set; }           // VND — phục vụ tính toán DTI
+
+    // ── Nâng cao (Module 2: Báo cáo NHNN) ──────────────────────────────────
+    public string? IndustryCode { get; set; }             // Mã ngành kinh tế (VSIC)
+    public string? RegionCode { get; set; }               // Mã vùng (Tỉnh/Thành phố)
+    public string CustomerType { get; set; } = "Individual"; // Individual | Corporate
+    public string? TaxCode { get; set; }                  // Mã số thuế
+    public string? BusinessRegNo { get; set; }            // Giấy chứng nhận ĐKKD (nếu là Corporate)
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

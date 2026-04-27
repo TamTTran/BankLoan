@@ -301,6 +301,11 @@ public class AuthService : IAuthService
 
     private async Task<Result<LoginResponse>> GenerateAuthResponseAsync(User user, string? deviceId, string? deviceName)
     {
+        // Load permissions for user role
+        var permissions = await _db.RolePermissions
+            .Where(rp => rp.RoleCode == user.Role)
+            .Select(rp => rp.PermissionCode)
+            .ToListAsync();
         var dId = string.IsNullOrWhiteSpace(deviceId) ? Guid.NewGuid().ToString() : deviceId;
         var dName = string.IsNullOrWhiteSpace(deviceName) ? "Unknown Device" : deviceName;
 
@@ -322,7 +327,7 @@ public class AuthService : IAuthService
         var tokenHash = ComputeSha256Hash(plainToken);
 
         var lifetimeMinutes = int.TryParse(_config["Jwt:TokenLifetimeMinutes"], out var parsed) ? parsed : 60;
-        var accessToken = GenerateJwtToken(user, lifetimeMinutes);
+        var accessToken = GenerateJwtToken(user, lifetimeMinutes, permissions);
 
         var refreshTokenEntity = new RefreshToken
         {
@@ -341,18 +346,19 @@ public class AuthService : IAuthService
         return Result.Success(new LoginResponse(accessToken, plainToken, user.Username, user.FullName, user.Role, user.Id, expiresAt));
     }
 
-    private string GenerateJwtToken(User user, int lifetimeMinutes)
+    private string GenerateJwtToken(User user, int lifetimeMinutes, List<string> permissions)
     {
         var jwtKey = _config["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(ClaimTypes.Role, user.Role),
             new Claim("fullName", user.FullName),
+            new Claim("permissions", string.Join(",", permissions))
         };
 
         var token = new JwtSecurityToken(

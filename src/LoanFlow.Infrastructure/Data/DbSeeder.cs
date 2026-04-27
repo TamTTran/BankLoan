@@ -13,6 +13,7 @@ public static class DbSeeder
 
         await SeedGLAccountsAsync(db);
         await SeedGLAccountMappingsAsync(db);
+        await SeedPermissionsAsync(db);
 
         // Phase 4: Seed branches first (users reference them)
         var branches = await SeedBranchesAsync(db);
@@ -63,6 +64,50 @@ public static class DbSeeder
             });
             await db.SaveChangesAsync();
         }
+    }
+
+    private static async Task SeedPermissionsAsync(LoanFlowDbContext db)
+    {
+        if (await db.Permissions.AnyAsync()) return;
+
+        var permissions = new[]
+        {
+            new Permission { Code = "LOAN_VIEW", Name = "View Loans", Module = "Loans" },
+            new Permission { Code = "LOAN_CREATE", Name = "Create Loans", Module = "Loans" },
+            new Permission { Code = "LOAN_APPROVE", Name = "Approve Loans", Module = "Loans" },
+            new Permission { Code = "CUSTOMER_VIEW", Name = "View Customers", Module = "Customers" },
+            new Permission { Code = "CUSTOMER_CREATE", Name = "Create Customers", Module = "Customers" },
+            new Permission { Code = "REPORT_VIEW", Name = "View Reports", Module = "Reports" },
+            new Permission { Code = "USER_MANAGE", Name = "Manage Users", Module = "Admin" }
+        };
+
+        db.Permissions.AddRange(permissions);
+
+        var rolePermissions = new List<RolePermission>();
+
+        // Admin gets everything
+        foreach (var p in permissions)
+        {
+            rolePermissions.Add(new RolePermission { RoleCode = "Admin", PermissionCode = p.Code });
+        }
+
+        // Loan Officer
+        rolePermissions.Add(new RolePermission { RoleCode = "LoanOfficer", PermissionCode = "LOAN_VIEW" });
+        rolePermissions.Add(new RolePermission { RoleCode = "LoanOfficer", PermissionCode = "LOAN_CREATE" });
+        rolePermissions.Add(new RolePermission { RoleCode = "LoanOfficer", PermissionCode = "CUSTOMER_VIEW" });
+        rolePermissions.Add(new RolePermission { RoleCode = "LoanOfficer", PermissionCode = "CUSTOMER_CREATE" });
+
+        // Approver / Manager
+        rolePermissions.Add(new RolePermission { RoleCode = "Approver", PermissionCode = "LOAN_VIEW" });
+        rolePermissions.Add(new RolePermission { RoleCode = "Approver", PermissionCode = "LOAN_APPROVE" });
+        rolePermissions.Add(new RolePermission { RoleCode = "Approver", PermissionCode = "CUSTOMER_VIEW" });
+        
+        rolePermissions.Add(new RolePermission { RoleCode = "Manager", PermissionCode = "LOAN_VIEW" });
+        rolePermissions.Add(new RolePermission { RoleCode = "Manager", PermissionCode = "LOAN_APPROVE" });
+        rolePermissions.Add(new RolePermission { RoleCode = "Manager", PermissionCode = "REPORT_VIEW" });
+
+        db.RolePermissions.AddRange(rolePermissions);
+        await db.SaveChangesAsync();
     }
 
     private static async Task SeedGLAccountsAsync(LoanFlowDbContext db)

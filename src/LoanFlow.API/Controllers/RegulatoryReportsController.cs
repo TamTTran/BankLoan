@@ -11,9 +11,21 @@ namespace LoanFlow.API.Controllers;
 public class RegulatoryReportsController : ControllerBase
 {
     private readonly IRegulatoryReportingService _regService;
+    private readonly ICapitalAdequacyService _carService;
+    private readonly ILiquidityReportService _liquidityService;
+    private readonly IInterestRateReportService _interestRateService;
 
-    public RegulatoryReportsController(IRegulatoryReportingService regService)
-        => _regService = regService;
+    public RegulatoryReportsController(
+        IRegulatoryReportingService regService,
+        ICapitalAdequacyService carService,
+        ILiquidityReportService liquidityService,
+        IInterestRateReportService interestRateService)
+    {
+        _regService = regService;
+        _carService = carService;
+        _liquidityService = liquidityService;
+        _interestRateService = interestRateService;
+    }
 
     /// <summary>NHNN Classification Report (Thông tư 02/2013)</summary>
     [HttpGet("nhnn-classification")]
@@ -57,6 +69,29 @@ public class RegulatoryReportsController : ControllerBase
             return File(Encoding.UTF8.GetBytes(csv), "text/csv", $"cic-periodic-{year}{month:D2}.csv");
         }
 
+        return Ok(report);
+    }
+
+    [HttpGet("car")]
+    public async Task<IActionResult> CarReport([FromQuery] int year, [FromQuery] int month)
+    {
+        var report = await _carService.CalculateCarAsync(year, month);
+        return Ok(report);
+    }
+
+    /// <summary>Liquidity Report (LCR & NSFR)</summary>
+    [HttpGet("liquidity")]
+    public async Task<IActionResult> LiquidityReport([FromQuery] int year, [FromQuery] int month)
+    {
+        var report = await _liquidityService.GenerateReportAsync(year, month);
+        return Ok(report);
+    }
+
+    /// <summary>Interest Rate Report</summary>
+    [HttpGet("interest-rate")]
+    public async Task<IActionResult> InterestRateReport([FromQuery] int year, [FromQuery] int month)
+    {
+        var report = await _interestRateService.GenerateReportAsync(year, month);
         return Ok(report);
     }
 }

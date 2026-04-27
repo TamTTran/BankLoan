@@ -74,9 +74,15 @@ if (string.IsNullOrWhiteSpace(jwtAudience))
 
 ValidateProductionConfiguration(builder);
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<LoanFlow.Infrastructure.Data.AuditLogInterceptor>();
+
 // === Database ===
-builder.Services.AddDbContext<LoanFlowDbContext>(options =>
-    options.UseMySql(connString, ServerVersion.AutoDetect(connString)));
+builder.Services.AddDbContext<LoanFlowDbContext>((sp, options) =>
+{
+    options.UseMySql(connString, ServerVersion.AutoDetect(connString));
+    options.AddInterceptors(sp.GetRequiredService<LoanFlow.Infrastructure.Data.AuditLogInterceptor>());
+});
 
 builder.Services.Configure<BusinessDateOptions>(builder.Configuration.GetSection("BusinessDate"));
 builder.Services.AddSingleton<IBusinessCalendarService, BusinessCalendarService>();
@@ -147,6 +153,9 @@ builder.Services.AddScoped<ITotpService, TotpService>();
 builder.Services.AddScoped<INplReportingService, NplReportingService>();
 builder.Services.AddScoped<IAccountingPeriodService, AccountingPeriodService>();
 builder.Services.AddScoped<IRegulatoryReportingService, RegulatoryReportingService>();
+builder.Services.AddScoped<ICapitalAdequacyService, CapitalAdequacyService>();
+builder.Services.AddScoped<ILiquidityReportService, LiquidityReportService>();
+builder.Services.AddScoped<IInterestRateReportService, InterestRateReportService>();
 if (extSvc.GetValue<bool>("UseMockCic", defaultValue: true))
     builder.Services.AddScoped<ICicProvider, LoanFlow.API.ExternalServices.MockCicProvider>();
 else
@@ -320,6 +329,7 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<BranchFilterMiddleware>();
 app.UseAuthorization();
+app.UseMiddleware<LoanFlow.API.Middleware.DataMaskingMiddleware>();
 app.MapControllers();
 
 // Health endpoint for Docker / load-balancer probes (no auth required)

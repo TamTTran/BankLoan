@@ -15,6 +15,19 @@ public class NhnnClassificationReportDto
     public List<NhnnClassificationRow> Rows { get; set; } = [];
     public decimal TotalOutstanding { get; set; }
     public decimal TotalProvision { get; set; }
+    // Biểu 1A: Chi tiết
+    public List<NhnnClassificationDetailRow> Details { get; set; } = [];
+}
+
+public class NhnnClassificationDetailRow
+{
+    public string LoanAccountNo { get; set; } = "";
+    public string CustomerName { get; set; } = "";
+    public string CustomerIdNumber { get; set; } = "";
+    public int Group { get; set; }
+    public decimal OutstandingBalance { get; set; }
+    public decimal RequiredProvision { get; set; }
+    public decimal ActualProvision { get; set; }
 }
 
 public class NhnnClassificationRow
@@ -73,6 +86,9 @@ public class CicLoanRecord
     public int Dpd { get; set; }
     public DateOnly? DisbursementDate { get; set; }
     public DateOnly? MaturityDate { get; set; }
+    public string? IndustryCode { get; set; }
+    public string? RegionCode { get; set; }
+    public string? PurposeCode { get; set; }
 }
 
 // ── Interface ───────────────────────────────────────────────────────────────
@@ -103,8 +119,8 @@ public class RegulatoryReportingService : IRegulatoryReportingService
     public async Task<NhnnClassificationReportDto> GenerateNhnnClassificationReportAsync(int year, int month)
     {
         var loans = await _db.Loans
+            .Include(l => l.Customer)
             .Where(l => l.Status == LoanStatus.Active || l.Status == LoanStatus.Overdue || l.Status == LoanStatus.Restructured)
-            .Select(l => new { l.CurrentClassification, l.OutstandingAmount, l.ProvisionAmount })
             .ToListAsync();
 
         var rows = Enumerable.Range(1, 5).Select(g =>
@@ -128,10 +144,22 @@ public class RegulatoryReportingService : IRegulatoryReportingService
             };
         }).ToList();
 
+        var details = loans.Select(l => new NhnnClassificationDetailRow
+        {
+            LoanAccountNo = l.LoanAccountNo,
+            CustomerName = l.Customer.FullName,
+            CustomerIdNumber = l.Customer.IdNumber,
+            Group = l.CurrentClassification,
+            OutstandingBalance = l.OutstandingAmount,
+            ActualProvision = l.ProvisionAmount,
+            RequiredProvision = Math.Round(l.OutstandingAmount * NhnnGroups[l.CurrentClassification].Rate / 100, 2)
+        }).ToList();
+
         return new NhnnClassificationReportDto
         {
             Year = year, Month = month,
             Rows = rows,
+            Details = details,
             TotalOutstanding = rows.Sum(r => r.OutstandingBalance),
             TotalProvision = rows.Sum(r => r.ActualProvision)
         };
@@ -232,7 +260,10 @@ public class RegulatoryReportingService : IRegulatoryReportingService
                 Classification = l.CurrentClassification,
                 Dpd = maxDpd,
                 DisbursementDate = l.DisbursementDate,
-                MaturityDate = l.MaturityDate
+                MaturityDate = l.MaturityDate,
+                IndustryCode = l.IndustryCode ?? l.Customer.IndustryCode,
+                RegionCode = l.Customer.RegionCode,
+                PurposeCode = l.PurposeCode
             };
         }).ToList();
 

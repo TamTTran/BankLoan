@@ -22,6 +22,8 @@ public class LoanFlowDbContext : DbContext
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordHistory> PasswordHistories => Set<PasswordHistory>();
+    public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
 
     // ── Bank-grade entities ─────────────────────────────────────────────────
     public DbSet<LateFee> LateFees => Set<LateFee>();
@@ -98,6 +100,23 @@ public class LoanFlowDbContext : DbContext
             b.HasOne(p => p.User)
              .WithMany(u => u.PasswordHistories)
              .HasForeignKey(p => p.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Permission>(b =>
+        {
+            b.HasKey(x => x.Code);
+            b.Property(x => x.Code).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<RolePermission>(b =>
+        {
+            b.HasKey(x => new { x.RoleCode, x.PermissionCode });
+            b.Property(x => x.RoleCode).HasMaxLength(50);
+            b.Property(x => x.PermissionCode).HasMaxLength(50);
+            b.HasOne(x => x.Permission)
+             .WithMany()
+             .HasForeignKey(x => x.PermissionCode)
              .OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -157,6 +157,9 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.Property<int?>("ActorUserId")
                         .HasColumnType("int");
 
+                    b.Property<string>("CorrelationId")
+                        .HasColumnType("longtext");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -168,10 +171,19 @@ namespace LoanFlow.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
+                    b.Property<string>("IpAddress")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("NewValuesJson")
                         .HasColumnType("longtext");
 
                     b.Property<string>("OldValuesJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("SessionId")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("UserAgent")
                         .HasColumnType("longtext");
 
                     b.HasKey("Id");
@@ -633,6 +645,9 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.Property<int?>("BranchId")
                         .HasColumnType("int");
 
+                    b.Property<string>("BusinessRegNo")
+                        .HasColumnType("longtext");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -643,6 +658,10 @@ namespace LoanFlow.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("CreditStatus")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("CustomerType")
+                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<DateTime>("DateOfBirth")
@@ -666,6 +685,9 @@ namespace LoanFlow.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
+                    b.Property<string>("IndustryCode")
+                        .HasColumnType("longtext");
+
                     b.Property<decimal?>("MonthlyIncome")
                         .HasColumnType("decimal(65,30)");
 
@@ -674,12 +696,18 @@ namespace LoanFlow.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
 
+                    b.Property<string>("RegionCode")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)")
                         .HasDefaultValue("Active");
+
+                    b.Property<string>("TaxCode")
+                        .HasColumnType("longtext");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -2457,6 +2485,25 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.ToTable("PendingApprovalRequests");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.Permission", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("Permissions");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.ReconciliationException", b =>
                 {
                     b.Property<int>("Id")
@@ -2621,6 +2668,23 @@ namespace LoanFlow.Infrastructure.Migrations
                         .HasDatabaseName("IX_RepaymentSchedules_DueDate_Status");
 
                     b.ToTable("RepaymentSchedules");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.RolePermission", b =>
+                {
+                    b.Property<string>("RoleCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("PermissionCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("RoleCode", "PermissionCode");
+
+                    b.HasIndex("PermissionCode");
+
+                    b.ToTable("RolePermissions");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.SuspenseTransaction", b =>
@@ -3608,6 +3672,17 @@ namespace LoanFlow.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Loan");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.RolePermission", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.Permission", "Permission")
+                        .WithMany()
+                        .HasForeignKey("PermissionCode")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permission");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.SuspenseTransaction", b =>
