@@ -70,6 +70,17 @@
   box-shadow: 0 10px 22px rgba(195, 79, 79, 0.2);
 }
 
+.btn-u-success {
+  background: var(--green);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+.btn-u-success:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #0f5e28;
+  box-shadow: 0 10px 22px rgba(19, 115, 51, 0.22);
+}
+
 .spinner-u {
   display: inline-block;
   width: 14px;

@@ -1,6 +1,6 @@
 import { getToken, clearToken } from '../utils/authStorage';
 
-const API_BASE = import.meta.env.DEV ? '/api' : '/api';
+const API_BASE = '/api';
 
 export async function httpClient(method, path, body = null) {
   const headers = { 'Content-Type': 'application/json' };

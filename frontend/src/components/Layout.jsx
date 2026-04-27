@@ -100,7 +100,11 @@ export function Layout({ children, badgeCounts = {} }) {
           <div className="sidebar-footer">
             <NavLink to="/profile" className="avatar">{(user?.fullName || user?.username || 'U')[0].toUpperCase()}</NavLink>
             <div className="sidebar-meta">
-              <p className="user-name"><NavLink to="/profile" style={{ color: 'inherit', textDecoration: 'none' }}>{user?.fullName || user?.username}</NavLink></p>
+              <p className="user-name" title={user?.fullName || user?.username || ''}>
+                <NavLink to="/profile" style={{ color: 'inherit', textDecoration: 'none' }}>
+                  {user?.fullName || user?.username}
+                </NavLink>
+              </p>
               <p className="user-role">{roleLabel}</p>
             </div>
             <div className="sidebar-actions">

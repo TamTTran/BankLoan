@@ -8,7 +8,7 @@ export default function ConfirmDialog({ message, onConfirm, onCancel }) {
       actions={
         <>
           <button className="btn btn-ghost" onClick={onCancel}>Hủy</button>
-          <button className="btn btn-primary" onClick={onConfirm}>Xác nhận</button>
+          <button className="btn btn-danger" onClick={onConfirm}>Xác nhận</button>
         </>
       }
     >

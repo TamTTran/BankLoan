@@ -21,26 +21,10 @@ export function LanguageSwitcher() {
     <button
       onClick={toggle}
       title={`Switch to ${next.label}`}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.35rem',
-        padding: '0.38rem 0.65rem',
-        borderRadius: '10px',
-        border: '1px solid rgba(255,255,255,0.14)',
-        background: 'rgba(255,255,255,0.07)',
-        color: 'rgba(255,255,255,0.82)',
-        fontSize: '0.78rem',
-        fontWeight: 700,
-        fontFamily: 'inherit',
-        cursor: 'pointer',
-        transition: 'all 0.18s',
-        letterSpacing: '0.04em',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.14)'; e.currentTarget.style.color = '#fff'; }}
-      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = 'rgba(255,255,255,0.82)'; }}
+      aria-label={`Switch language to ${next.label}`}
+      className="lang-switcher"
     >
-      <span style={{ fontSize: '1rem', lineHeight: 1 }}>{curr.flag}</span>
+      <span className="lang-switcher-flag">{curr.flag}</span>
       {curr.label}
     </button>
   );

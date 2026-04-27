@@ -25,30 +25,34 @@ export default function Loans() {
   const [paymentId, setPaymentId]   = useState(null);
   const [contractId, setContractId] = useState(null);
   const [earlySettleId, setEarlySettleId] = useState(null);
+  // Webhook test: { vaNumber, amount } | null
+  const [webhookTest, setWebhookTest] = useState(null);
 
-  const handleTestWebhook = async (vaNumber) => {
+  const handleTestWebhook = async () => {
+    if (!webhookTest) return;
+    const { vaNumber, amount } = webhookTest;
     try {
-      const amount = prompt("Nhập số tiền chuyển khoản giả lập cho " + vaNumber + ":", "1000000");
-      if (!amount) return;
       const res = await fetch('/api/webhooks/bank-transfer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           virtualAccountNo: vaNumber,
-          amount: parseFloat(amount),
-          transactionId: "MOCK-" + Date.now(),
-          description: "Khach hang thanh toan"
-        })
+          amount: parseFloat(amount) || 0,
+          transactionId: 'MOCK-' + Date.now(),
+          description: 'Khach hang thanh toan',
+        }),
       });
-      const data = await res.json();
-      if (data.success) {
+      const json = await res.json();
+      if (json.success) {
         toast('Đã ghi nhận thanh toán qua Webhook!', 'success');
         refresh();
       } else {
-        toast('Lỗi: ' + data.message, 'error');
+        toast('Lỗi: ' + json.message, 'error');
       }
-    } catch(e) {
+    } catch (e) {
       toast('Lỗi Webhook: ' + e.message, 'error');
+    } finally {
+      setWebhookTest(null);
     }
   };
 
@@ -100,7 +104,12 @@ export default function Loans() {
                       {l.status==='Active'              && can.recordPayment && <Button size="sm" variant="success" onClick={()=>setPaymentId(l.id)}>💰 Thu tiền</Button>}
                       {l.status==='Active'              && can.recordPayment && <Button size="sm" variant="danger" onClick={()=>setEarlySettleId(l.id)}>💳 Tất toán</Button>}
                       {(l.status==='Active' || l.status==='Overdue') && l.virtualAccountNo && (
-                         <Button size="sm" variant="outline" onClick={()=>handleTestWebhook(l.virtualAccountNo)} title="Giả lập KH chuyển khoản qua Webhook" style={{borderColor: 'var(--green)', color: 'var(--green)'}}>🏦 Test Webhook</Button>
+                        <Button
+                          size="sm" variant="outline"
+                          onClick={() => setWebhookTest({ vaNumber: l.virtualAccountNo, amount: '1000000' })}
+                          title="Giả lập KH chuyển khoản qua Webhook"
+                          style={{ borderColor: 'var(--green)', color: 'var(--green)' }}
+                        >🏦 Test Webhook</Button>
                       )}
                     </div>
                   </td>
@@ -117,6 +126,34 @@ export default function Loans() {
       {disburseId && <DisburseModal    loanId={disburseId} onClose={()=>setDisburseId(null)} onDone={()=>{setDisburseId(null);refresh();}}/>}
       {paymentId  && <PaymentModal     loanId={paymentId}  onClose={()=>setPaymentId(null)}  onDone={()=>{setPaymentId(null);refresh();}}/>}
       {earlySettleId && <EarlySettleModal loanId={earlySettleId} onClose={()=>setEarlySettleId(null)} onDone={()=>{setEarlySettleId(null);refresh();}}/>}
+
+      {/* Webhook Test Modal — replaces window.prompt() */}
+      {webhookTest && (
+        <div className="modal-overlay" onClick={() => setWebhookTest(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h3>🏦 Giả Lập Chuyển Khoản Webhook</h3>
+              <button className="btn-close" onClick={() => setWebhookTest(null)}>✕</button>
+            </div>
+            <div className="modal-form">
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+                VA: <strong>{webhookTest.vaNumber}</strong>
+              </p>
+              <Input
+                label="Số tiền (VND)"
+                type="number"
+                value={webhookTest.amount}
+                onChange={e => setWebhookTest(prev => ({ ...prev, amount: e.target.value }))}
+                autoFocus
+              />
+            </div>
+            <div className="modal-actions">
+              <Button variant="ghost" onClick={() => setWebhookTest(null)}>Hủy</Button>
+              <Button variant="primary" onClick={handleTestWebhook}>Gửi Webhook</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

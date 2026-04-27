@@ -17,26 +17,36 @@ function EkycModal({ customer, onClose, onVerified }) {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    if (step === 1) {
-      setTimeout(() => setStep(2), 1500);
-    } else if (step === 2) {
-      setTimeout(() => setStep(3), 1500);
-    } else if (step === 3) {
-      customerApi.verifyEkyc(customer.id).then(res => {
-        setResult(res);
-        setStep(4);
-        if (res.status === 'Verified') {
-          toast(`eKYC Thành công! Tỉ lệ khớp khuôn mặt: ${res.faceMatchScore}%. Liveness: ${res.livenessScore}%`);
-          onVerified();
-        } else {
-          toast(`eKYC không đạt: ${res.status}`, 'warning');
+    let mounted = true;
+
+    const run = async () => {
+      if (step === 1) {
+        setTimeout(() => { if (mounted) setStep(2); }, 1500);
+      } else if (step === 2) {
+        setTimeout(() => { if (mounted) setStep(3); }, 1500);
+      } else if (step === 3) {
+        try {
+          const res = await customerApi.verifyEkyc(customer.id);
+          if (!mounted) return;
+          setResult(res);
+          setStep(4);
+          if (res.status === 'Verified') {
+            toast(`eKYC Thành công! Tỉ lệ khớp khuôn mặt: ${res.faceMatchScore}%. Liveness: ${res.livenessScore}%`);
+            onVerified();
+          } else {
+            toast(`eKYC không đạt: ${res.status}`, 'warning');
+          }
+        } catch (e) {
+          if (!mounted) return;
+          toast(e.message, 'error');
+          onClose();
         }
-      }).catch(e => {
-        toast(e.message, 'error');
-        onClose();
-      });
-    }
-  }, [step]);
+      }
+    };
+
+    run();
+    return () => { mounted = false; };
+  }, [step, customer.id, toast, onVerified, onClose]);
 
   return (
     <Modal

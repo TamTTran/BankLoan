@@ -1,14 +1,40 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
 import { httpClient } from '../shared/api/httpClient';
 import { useToast } from '../context/ToastContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 
+/**
+ * QrCanvas — renders a TOTP URI as a QR code locally using the `qrcode` package.
+ * The URI never leaves the browser, unlike the previous api.qrserver.com approach.
+ */
+function QrCanvas({ uri }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!uri || !canvasRef.current) return;
+    QRCode.toCanvas(canvasRef.current, uri, {
+      width: 180,
+      margin: 2,
+      color: { dark: '#10233f', light: '#ffffff' },
+    }).catch(console.error);
+  }, [uri]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ borderRadius: 8, border: '1px solid var(--border)' }}
+      aria-label="MFA QR Code — scan with your authenticator app"
+    />
+  );
+}
+
 export default function Profile() {
   const { user, roleLabel } = useAuth();
   const { toast } = useToast();
-  
+
   const [loading, setLoading] = useState(true);
   const [mfaSetup, setMfaSetup] = useState(null);
   const [totpCode, setTotpCode] = useState('');
@@ -64,7 +90,7 @@ export default function Profile() {
 
         <div style={{ background: 'var(--bg-card)', padding: '1.5rem', borderRadius: 18, border: '1px solid var(--border)' }}>
           <h3 style={{ marginBottom: '1rem', color: 'var(--navy)', fontSize: '1.1rem', fontWeight: 800 }}>Bảo mật (MFA)</h3>
-          
+
           {loading ? (
             <p>Đang tải cấu hình bảo mật...</p>
           ) : mfaSetup?.isEnabled ? (
@@ -75,17 +101,17 @@ export default function Profile() {
           ) : mfaSetup?.qrCodeUri ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <p style={{ color: 'var(--text-secondary)' }}>Quét mã QR sau bằng ứng dụng Authenticator (Google Auth, Authy...):</p>
-              <div style={{ background: '#fff', padding: '1rem', borderRadius: 12, alignSelf: 'flex-start', border: '1px solid #ddd' }}>
-                {/* Dùng QR API hoặc img trực tiếp từ base64/svg nếu backend trả về. Ở đây giả định backend trả về URL cho google chart */}
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(mfaSetup.qrCodeUri)}`} alt="MFA QR Code" width="180" height="180" />
-              </div>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Mã bí mật (nếu không quét được QR): <strong>{mfaSetup.manualEntryKey}</strong></p>
+              {/* QR generated locally — secret URI never leaves the browser */}
+              <QrCanvas uri={mfaSetup.qrCodeUri} />
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Mã bí mật (nếu không quét được QR): <strong>{mfaSetup.manualEntryKey}</strong>
+              </p>
               <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
-                <Input 
-                  label="Nhập mã 6 số từ app" 
-                  value={totpCode} 
-                  onChange={(e) => setTotpCode(e.target.value)} 
-                  placeholder="123456" 
+                <Input
+                  label="Nhập mã 6 số từ app"
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value)}
+                  placeholder="123456"
                   style={{ width: '150px' }}
                 />
                 <Button variant="primary" onClick={handleEnableMfa} disabled={enabling}>
