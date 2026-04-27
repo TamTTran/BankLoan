@@ -9,7 +9,11 @@ public static class DbSeeder
 {
     public static async Task SeedAsync(LoanFlowDbContext db)
     {
-        if (await db.Users.AnyAsync()) return; // Already seeded
+        if (await db.Users.AnyAsync())
+        {
+            await SeedTestPortfolioAsync(db);
+            return;
+        }
 
         await SeedGLAccountsAsync(db);
         await SeedGLAccountMappingsAsync(db);
@@ -49,6 +53,7 @@ public static class DbSeeder
         await SeedSystemConfigAsync(db);
 
         Console.WriteLine("[Seeder v4] Done: GL Accounts, Branches, Users, Products, Customers, Demo loans, Phase 1-4 scenarios, configs seeded.");
+        await SeedTestPortfolioAsync(db);
     }
 
     private static async Task SeedSystemConfigAsync(LoanFlowDbContext db)
@@ -64,6 +69,781 @@ public static class DbSeeder
             });
             await db.SaveChangesAsync();
         }
+    }
+
+    private static async Task SeedTestPortfolioAsync(LoanFlowDbContext db)
+    {
+        const int targetCount = 100;
+        const string loanPrefix = "LN-TST-2026-";
+        const string phonePrefix = "09877";
+
+        var officer = await db.Users.FirstOrDefaultAsync(u => u.Role == Roles.LoanOfficer);
+        var approver = await db.Users.FirstOrDefaultAsync(u => u.Role == Roles.Approver);
+        var collector = await db.Users.FirstOrDefaultAsync(u => u.Role == Roles.Collector);
+        var manager = await db.Users.FirstOrDefaultAsync(u => u.Role == Roles.Manager);
+        var admin = await db.Users.FirstOrDefaultAsync(u => u.Role == Roles.Admin);
+        var products = await db.LoanProducts.Where(p => p.Status == "Active").OrderBy(p => p.Id).ToListAsync();
+
+        if (officer is null || approver is null || collector is null || manager is null || admin is null || products.Count == 0)
+        {
+            Console.WriteLine("[Seeder] Test portfolio skipped: base users/products are missing.");
+            return;
+        }
+
+        var branchId = officer.BranchId ?? await db.Branches.Select(b => (int?)b.Id).FirstOrDefaultAsync();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var existingCount = await db.Loans.CountAsync(l => l.LoanAccountNo.StartsWith(loanPrefix));
+
+        if (existingCount >= targetCount)
+        {
+            await EnsureTestPortfolioSupportDataAsync(db, officer.Id, approver.Id, collector.Id, manager.Id, today, loanPrefix);
+            await SeedApplicationPipelineAsync(db, officer.Id, approver.Id, products, branchId);
+            await SeedReconciliationExceptionsAsync(db, manager.Id, today);
+            Console.WriteLine($"[Seeder] Test portfolio already has {existingCount} loans. Support data verified.");
+            return;
+        }
+
+        for (var i = 1; i <= targetCount; i++)
+        {
+            var loanAccountNo = $"{loanPrefix}{i:0000}";
+            if (await db.Loans.AnyAsync(l => l.LoanAccountNo == loanAccountNo))
+            {
+                continue;
+            }
+
+            var product = products[(i - 1) % products.Count];
+            var tenor = product.GetAllowedTenors().FirstOrDefault();
+            if (tenor <= 0) tenor = i % 3 == 0 ? 18 : i % 2 == 0 ? 12 : 6;
+
+            var approvedAmount = Math.Min(
+                product.MaxAmount,
+                Math.Max(product.MinAmount, 8_000_000m + (i % 12) * 3_000_000m));
+
+            var status = (i % 4) switch
+            {
+                0 => LoanStatus.PendingDisbursement,
+                1 => LoanStatus.Active,
+                2 => LoanStatus.Overdue,
+                _ => LoanStatus.Closed
+            };
+
+            var customerPhone = $"{phonePrefix}{i:00000}";
+            var customer = await db.Customers.FirstOrDefaultAsync(c => c.Phone == customerPhone);
+            if (customer is null)
+            {
+                customer = new Customer
+                {
+                    FullName = $"Test Customer {i:000}",
+                    Phone = customerPhone,
+                    IdNumber = $"0792026{i:00000}",
+                    Address = $"Test address {i:000}, Ho Chi Minh City",
+                    DateOfBirth = new DateTime(1980 + i % 20, (i % 12) + 1, (i % 27) + 1),
+                    CreatedByUserId = officer.Id,
+                    AssignedToUserId = officer.Id,
+                    BranchId = branchId,
+                    EkycStatus = i % 9 == 0 ? "ManualReview" : "Verified",
+                    EkycVerifiedAt = i % 9 == 0 ? null : DateTime.UtcNow.AddDays(-i),
+                    CreditScore = 520 + i % 320,
+                    CreditStatus = i % 11 == 0 ? "Review" : "Pass",
+                    BankAccountNumber = $"9704{i:000000000}",
+                    BankCode = i % 2 == 0 ? "VCB" : "TCB",
+                    MonthlyIncome = 12_000_000m + (i % 10) * 2_000_000m,
+                    IndustryCode = i % 2 == 0 ? "G47" : "C10",
+                    RegionCode = i % 3 == 0 ? "HN" : "HCM",
+                    AmlRiskLevel = i % 17 == 0 ? "High" : i % 5 == 0 ? "Medium" : "Low",
+                    PepStatus = i % 23 == 0 ? "Domestic" : "None",
+                    SourceOfFunds = i % 4 == 0 ? "Business income" : "Salary",
+                    Occupation = i % 3 == 0 ? "Business owner" : "Employee",
+                    Nationality = "VN"
+                };
+
+                db.Customers.Add(customer);
+                await db.SaveChangesAsync();
+            }
+
+            var applicationRemarks = $"TST approved application {i:000}";
+            var application = await db.LoanApplications.FirstOrDefaultAsync(a => a.Remarks == applicationRemarks);
+            if (application is null)
+            {
+                application = new LoanApplication
+                {
+                    CustomerId = customer.Id,
+                    ProductId = product.Id,
+                    RequestedAmount = approvedAmount,
+                    RequestedTenorMonths = tenor,
+                    Purpose = i % 3 == 0 ? "Business working capital" : "Personal loan test case",
+                    Remarks = applicationRemarks,
+                    Status = ApplicationStatus.Approved,
+                    CreatedByUserId = officer.Id,
+                    SubmittedAt = DateTime.UtcNow.AddDays(-60 - i),
+                    RequiredApprovalLevel = approvedAmount >= 40_000_000m ? 2 : 1,
+                    CurrentApprovalLevel = approvedAmount >= 40_000_000m ? 2 : 1
+                };
+
+                db.LoanApplications.Add(application);
+                await db.SaveChangesAsync();
+            }
+
+            if (!await db.ApplicationDecisions.AnyAsync(d => d.ApplicationId == application.Id && d.Decision == "Approved"))
+            {
+                db.ApplicationDecisions.Add(new ApplicationDecision
+                {
+                    ApplicationId = application.Id,
+                    Decision = "Approved",
+                    DecidedByUserId = approver.Id,
+                    DecidedAt = DateTime.UtcNow.AddDays(-55 - i)
+                });
+            }
+
+            var disbursementDate = status == LoanStatus.PendingDisbursement
+                ? (DateOnly?)null
+                : today.AddDays(-(20 + i % 90));
+
+            var loan = new Loan
+            {
+                LoanAccountNo = loanAccountNo,
+                ApplicationId = application.Id,
+                CustomerId = customer.Id,
+                ProductId = product.Id,
+                ApprovedAmount = approvedAmount,
+                TenorMonths = tenor,
+                MonthlyInterestRate = product.MonthlyInterestRate,
+                ProcessingFee = product.ProcessingFee,
+                DisbursementDate = disbursementDate,
+                MaturityDate = disbursementDate?.AddMonths(tenor),
+                Status = status,
+                OutstandingAmount = status == LoanStatus.Closed ? 0 : approvedAmount,
+                VirtualAccountNo = $"VA2026TST{i:000000}",
+                CurrentClassification = status == LoanStatus.Overdue ? LoanClassification.Group3_Substandard : LoanClassification.Group1_Standard,
+                ProvisionAmount = status == LoanStatus.Overdue ? approvedAmount * 0.2m : 0,
+                Ifrs9Stage = status == LoanStatus.Overdue ? 3 : 1,
+                Ifrs9EclAmount = status == LoanStatus.Overdue ? approvedAmount * 0.15m : approvedAmount * 0.01m,
+                PurposeCode = i % 3 == 0 ? "BUSINESS" : "CONSUMER",
+                IndustryCode = customer.IndustryCode,
+                ProductType = product.ProductType,
+                InterestMethod = product.InterestMethod,
+                GracePeriodMonths = product.GracePeriodMonths,
+                PromotionalRate = product.PromotionalRate,
+                PromotionalMonths = product.PromotionalMonths,
+                EarlySettlementFeeRate = product.EarlySettlementFeeRate,
+                LateFeeRate = product.LateFeeRate == 0 ? 0.12m : product.LateFeeRate,
+                LateFeeGraceDays = product.LateFeeGraceDays,
+                BranchId = branchId
+            };
+
+            db.Loans.Add(loan);
+            await db.SaveChangesAsync();
+
+            if (status != LoanStatus.PendingDisbursement && disbursementDate.HasValue)
+            {
+                await AddDisbursementAsync(db, loan.Id, approvedAmount, disbursementDate.Value, officer.Id);
+                await SeedSchedulesAndPaymentsAsync(db, loan, status, disbursementDate.Value, officer.Id, today);
+            }
+
+            if (i % 3 == 0)
+            {
+                await SeedCollateralAsync(db, customer.Id, loan.Id, approvedAmount, i);
+            }
+
+            if (status == LoanStatus.Overdue)
+            {
+                await SeedCollectionDataAsync(db, loan.Id, collector.Id, manager.Id, today, i);
+            }
+
+            if (i % 5 == 0 && status != LoanStatus.PendingDisbursement)
+            {
+                SeedApprovalRequest(db, loan.Id, officer.Id, approver.Id, i, today);
+            }
+
+            if (i <= 30)
+            {
+                db.Notifications.Add(new Notification
+                {
+                    UserId = i % 2 == 0 ? officer.Id : manager.Id,
+                    LoanId = loan.Id,
+                    CustomerId = customer.Id,
+                    Type = i % 3 == 0 ? NotificationType.OverdueReminder : NotificationType.System,
+                    Title = $"Test notification {i:000}",
+                    Message = $"Seeded test event for loan {loan.LoanAccountNo}.",
+                    DeeplinkUrl = i % 2 == 0 ? "/loans" : "/reports",
+                    IsRead = i % 4 == 0,
+                    ReadAt = i % 4 == 0 ? DateTime.UtcNow.AddDays(-1) : null,
+                    CreatedAt = DateTime.UtcNow.AddHours(-i)
+                });
+            }
+
+            db.AuditLogs.Add(new AuditLog
+            {
+                ActorUserId = officer.Id,
+                ActionCode = AuditActions.LoanCreated,
+                EntityType = "Loan",
+                EntityId = loan.Id,
+                NewValuesJson = JsonSerializer.Serialize(new { loan.LoanAccountNo, testSeed = true })
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        await EnsureTestPortfolioSupportDataAsync(db, officer.Id, approver.Id, collector.Id, manager.Id, today, loanPrefix);
+        await SeedApplicationPipelineAsync(db, officer.Id, approver.Id, products, branchId);
+        await SeedReconciliationExceptionsAsync(db, manager.Id, today);
+
+        Console.WriteLine($"[Seeder] Test portfolio seeded to {targetCount} loans.");
+    }
+
+    private static async Task SeedSchedulesAndPaymentsAsync(
+        LoanFlowDbContext db,
+        Loan loan,
+        string loanStatus,
+        DateOnly disbursementDate,
+        int officerUserId,
+        DateOnly today)
+    {
+        var principalPerInstallment = Math.Round(loan.ApprovedAmount / loan.TenorMonths, 2);
+        var totalScheduledPrincipal = 0m;
+        var interestPerInstallment = Math.Round(loan.ApprovedAmount * loan.MonthlyInterestRate, 2);
+        var paidInstallments = loanStatus switch
+        {
+            LoanStatus.Closed => loan.TenorMonths,
+            LoanStatus.Active => Math.Min(3, Math.Max(1, loan.TenorMonths - 1)),
+            _ => 0
+        };
+        var overdueInstallments = loanStatus == LoanStatus.Overdue
+            ? Math.Min(3, loan.TenorMonths)
+            : 0;
+
+        var schedules = new List<RepaymentSchedule>();
+        for (var month = 1; month <= loan.TenorMonths; month++)
+        {
+            var principal = month == loan.TenorMonths
+                ? loan.ApprovedAmount - totalScheduledPrincipal
+                : principalPerInstallment;
+            totalScheduledPrincipal += principal;
+
+            var isPaid = month <= paidInstallments;
+            var isOverdue = month <= overdueInstallments;
+            schedules.Add(new RepaymentSchedule
+            {
+                LoanId = loan.Id,
+                InstallmentNo = month,
+                DueDate = disbursementDate.AddMonths(month),
+                PrincipalDue = principal,
+                InterestDue = interestPerInstallment,
+                PrincipalPaid = isPaid ? principal : 0,
+                InterestPaid = isPaid ? interestPerInstallment : 0,
+                RemainingDueAmount = isPaid ? 0 : principal + interestPerInstallment,
+                Status = isPaid ? InstallmentStatus.Paid : isOverdue ? InstallmentStatus.Overdue : InstallmentStatus.Unpaid
+            });
+        }
+
+        db.RepaymentSchedules.AddRange(schedules);
+        await db.SaveChangesAsync();
+
+        var outstandingPrincipal = loan.ApprovedAmount;
+        foreach (var schedule in schedules.Where(s => s.Status == InstallmentStatus.Paid))
+        {
+            var payment = new Payment
+            {
+                LoanId = loan.Id,
+                PaymentDate = schedule.DueDate.AddDays(-1),
+                Amount = schedule.PrincipalDue + schedule.InterestDue,
+                PaymentMethod = schedule.InstallmentNo % 2 == 0 ? PaymentMethod.BankTransfer : PaymentMethod.Cash,
+                ExternalReferenceId = schedule.InstallmentNo % 2 == 0 ? $"TST-PAY-{loan.Id}-{schedule.InstallmentNo}" : null,
+                Remarks = $"Seed payment for installment {schedule.InstallmentNo}",
+                CreatedByUserId = officerUserId
+            };
+
+            db.Payments.Add(payment);
+            await db.SaveChangesAsync();
+
+            var transaction = new LoanTransaction
+            {
+                LoanId = loan.Id,
+                PaymentId = payment.Id,
+                TransactionType = "Payment",
+                Amount = payment.Amount,
+                ReferenceNo = $"PAY-TST-{payment.Id}"
+            };
+            db.LoanTransactions.Add(transaction);
+            await db.SaveChangesAsync();
+
+            db.PaymentAllocations.AddRange(
+                new PaymentAllocation
+                {
+                    PaymentId = payment.Id,
+                    LoanTransactionId = transaction.Id,
+                    ScheduleId = schedule.Id,
+                    AllocationType = "Principal",
+                    Amount = schedule.PrincipalDue
+                },
+                new PaymentAllocation
+                {
+                    PaymentId = payment.Id,
+                    LoanTransactionId = transaction.Id,
+                    ScheduleId = schedule.Id,
+                    AllocationType = "Interest",
+                    Amount = schedule.InterestDue
+                });
+
+            outstandingPrincipal -= schedule.PrincipalDue;
+        }
+
+        await SeedOverdueArtifactsAsync(db, loan, schedules, today, checkExisting: false);
+
+        loan.OutstandingAmount = loanStatus == LoanStatus.Closed ? 0 : Math.Max(0, outstandingPrincipal);
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedOverdueArtifactsAsync(
+        LoanFlowDbContext db,
+        Loan loan,
+        IReadOnlyCollection<RepaymentSchedule> schedules,
+        DateOnly today,
+        bool checkExisting)
+    {
+        var overdueSchedules = schedules
+            .Where(s => s.Status == InstallmentStatus.Overdue)
+            .OrderBy(s => s.DueDate)
+            .ToList();
+
+        if (overdueSchedules.Count == 0) return;
+
+        var existingSnapshotDates = checkExisting
+            ? await db.OverdueDailySnapshots
+                .Where(s => s.LoanId == loan.Id)
+                .Select(s => s.SnapshotDate)
+                .ToListAsync()
+            : [];
+
+        var totalOverdueAmount = overdueSchedules.Sum(s => s.RemainingDueAmount);
+        var totalLateFeeAmount = 0m;
+        var maxDpd = 1;
+
+        foreach (var schedule in overdueSchedules)
+        {
+            var dpd = Math.Max(1, today.DayNumber - schedule.DueDate.DayNumber);
+            var lateFeeAmount = Math.Round(schedule.RemainingDueAmount * loan.LateFeeRate * dpd / 360m, 2);
+            totalLateFeeAmount += lateFeeAmount;
+            maxDpd = Math.Max(maxDpd, dpd);
+
+            var hasLateFee = checkExisting &&
+                await db.LateFees.AnyAsync(f => f.LoanId == loan.Id && f.ScheduleId == schedule.Id);
+
+            if (!hasLateFee)
+            {
+                db.LateFees.Add(new LateFee
+                {
+                    LoanId = loan.Id,
+                    ScheduleId = schedule.Id,
+                    OverdueAmount = schedule.RemainingDueAmount,
+                    DaysOverdue = dpd,
+                    FeeRate = loan.LateFeeRate,
+                    FeeAmount = lateFeeAmount,
+                    Status = LateFeeStatus.Pending,
+                    CalculatedAt = DateTime.UtcNow.AddDays(-1)
+                });
+            }
+        }
+
+        for (var d = 0; d < 10; d++)
+        {
+            var snapshotDate = today.AddDays(-d);
+            if (existingSnapshotDates.Contains(snapshotDate))
+            {
+                continue;
+            }
+
+            var snapshotDpd = Math.Max(1, maxDpd - d);
+            db.OverdueDailySnapshots.Add(new OverdueDailySnapshot
+            {
+                LoanId = loan.Id,
+                SnapshotDate = snapshotDate,
+                Dpd = snapshotDpd,
+                Bucket = DpdBucket.Calculate(snapshotDpd),
+                OverdueAmount = totalOverdueAmount,
+                OutstandingAmount = loan.OutstandingAmount,
+                LateFeeAccrued = totalLateFeeAmount,
+                OverdueInstallments = overdueSchedules.Count
+            });
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task EnsureTestPortfolioSupportDataAsync(
+        LoanFlowDbContext db,
+        int officerUserId,
+        int approverUserId,
+        int collectorUserId,
+        int managerUserId,
+        DateOnly today,
+        string loanPrefix)
+    {
+        var loans = await db.Loans
+            .Where(l => l.LoanAccountNo.StartsWith(loanPrefix))
+            .OrderBy(l => l.Id)
+            .ToListAsync();
+
+        foreach (var loan in loans)
+        {
+            var schedules = await db.RepaymentSchedules
+                .Where(s => s.LoanId == loan.Id)
+                .OrderBy(s => s.InstallmentNo)
+                .ToListAsync();
+
+            if (schedules.Count == 0 && loan.Status != LoanStatus.PendingDisbursement && loan.DisbursementDate.HasValue)
+            {
+                await SeedSchedulesAndPaymentsAsync(db, loan, loan.Status, loan.DisbursementDate.Value, officerUserId, today);
+                schedules = await db.RepaymentSchedules
+                    .Where(s => s.LoanId == loan.Id)
+                    .OrderBy(s => s.InstallmentNo)
+                    .ToListAsync();
+            }
+
+            if (loan.Status != LoanStatus.Overdue)
+            {
+                await EnsureTestLoanAncillaryDataAsync(db, loan, officerUserId, approverUserId, managerUserId, today, loanPrefix);
+                continue;
+            }
+
+            await SeedOverdueArtifactsAsync(db, loan, schedules, today, checkExisting: true);
+
+            var hasCollectionAssignment = await db.CollectorAssignments
+                .AnyAsync(a => a.LoanId == loan.Id && a.Status == CollectorAssignmentStatus.Active);
+            if (!hasCollectionAssignment)
+            {
+                await SeedCollectionDataAsync(db, loan.Id, collectorUserId, managerUserId, today, loan.Id);
+            }
+
+            await EnsureTestLoanAncillaryDataAsync(db, loan, officerUserId, approverUserId, managerUserId, today, loanPrefix);
+        }
+    }
+
+    private static async Task EnsureTestLoanAncillaryDataAsync(
+        LoanFlowDbContext db,
+        Loan loan,
+        int officerUserId,
+        int approverUserId,
+        int managerUserId,
+        DateOnly today,
+        string loanPrefix)
+    {
+        if (!TryGetTestLoanIndex(loan.LoanAccountNo, loanPrefix, out var index))
+        {
+            return;
+        }
+
+        if (index % 3 == 0 && !await db.LoanCollaterals.AnyAsync(c => c.LoanId == loan.Id))
+        {
+            await SeedCollateralAsync(db, loan.CustomerId, loan.Id, loan.ApprovedAmount, index);
+        }
+
+        if (index % 5 == 0 && loan.Status != LoanStatus.PendingDisbursement)
+        {
+            var loanIdMarker = $"\"LoanId\":{loan.Id}";
+            var hasApprovalRequest = await db.PendingApprovalRequests
+                .AnyAsync(r => r.Payload.Contains(loanIdMarker));
+
+            if (!hasApprovalRequest)
+            {
+                SeedApprovalRequest(db, loan.Id, officerUserId, approverUserId, index, today);
+                await db.SaveChangesAsync();
+            }
+        }
+
+        if (index <= 30)
+        {
+            var title = $"Test notification {index:000}";
+            if (!await db.Notifications.AnyAsync(n => n.Title == title))
+            {
+                db.Notifications.Add(new Notification
+                {
+                    UserId = index % 2 == 0 ? officerUserId : managerUserId,
+                    LoanId = loan.Id,
+                    CustomerId = loan.CustomerId,
+                    Type = index % 3 == 0 ? NotificationType.OverdueReminder : NotificationType.System,
+                    Title = title,
+                    Message = $"Seeded test event for loan {loan.LoanAccountNo}.",
+                    DeeplinkUrl = index % 2 == 0 ? "/loans" : "/reports",
+                    IsRead = index % 4 == 0,
+                    ReadAt = index % 4 == 0 ? DateTime.UtcNow.AddDays(-1) : null,
+                    CreatedAt = DateTime.UtcNow.AddHours(-index)
+                });
+
+                await db.SaveChangesAsync();
+            }
+        }
+    }
+
+    private static bool TryGetTestLoanIndex(string loanAccountNo, string loanPrefix, out int index)
+    {
+        index = 0;
+        return loanAccountNo.StartsWith(loanPrefix, StringComparison.Ordinal) &&
+            int.TryParse(loanAccountNo[loanPrefix.Length..], out index);
+    }
+
+    private static async Task SeedCollateralAsync(LoanFlowDbContext db, int customerId, int loanId, decimal approvedAmount, int index)
+    {
+        var collateralType = index % 2 == 0 ? CollateralType.Vehicle : CollateralType.RealEstate;
+        var collateral = new Collateral
+        {
+            CustomerId = customerId,
+            CollateralType = collateralType,
+            Description = collateralType == CollateralType.Vehicle
+                ? $"Test vehicle collateral {index:000}"
+                : $"Test real estate collateral {index:000}",
+            RegistrationNo = collateralType == CollateralType.Vehicle ? $"51A-TST{index:000}" : $"LAND-TST-{index:000}",
+            AppraisedValue = approvedAmount * (collateralType == CollateralType.Vehicle ? 1.3m : 2.0m),
+            AppraisalDate = DateTime.UtcNow.AddDays(-20 - index),
+            AppraisedBy = "Seed Appraisal Team",
+            Status = CollateralStatus.Active,
+            Address = collateralType == CollateralType.RealEstate ? $"Collateral address {index:000}" : null
+        };
+
+        db.Collaterals.Add(collateral);
+        await db.SaveChangesAsync();
+
+        db.LoanCollaterals.Add(new LoanCollateral
+        {
+            LoanId = loanId,
+            CollateralId = collateral.Id,
+            AllocatedValue = approvedAmount * 1.2m,
+            Status = "Active"
+        });
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedCollectionDataAsync(
+        LoanFlowDbContext db,
+        int loanId,
+        int collectorUserId,
+        int managerUserId,
+        DateOnly today,
+        int index)
+    {
+        db.CollectorAssignments.Add(new CollectorAssignment
+        {
+            LoanId = loanId,
+            CollectorUserId = collectorUserId,
+            AssignedAt = DateTime.UtcNow.AddDays(-index % 20),
+            Status = CollectorAssignmentStatus.Active,
+            Priority = index % 3 == 0 ? CollectionPriority.High : CollectionPriority.Medium
+        });
+
+        db.CollectionActions.AddRange(
+            new CollectionAction
+            {
+                LoanId = loanId,
+                CollectorUserId = collectorUserId,
+                ActionType = CollectionActionType.Call,
+                ActionDate = today.AddDays(-3),
+                NextFollowUpDate = today.AddDays(2),
+                Outcome = CollectionOutcome.PromiseToPay,
+                PromiseDate = today.AddDays(5),
+                PromiseAmount = 1_500_000m + index * 10_000m,
+                PromiseStatus = index % 4 == 0 ? PromiseStatus.Broken : PromiseStatus.Pending,
+                Notes = "Seed collection promise."
+            },
+            new CollectionAction
+            {
+                LoanId = loanId,
+                CollectorUserId = collectorUserId,
+                ActionType = CollectionActionType.SMS,
+                ActionDate = today.AddDays(-1),
+                NextFollowUpDate = today.AddDays(3),
+                Outcome = index % 2 == 0 ? CollectionOutcome.Contacted : CollectionOutcome.NoAnswer,
+                Notes = "Seed follow-up SMS."
+            });
+
+        db.CollectionNotes.Add(new CollectionNote
+        {
+            LoanId = loanId,
+            NoteDate = today.AddDays(-2),
+            NoteText = "Seed overdue collection note.",
+            CreatedByUserId = collectorUserId
+        });
+
+        db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = managerUserId,
+            ActionCode = AuditActions.CollectorAssigned,
+            EntityType = "Loan",
+            EntityId = loanId,
+            NewValuesJson = JsonSerializer.Serialize(new { collectorUserId, testSeed = true })
+        });
+
+        await db.SaveChangesAsync();
+    }
+
+    private static void SeedApprovalRequest(
+        LoanFlowDbContext db,
+        int loanId,
+        int makerUserId,
+        int checkerUserId,
+        int index,
+        DateOnly today)
+    {
+        var actionType = (index % 4) switch
+        {
+            0 => "LoanRestructure",
+            1 => "LoanReschedule",
+            2 => "LoanEarlySettle",
+            _ => "ManualAdjustment"
+        };
+
+        var payload = actionType switch
+        {
+            "LoanRestructure" => JsonSerializer.Serialize(new
+            {
+                LoanId = loanId,
+                Request = new
+                {
+                    NewTenorMonths = 18,
+                    NewMonthlyInterestRate = 0.012m,
+                    RestructureStartDate = today,
+                    ReasonCode = "CustomerHardship",
+                    Note = "Seed restructure approval."
+                }
+            }),
+            "LoanReschedule" => JsonSerializer.Serialize(new
+            {
+                LoanId = loanId,
+                Request = new
+                {
+                    NewPaymentDayOfMonth = 25,
+                    EffectiveFrom = today.AddDays(7),
+                    ReasonCode = "PayrollDateChanged",
+                    Note = "Seed reschedule approval."
+                }
+            }),
+            "LoanEarlySettle" => JsonSerializer.Serialize(new
+            {
+                LoanId = loanId,
+                Request = new
+                {
+                    SettlementDate = today.AddDays(3),
+                    WaiveFee = false
+                }
+            }),
+            _ => JsonSerializer.Serialize(new
+            {
+                LoanId = loanId,
+                AdjustmentType = "Interest",
+                Amount = -100_000m,
+                ReasonCode = "CustomerHardship",
+                Note = "Seed manual adjustment approval."
+            })
+        };
+
+        db.PendingApprovalRequests.Add(new PendingApprovalRequest
+        {
+            ActionType = actionType,
+            Payload = payload,
+            RequestedByUserId = makerUserId,
+            ApprovedByUserId = index % 15 == 0 ? checkerUserId : null,
+            Status = index % 15 == 0 ? "Approved" : "Pending",
+            CreatedAt = DateTime.UtcNow.AddHours(-index),
+            DecidedAt = index % 15 == 0 ? DateTime.UtcNow.AddHours(-index + 1) : null
+        });
+    }
+
+    private static async Task SeedApplicationPipelineAsync(
+        LoanFlowDbContext db,
+        int officerUserId,
+        int approverUserId,
+        List<LoanProduct> products,
+        int? branchId)
+    {
+        if (await db.LoanApplications.AnyAsync(a => a.Remarks == "TST pipeline application 001")) return;
+
+        var customers = await db.Customers
+            .Where(c => c.Phone.StartsWith("09877"))
+            .OrderBy(c => c.Id)
+            .Take(25)
+            .ToListAsync();
+
+        if (customers.Count == 0 || products.Count == 0) return;
+
+        for (var i = 1; i <= customers.Count; i++)
+        {
+            var status = (i % 3) switch
+            {
+                0 => ApplicationStatus.Draft,
+                1 => ApplicationStatus.Submitted,
+                _ => ApplicationStatus.Rejected
+            };
+            var product = products[(i - 1) % products.Count];
+            var application = new LoanApplication
+            {
+                CustomerId = customers[i - 1].Id,
+                ProductId = product.Id,
+                RequestedAmount = Math.Min(product.MaxAmount, Math.Max(product.MinAmount, 15_000_000m + i * 500_000m)),
+                RequestedTenorMonths = product.GetAllowedTenors().FirstOrDefault() is var tenor && tenor > 0 ? tenor : 12,
+                Purpose = "Pipeline UI test",
+                Remarks = $"TST pipeline application {i:000}",
+                Status = status,
+                CreatedByUserId = officerUserId,
+                SubmittedAt = status == ApplicationStatus.Draft ? null : DateTime.UtcNow.AddDays(-i),
+                CurrentApprovalLevel = status == ApplicationStatus.Submitted ? 1 : null,
+                RequiredApprovalLevel = status == ApplicationStatus.Submitted ? 2 : null
+            };
+
+            db.LoanApplications.Add(application);
+            await db.SaveChangesAsync();
+
+            if (status == ApplicationStatus.Rejected)
+            {
+                db.ApplicationDecisions.Add(new ApplicationDecision
+                {
+                    ApplicationId = application.Id,
+                    Decision = "Rejected",
+                    DecisionReason = "Seed rejected application for UI testing.",
+                    DecidedByUserId = approverUserId,
+                    DecidedAt = DateTime.UtcNow.AddDays(-i).AddHours(2)
+                });
+            }
+
+            if (branchId.HasValue)
+            {
+                customers[i - 1].BranchId = branchId;
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedReconciliationExceptionsAsync(LoanFlowDbContext db, int resolvedByUserId, DateOnly today)
+    {
+        if (await db.ReconciliationExceptions.AnyAsync(e => e.Description != null && e.Description.StartsWith("TST reconciliation"))) return;
+
+        var loans = await db.Loans
+            .Where(l => l.LoanAccountNo.StartsWith("LN-TST-2026-"))
+            .OrderBy(l => l.Id)
+            .Take(12)
+            .ToListAsync();
+
+        for (var i = 0; i < loans.Count; i++)
+        {
+            var expected = loans[i].OutstandingAmount;
+            var actual = expected + (i % 2 == 0 ? 50_000m : -25_000m);
+            db.ReconciliationExceptions.Add(new ReconciliationException
+            {
+                BusinessDate = today.AddDays(-i % 5),
+                ExceptionType = i % 2 == 0 ? ReconciliationExceptionType.PaymentMismatch : ReconciliationExceptionType.OutstandingMismatch,
+                LoanId = loans[i].Id,
+                ExpectedAmount = expected,
+                ActualAmount = actual,
+                Difference = actual - expected,
+                Description = $"TST reconciliation exception {i + 1:000}",
+                Status = i % 4 == 0 ? ReconciliationStatus.Resolved : ReconciliationStatus.Open,
+                ResolvedByUserId = i % 4 == 0 ? resolvedByUserId : null,
+                ResolvedAt = i % 4 == 0 ? DateTime.UtcNow.AddDays(-1) : null,
+                Resolution = i % 4 == 0 ? "Seed resolved exception." : null
+            });
+        }
+
+        await db.SaveChangesAsync();
     }
 
     private static async Task SeedPermissionsAsync(LoanFlowDbContext db)

@@ -260,5 +260,16 @@ public class OverdueJobService : IOverdueJobService
         {
             throw new ConcurrencyConflictException("Overdue processing conflicted with concurrent loan updates. Re-run the job for the same business date.");
         }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("Duplicate entry") == true)
+        {
+            // Snapshot for today already exists (e.g. API restarted mid-day).
+            // Detach tracked-but-duplicate entities and continue gracefully.
+            _logger.LogWarning("Duplicate snapshot detected — skipping duplicates (idempotent re-run). Details: {Msg}", ex.InnerException.Message);
+            foreach (var entry in _db.ChangeTracker.Entries()
+                         .Where(e => e.State == Microsoft.EntityFrameworkCore.EntityState.Added))
+            {
+                entry.State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+            }
+        }
     }
 }

@@ -35,12 +35,11 @@ export function NotificationProvider({ children }) {
     refreshCount();
 
     // Connect to SignalR
-    const token = getToken();
-    const API_BASE = import.meta.env.DEV ? '/api' : '/api';
-    
+    // accessTokenFactory is intentionally a function so SignalR calls getToken()
+    // on every connect/reconnect, picking up any silently-refreshed token.
     const newConnection = new signalR.HubConnectionBuilder()
-      .withUrl(`${API_BASE}/hubs/notification`, {
-        accessTokenFactory: () => token
+      .withUrl('/api/hubs/notification', {
+        accessTokenFactory: () => getToken()
       })
       .withAutomaticReconnect()
       .build();

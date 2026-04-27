@@ -2,7 +2,6 @@
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  backdrop-filter: var(--blur);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -20,9 +19,9 @@
 }
 
 .card-u-header {
-  padding: 1.25rem 1.5rem;
+  padding: 1.15rem 1.35rem;
   border-bottom: 1px solid var(--border);
-  background: rgba(248, 251, 255, 0.9);
+  background: var(--surface-container-low);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -36,19 +35,21 @@
 }
 
 .card-u-title {
-  font-size: 1.05rem;
-  font-weight: 800;
+  font-size: 1.08rem;
+  font-weight: 750;
   color: var(--navy);
   margin: 0;
+  line-height: 1.35;
 }
 
 .card-u-subtitle {
-  font-size: 0.8rem;
+  font-size: 0.92rem;
   color: var(--text-secondary);
   margin: 0;
+  line-height: 1.5;
 }
 
 .card-u-body {
-  padding: 1.5rem;
+  padding: 1.35rem;
   flex: 1;
 }

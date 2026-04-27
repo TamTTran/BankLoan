@@ -63,6 +63,12 @@ services:
       Jwt__Issuer: "LoanFlow.API"
       Jwt__Audience: "LoanFlow.Client"
       AllowedHosts: "${ALLOWED_HOSTS:-loanflow.local}"
+      # ── Seed passwords (fixed for local dev/test) ────────────────────────────
+      SEED_ADMIN_PASSWORD: "${SEED_ADMIN_PASSWORD:-LoanFlow@2026!}"
+      SEED_OFFICER_PASSWORD: "${SEED_OFFICER_PASSWORD:-LoanFlow@2026!}"
+      SEED_APPROVER_PASSWORD: "${SEED_APPROVER_PASSWORD:-LoanFlow@2026!}"
+      SEED_COLLECTOR_PASSWORD: "${SEED_COLLECTOR_PASSWORD:-LoanFlow@2026!}"
+      SEED_MANAGER_PASSWORD: "${SEED_MANAGER_PASSWORD:-LoanFlow@2026!}"
       Cors__AllowedOrigins__0: "${PUBLIC_APP_ORIGIN:-https://loanflow.local}"
       Webhook__Secret: "${WEBHOOK_SECRET:-SET_VIA_ENV_OR_USER_SECRETS}"
       Webhook__SystemActorUsername: "${WEBHOOK_SYSTEM_ACTOR_USERNAME:-system-webhook}"

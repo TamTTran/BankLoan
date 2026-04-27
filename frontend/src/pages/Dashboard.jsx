@@ -21,19 +21,27 @@ const BUCKET_COLORS = {
   DPD31Plus: '#c34f4f'
 };
 
-export default function Dashboard({ onPendingCount }) {
+export default function Dashboard({ onBadgeCounts }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       dashboardApi.summary().then(mapDashboardSummary),
-      dashboardApi.capitalAdequacy()
+      dashboardApi.capitalAdequacy(),
+      // Fetch maker-checker queue independently so /approvals badge is accurate.
+      dashboardApi.approvalsPending().catch(() => ({ Items: [] })),
     ])
-    .then(([dashData, capData]) => {
+    .then(([dashData, capData, approvalData]) => {
       const merged = { ...dashData, ...capData };
       setSummary(merged);
-      onPendingCount?.(merged?.pendingApprovals || 0);
+      const approvalsCount = Array.isArray(approvalData?.Items)
+        ? approvalData.Items.length
+        : 0;
+      onBadgeCounts?.({
+        applications: merged?.pendingApprovals || 0,
+        approvals:    approvalsCount,
+      });
     })
     .catch(console.error)
     .finally(() => setLoading(false));

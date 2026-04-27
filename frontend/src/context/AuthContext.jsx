@@ -55,9 +55,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   const roleLabel = ROLE_LABELS[user?.role] || user?.role || '';
-  const can = user?.permissions 
+  const rolePermissions = buildPermissions(user?.role);
+  const apiPermissions = user?.permissions
     ? user.permissions.reduce((acc, p) => ({ ...acc, [p]: true }), {})
-    : buildPermissions(user?.role);
+    : {};
+  const can = { ...rolePermissions, ...apiPermissions };
 
   if (loading) return null;
 

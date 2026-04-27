@@ -9,7 +9,7 @@ namespace LoanFlow.API.Controllers;
 
 [ApiController]
 [Route("api/aml")]
-[Authorize(Roles = "Admin,ComplianceOfficer")]
+[Authorize(Roles = "Admin,Manager,ComplianceOfficer")]
 public class AmlController : ControllerBase
 {
     private readonly IAmlScreeningService _amlScreeningService;
@@ -47,12 +47,46 @@ public class AmlController : ControllerBase
         return Ok(history);
     }
 
-    [HttpGet("str")]
-    public async Task<IActionResult> GetSuspiciousTransactionReports()
+    /// <summary>AML Alerts — pending/draft STRs that need attention</summary>
+    [HttpGet("alerts")]
+    public async Task<IActionResult> GetAlerts([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var reports = await _db.SuspiciousTransactionReports
+        var query = _db.SuspiciousTransactionReports
             .Include(r => r.Customer)
-            .OrderByDescending(r => r.ReportDate)
+            .Where(r => r.Status == "Draft" || r.Status == "PendingApproval")
+            .OrderByDescending(r => r.ReportDate);
+
+        var total = await query.CountAsync();
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(r => new
+            {
+                r.Id,
+                r.StrNumber,
+                r.CustomerId,
+                CustomerName = r.Customer.FullName,
+                r.ReportDate,
+                r.SuspicionType,
+                r.Description,
+                r.Status
+            })
+            .ToListAsync();
+
+        return Ok(new { total, page, pageSize, items });
+    }
+
+    [HttpGet("str")]
+    public async Task<IActionResult> GetSuspiciousTransactionReports([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        var query = _db.SuspiciousTransactionReports
+            .Include(r => r.Customer)
+            .OrderByDescending(r => r.ReportDate);
+
+        var total = await query.CountAsync();
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(r => new {
                 r.Id,
                 r.StrNumber,
@@ -63,6 +97,7 @@ public class AmlController : ControllerBase
                 r.Status
             })
             .ToListAsync();
-        return Ok(reports);
+
+        return Ok(new { total, page, pageSize, items });
     }
 }

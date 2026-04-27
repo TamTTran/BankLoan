@@ -26,11 +26,11 @@ function PrivateRoute({ children }) {
 }
 
 function AppShell() {
-  const [pendingCount, setPendingCount] = useState(0);
+  const [badgeCounts, setBadgeCounts] = useState({ applications: 0, approvals: 0 });
   return (
-    <Layout pendingCount={pendingCount}>
+    <Layout badgeCounts={badgeCounts}>
       <Routes>
-        <Route path="/dashboard"    element={<Dashboard onPendingCount={setPendingCount} />} />
+        <Route path="/dashboard"    element={<Dashboard onBadgeCounts={setBadgeCounts} />} />
         <Route path="/customers"    element={<Customers />} />
         <Route path="/products"     element={<LoanProducts />} />
         <Route path="/applications" element={<Applications />} />
