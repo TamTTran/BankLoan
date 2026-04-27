@@ -121,7 +121,7 @@ public class DashboardService : IDashboardService
         // Disbursed per month: sum of ApprovedAmount for loans disbursed in window
         var disbursed = await _db.Loans
             .Where(l => l.DisbursementDate.HasValue &&
-                        DateOnly.FromDateTime(l.DisbursementDate.Value) >= startDate)
+                        l.DisbursementDate.Value >= startDate)
             .GroupBy(l => new { l.DisbursementDate!.Value.Year, l.DisbursementDate.Value.Month })
             .Select(g => new
             {
@@ -133,8 +133,8 @@ public class DashboardService : IDashboardService
             .ToListAsync();
 
         // Collected per month: sum of payments received in window
-        var collected = await _db.LoanPayments
-            .Where(p => DateOnly.FromDateTime(p.PaymentDate) >= startDate)
+        var collected = await _db.Payments
+            .Where(p => p.PaymentDate >= startDate)
             .GroupBy(p => new { p.PaymentDate.Year, p.PaymentDate.Month })
             .Select(g => new
             {
