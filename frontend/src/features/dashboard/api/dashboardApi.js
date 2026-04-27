@@ -1,5 +1,6 @@
 import { httpClient } from '../../../shared/api/httpClient';
 
 export const dashboardApi = {
-  summary: () => httpClient('GET', '/dashboard/summary')
+  summary: () => httpClient('GET', '/dashboard/summary'),
+  capitalAdequacy: () => httpClient('GET', '/capital-adequacy/latest'),
 };

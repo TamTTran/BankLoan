@@ -18,6 +18,9 @@ export function Layout({ children, pendingCount = 0 }) {
     { to: '/overdue',      icon: 'QH', label: t('nav.overdue'),      id: 'nav-overdue' },
     { to: '/collections',  icon: 'TH', label: t('nav.collections'),  id: 'nav-collections',  gated: !can.viewCollectionQueue },
     { to: '/reports',      icon: 'BC', label: t('nav.reports'),      id: 'nav-reports',      gated: !can.viewReports },
+    { to: '/aml',          icon: '🛡️', label: 'AML/KYC',            id: 'nav-aml' },
+    { to: '/risk',         icon: '⚖️', label: 'Risk & Capital',     id: 'nav-risk' },
+    { to: '/regulatory',   icon: '📜', label: 'Regulatory',         id: 'nav-reg' },
     { to: '/approvals',    icon: '✅', label: t('nav.approvals'),    id: 'nav-approvals',    badge: true, gated: !can.viewApprovalsNav },
     { to: '/system-ops',   icon: '⚙️', label: t('nav.system'),      id: 'nav-ops',          gated: !can.viewSystemOpsNav },
   ];
@@ -54,9 +57,9 @@ export function Layout({ children, pendingCount = 0 }) {
         </ul>
 
         <div className="sidebar-footer">
-          <div className="avatar">{(user?.fullName || user?.username || 'U')[0].toUpperCase()}</div>
+          <NavLink to="/profile" className="avatar">{(user?.fullName || user?.username || 'U')[0].toUpperCase()}</NavLink>
           <div className="sidebar-meta">
-            <p className="user-name">{user?.fullName || user?.username}</p>
+            <p className="user-name"><NavLink to="/profile" style={{ color: 'inherit', textDecoration: 'none' }}>{user?.fullName || user?.username}</NavLink></p>
             <p className="user-role">{roleLabel}</p>
           </div>
           <div className="sidebar-actions">

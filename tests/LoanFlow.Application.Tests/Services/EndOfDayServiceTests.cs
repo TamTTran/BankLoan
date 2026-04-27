@@ -21,6 +21,7 @@ public class EndOfDayServiceTests : IDisposable
     private readonly Mock<ISmsService> _smsServiceMock;
     private readonly Mock<ILogger<EndOfDayService>> _loggerMock;
     private readonly Mock<IBusinessClock> _businessClockMock;
+    private readonly Mock<ITransactionMonitoringService> _txnMonitoringServiceMock;
     private readonly EndOfDayService _eodService;
 
     public EndOfDayServiceTests()
@@ -39,6 +40,7 @@ public class EndOfDayServiceTests : IDisposable
         _smsServiceMock = new Mock<ISmsService>();
         _loggerMock = new Mock<ILogger<EndOfDayService>>();
         _businessClockMock = new Mock<IBusinessClock>();
+        _txnMonitoringServiceMock = new Mock<ITransactionMonitoringService>();
 
         _businessClockMock.Setup(x => x.UtcNow).Returns(DateTime.UtcNow);
 
@@ -52,7 +54,8 @@ public class EndOfDayServiceTests : IDisposable
             _smsServiceMock.Object,
             _db,
             _loggerMock.Object,
-            _businessClockMock.Object);
+            _businessClockMock.Object,
+            _txnMonitoringServiceMock.Object);
     }
 
     [Fact]

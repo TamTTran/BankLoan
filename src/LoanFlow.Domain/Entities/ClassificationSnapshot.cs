@@ -17,5 +17,9 @@ public class ClassificationSnapshot
     public decimal ProvisionAmount { get; set; }
     public int Dpd { get; set; }
 
+    // IFRS 9 Data
+    public int Ifrs9Stage { get; set; } = 1;
+    public decimal Ifrs9EclAmount { get; set; }
+
     public Loan Loan { get; set; } = default!;
 }

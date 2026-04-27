@@ -1,6 +1,7 @@
 using LoanFlow.API.Middleware;
 using LoanFlow.API.ExternalServices;
 using LoanFlow.Application.Services;
+using LoanFlow.Application.Common;
 using LoanFlow.API.BackgroundJobs;
 using LoanFlow.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -139,6 +140,7 @@ else
 
 builder.Services.AddScoped<IReportingService, ReportingService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IRealTimeNotificationService, RealTimeNotificationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IEndOfDayService, EndOfDayService>();
 builder.Services.AddScoped<IBodService, BodService>();
@@ -162,6 +164,9 @@ builder.Services.AddScoped<IConcentrationLimitService, ConcentrationLimitService
 builder.Services.AddScoped<ISanctionListProvider, MockSanctionListProvider>();
 builder.Services.AddScoped<IAmlScreeningService, AmlScreeningService>();
 builder.Services.AddScoped<ITransactionMonitoringService, TransactionMonitoringService>();
+builder.Services.AddScoped<IFinancialStatementService, FinancialStatementService>();
+builder.Services.AddScoped<IVirtualAccountMatchingService, VirtualAccountMatchingService>();
+builder.Services.AddScoped<ICoreBankingIntegrationService, CoreBankingIntegrationService>();
 if (extSvc.GetValue<bool>("UseMockCic", defaultValue: true))
     builder.Services.AddScoped<ICicProvider, LoanFlow.API.ExternalServices.MockCicProvider>();
 else
@@ -214,6 +219,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 
 // === Health Checks (used by Docker healthcheck) ===
 builder.Services.AddHealthChecks()
@@ -337,6 +343,7 @@ app.UseMiddleware<BranchFilterMiddleware>();
 app.UseAuthorization();
 app.UseMiddleware<LoanFlow.API.Middleware.DataMaskingMiddleware>();
 app.MapControllers();
+app.MapHub<LoanFlow.API.Hubs.NotificationHub>("/api/hubs/notification");
 
 // Health endpoint for Docker / load-balancer probes (no auth required)
 app.MapHealthChecks("/health");

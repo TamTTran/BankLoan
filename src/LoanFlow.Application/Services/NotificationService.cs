@@ -37,17 +37,20 @@ public class NotificationService : INotificationService
     private readonly ILogger<NotificationService> _logger;
     private readonly IBusinessClock _businessClock;
     private readonly IBusinessCalendarService _businessCalendar;
+    private readonly IRealTimeNotificationService? _realTimeNotificationService;
 
     public NotificationService(
         LoanFlowDbContext db,
         ILogger<NotificationService> logger,
         IBusinessClock businessClock,
-        IBusinessCalendarService businessCalendar)
+        IBusinessCalendarService businessCalendar,
+        IRealTimeNotificationService? realTimeNotificationService = null)
     {
         _db = db;
         _logger = logger;
         _businessClock = businessClock;
         _businessCalendar = businessCalendar;
+        _realTimeNotificationService = realTimeNotificationService;
     }
 
     public async Task ProcessDeliveryQueueAsync()
@@ -245,5 +248,10 @@ public class NotificationService : INotificationService
         });
         await _db.SaveChangesAsync();
         _logger.LogInformation("Sent notification '{Type}' to user {UserId}: {Title}", type, userId, title);
+
+        if (_realTimeNotificationService != null)
+        {
+            await _realTimeNotificationService.NotifyUserAsync(userId, title, message);
+        }
     }
 }

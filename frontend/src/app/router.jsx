@@ -14,6 +14,10 @@ import Reports      from '../pages/Reports';
 import Notifications from '../pages/Notifications';
 import Approvals    from '../pages/Approvals';
 import SystemOps    from '../pages/SystemOps';
+import AmlDashboard from '../pages/AmlDashboard';
+import RiskDashboard from '../pages/RiskDashboard';
+import RegulatoryReports from '../pages/RegulatoryReports';
+import Profile from '../pages/Profile';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -36,6 +40,10 @@ function AppShell() {
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/approvals"    element={<Approvals />} />
         <Route path="/system-ops"   element={<SystemOps />} />
+        <Route path="/aml"          element={<AmlDashboard />} />
+        <Route path="/risk"         element={<RiskDashboard />} />
+        <Route path="/regulatory"   element={<RegulatoryReports />} />
+        <Route path="/profile"      element={<Profile />} />
         <Route path="*"             element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Layout>

@@ -119,6 +119,37 @@ public class ClassificationJobService : IClassificationJobService
             var deltaProvision = requiredProvision - loan.ProvisionAmount;
             bool changed = false;
 
+            // ── IFRS 9 ECL Calculation (Module 5) ──────────────────────────────────
+            int stage = 1;
+            decimal pd = 0.05m; // 12m PD
+            if (maxDpd > 90 || newClass >= LoanClassification.Group3_Substandard)
+            {
+                stage = 3;
+                pd = 1.0m; // Impaired
+            }
+            else if (maxDpd > 30 || loan.QualitativeClassification > 1 || loan.Status == LoanStatus.Restructured)
+            {
+                stage = 2; // SICR (Significant Increase in Credit Risk)
+                pd = 0.20m; // Lifetime PD
+            }
+
+            decimal lgd = 1.0m;
+            if (loan.OutstandingAmount > 0)
+            {
+                var recoveryRate = collateralValue / loan.OutstandingAmount;
+                if (recoveryRate > 1m) recoveryRate = 1m;
+                lgd = 1.0m - recoveryRate;
+            }
+
+            var ecl = loan.OutstandingAmount * pd * lgd;
+            if (loan.Ifrs9Stage != stage || loan.Ifrs9EclAmount != ecl)
+            {
+                loan.Ifrs9Stage = stage;
+                loan.Ifrs9EclAmount = ecl;
+                changed = true;
+            }
+            // ────────────────────────────────────────────────────────────────────────
+
             if (loan.CurrentClassification != newClass)
             {
                 loan.CurrentClassification = newClass;
@@ -168,7 +199,9 @@ public class ClassificationJobService : IClassificationJobService
                 Classification = loan.CurrentClassification,
                 OutstandingAmount = loan.OutstandingAmount,
                 ProvisionAmount = loan.ProvisionAmount,
-                Dpd = maxDpd
+                Dpd = maxDpd,
+                Ifrs9Stage = loan.Ifrs9Stage,
+                Ifrs9EclAmount = loan.Ifrs9EclAmount
             });
         }
 

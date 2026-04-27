@@ -1,37 +1,66 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { notificationsApi } from '../features/notifications/api/notificationsApi';
 import { useAuth } from './AuthContext';
+import * as signalR from '@microsoft/signalr';
+import { getToken } from '../shared/utils/authStorage';
 
 const NotificationContext = createContext(null);
 
-const POLL_INTERVAL_MS = 60_000; // 1 min background poll
-
 export function NotificationProvider({ children }) {
   const [unreadCount, setUnreadCount] = useState(0);
-  const timerRef = useRef(null);
+  const connectionRef = useRef(null);
   const { user } = useAuth();
 
   const refreshCount = useCallback(async () => {
     try {
       const resp = await notificationsApi.getUnreadCount();
-      // API may return { data: n } or just n
       const count = typeof resp === 'number' ? resp : (resp?.data ?? resp ?? 0);
       setUnreadCount(count);
     } catch {
-      // noop — unauthenticated or network error
+      // noop
     }
   }, []);
 
-  // Only poll when authenticated
   useEffect(() => {
     if (!user) {
       setUnreadCount(0);
-      clearInterval(timerRef.current);
+      if (connectionRef.current) {
+        connectionRef.current.stop();
+        connectionRef.current = null;
+      }
       return;
     }
+
+    // Initial fetch
     refreshCount();
-    timerRef.current = setInterval(refreshCount, POLL_INTERVAL_MS);
-    return () => clearInterval(timerRef.current);
+
+    // Connect to SignalR
+    const token = getToken();
+    const API_BASE = import.meta.env.DEV ? '/api' : '/api';
+    
+    const newConnection = new signalR.HubConnectionBuilder()
+      .withUrl(`${API_BASE}/hubs/notification`, {
+        accessTokenFactory: () => token
+      })
+      .withAutomaticReconnect()
+      .build();
+
+    newConnection.on('ReceiveNotification', (notification) => {
+      // Incoming notification from backend -> re-fetch unread count
+      refreshCount();
+    });
+
+    newConnection.start()
+      .then(() => console.log('SignalR Connected'))
+      .catch(e => console.log('SignalR Connection Error: ', e));
+
+    connectionRef.current = newConnection;
+
+    return () => {
+      if (connectionRef.current) {
+        connectionRef.current.stop();
+      }
+    };
   }, [user, refreshCount]);
 
   return (

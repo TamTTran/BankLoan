@@ -21,6 +21,7 @@ public interface IAuthService
     Task<IEnumerable<SessionDto>> GetSessionsAsync(int userId);
     Task<Result> RevokeSessionAsync(int userId, int sessionId);
     Task<Result> ChangePasswordAsync(int userId, string oldPassword, string newPassword);
+    Task<Result<LoginResponse>> ChangeExpiredPasswordAsync(string mfaToken, string newPassword);
     Task<Result<LoginResponse>> VerifyMfaAsync(VerifyMfaRequest request, string? deviceId, string? deviceName);
     Task<Result<MfaSetupResponse>> GetMfaSetupAsync(int userId);
     Task<Result> EnableMfaAsync(int userId, string totpCode);
@@ -90,9 +91,18 @@ public class AuthService : IAuthService
         // ── Check password expiration ────────────────────────────────────────
         if (user.PasswordExpiresAt.HasValue && user.PasswordExpiresAt.Value < DateTime.UtcNow)
         {
-            // Note: In real system, we'd return a specific status code like "PasswordExpired" to redirect user
-            // For now, we still allow login but frontend should handle password change enforcement.
-            // Result could include a flag `RequiresPasswordChange`.
+            var tempToken = GenerateMfaToken(user.Id); // repurpose MFA token for secure PW change session
+            return Result.Success(new LoginResponse(
+                AccessToken: "",
+                RefreshToken: "",
+                Username: user.Username,
+                FullName: user.FullName,
+                Role: user.Role,
+                UserId: user.Id,
+                ExpiresAt: DateTime.UtcNow.AddMinutes(15),
+                RequiresPasswordChange: true,
+                MfaToken: tempToken // token used to authenticate change-password request
+            ));
         }
 
         if (user.MfaEnabled)
@@ -263,7 +273,50 @@ public class AuthService : IAuthService
             token.IsRevoked = true;
             await _db.SaveChangesAsync();
         }
+        await LogoutAllAsync(userId); // force re-login everywhere
         return Result.Success();
+    }
+
+    public async Task<Result<LoginResponse>> ChangeExpiredPasswordAsync(string mfaToken, string newPassword)
+    {
+        var principal = ValidateMfaToken(mfaToken);
+        if (principal == null)
+            return Result.Failure<LoginResponse>("Invalid or expired token.");
+
+        var userIdString = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(userIdString, out int userId))
+            return Result.Failure<LoginResponse>("Invalid token claims.");
+
+        var user = await _db.Users.FindAsync(userId);
+        if (user == null || user.Status != "Active")
+            return Result.Failure<LoginResponse>("Invalid user.");
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        user.PasswordExpiresAt = DateTime.UtcNow.AddDays(90);
+        
+        user.FailedLoginAttempts = 0;
+        user.LockoutEnd = null;
+
+        await _db.SaveChangesAsync();
+        await LogoutAllAsync(userId);
+
+        if (user.MfaEnabled)
+        {
+            var newMfaToken = GenerateMfaToken(user.Id);
+            return Result.Success(new LoginResponse(
+                AccessToken: "",
+                RefreshToken: "",
+                Username: user.Username,
+                FullName: user.FullName,
+                Role: user.Role,
+                UserId: user.Id,
+                ExpiresAt: DateTime.UtcNow.AddMinutes(5),
+                RequiresMfa: true,
+                MfaToken: newMfaToken
+            ));
+        }
+
+        return await GenerateAuthResponseAsync(user, null, null);
     }
 
     public async Task<Result> LogoutAllAsync(int userId)

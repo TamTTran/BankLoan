@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { authApi } from '../features/auth/api/authApi';
+import { httpClient } from '../shared/api/httpClient';
 import { setToken, setUser, clearToken, getUser, getToken } from '../shared/utils/authStorage';
 import { buildPermissions } from '../shared/utils/permissions';
 import { ROLE_LABELS } from '../utils/format';
@@ -31,6 +32,17 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (username, password) => {
     const res = await authApi.login({ username, password });
+    if (res.requiresMfa) {
+      return res;
+    }
+    setToken(res.accessToken);
+    setUser(res);
+    setUserState(res);
+    return res;
+  }, []);
+
+  const verifyMfa = useCallback(async (mfaToken, totpCode) => {
+    const res = await httpClient('POST', '/auth/verify-mfa', { mfaToken, totpCode });
     setToken(res.accessToken);
     setUser(res);
     setUserState(res);
@@ -43,12 +55,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   const roleLabel = ROLE_LABELS[user?.role] || user?.role || '';
-  const can = buildPermissions(user?.role);
+  const can = user?.permissions 
+    ? user.permissions.reduce((acc, p) => ({ ...acc, [p]: true }), {})
+    : buildPermissions(user?.role);
 
   if (loading) return null;
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, roleLabel, can }}>
+    <AuthContext.Provider value={{ user, login, verifyMfa, logout, roleLabel, can }}>
       {children}
     </AuthContext.Provider>
   );

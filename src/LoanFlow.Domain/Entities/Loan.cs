@@ -25,6 +25,10 @@ public class Loan
     public int CurrentClassification { get; set; } = LoanClassification.Group1_Standard;
     public decimal ProvisionAmount { get; set; } = 0;
 
+    // ── IFRS 9 (Module 5) ────────────────────────────────────────────────────
+    public int Ifrs9Stage { get; set; } = 1; // 1: 12-month ECL, 2: Lifetime ECL (SICR), 3: Impaired
+    public decimal Ifrs9EclAmount { get; set; } = 0;
+
     // Phân loại định tính (Qualitative)
     public int? QualitativeClassification { get; set; }
     public string? QualitativeReason { get; set; }
@@ -45,6 +49,9 @@ public class Loan
     public int LateFeeGraceDays { get; set; } = 0;          // snapshot: grace days before late fee
     public string ProductType { get; set; } = "PersonalUnsecured"; // snapshot: product type
     public int? BranchId { get; set; }                            // chi nhánh sở hữu khoản vay
+
+    // ── Nâng cấp Đa tiền tệ (Module 7) ───────────────────────────────────────
+    public decimal ExchangeRateAtDisbursement { get; set; } = 1.0m;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

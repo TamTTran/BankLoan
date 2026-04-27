@@ -120,23 +120,23 @@ public class AuthServiceTests : IDisposable
     public async Task ChangePasswordAsync_WithWeakPassword_ReturnsFailure()
     {
         // Arrange
-        var user = new User { Username = "test", PasswordHash = "hash", Role = "Admin", Status = "Active" };
+        var user = new User { Username = "test", PasswordHash = BCrypt.Net.BCrypt.HashPassword("oldPassword"), FullName = "Test User", Role = "Admin", Status = "Active" };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
         // Act
-        var result = await _authService.ChangePasswordAsync(user.Id, "hash", "weak");
+        var result = await _authService.ChangePasswordAsync(user.Id, "oldPassword", "weak");
 
         // Assert
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("Password must be at least 12 characters");
+        result.Error.Should().Contain("12 ký tự");
     }
 
     [Fact]
     public async Task VerifyMfaAsync_WithInvalidTotpCode_ReturnsFailure()
     {
         // Arrange
-        var user = new User { Username = "test", PasswordHash = "hash", Role = "Admin", Status = "Active", MfaEnabled = true, MfaSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" };
+        var user = new User { Username = "test", PasswordHash = "hash", FullName = "Test User", Role = "Admin", Status = "Active", MfaEnabled = true, MfaSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 

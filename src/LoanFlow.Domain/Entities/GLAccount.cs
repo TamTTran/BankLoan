@@ -10,7 +10,12 @@ public class GLAccount
     public string AccountType { get; set; } = default!;
     
     public decimal Balance { get; set; }
-    
+
+    // ── Nâng cấp Core Banking ────────────────────────────────────────────────
+    public int? ParentAccountId { get; set; }
+    public int? BranchId { get; set; }
+    public string CurrencyCode { get; set; } = "VND";
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     

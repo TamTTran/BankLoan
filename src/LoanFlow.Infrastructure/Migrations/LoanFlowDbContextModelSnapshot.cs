@@ -64,6 +64,50 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.ToTable("AccountingPeriods");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.AmlRiskAssessment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AssessedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("HasSanctionHit")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime>("LastScreeningDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("NextReviewDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("PepStatus")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("RiskLevel")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("SanctionDetails")
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("AmlRiskAssessments");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.ApplicationDecision", b =>
                 {
                     b.Property<int>("Id")
@@ -311,6 +355,12 @@ namespace LoanFlow.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("Dpd")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Ifrs9EclAmount")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<int>("Ifrs9Stage")
                         .HasColumnType("int");
 
                     b.Property<int>("LoanId")
@@ -633,6 +683,10 @@ namespace LoanFlow.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("varchar(255)");
 
+                    b.Property<string>("AmlRiskLevel")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<int>("AssignedToUserId")
                         .HasColumnType("int");
 
@@ -691,12 +745,26 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.Property<decimal?>("MonthlyIncome")
                         .HasColumnType("decimal(65,30)");
 
+                    b.Property<string>("Nationality")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Occupation")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("PepStatus")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
 
                     b.Property<string>("RegionCode")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("SourceOfFunds")
                         .HasColumnType("longtext");
 
                     b.Property<string>("Status")
@@ -1096,6 +1164,38 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.ToTable("EscalationRules");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.ExchangeRate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BuyRate")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("MidRate")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<decimal>("SellRate")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ExchangeRates");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.GLAccount", b =>
                 {
                     b.Property<int>("Id")
@@ -1123,8 +1223,18 @@ namespace LoanFlow.Infrastructure.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int?>("ParentAccountId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("RowVersion")
                         .IsConcurrencyToken()
@@ -1195,6 +1305,42 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.ToTable("IdempotencyRecords");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.InterestRateHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BaseRate")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("EffectiveDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("LoanId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Margin")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LoanId");
+
+                    b.ToTable("InterestRateHistories");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.JournalEntry", b =>
                 {
                     b.Property<int>("Id")
@@ -1218,6 +1364,13 @@ namespace LoanFlow.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
+
+                    b.Property<string>("SyncStatus")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("SyncedAt")
+                        .HasColumnType("datetime(6)");
 
                     b.HasKey("Id");
 
@@ -1360,7 +1513,16 @@ namespace LoanFlow.Infrastructure.Migrations
                         .HasPrecision(10, 6)
                         .HasColumnType("decimal(10,6)");
 
+                    b.Property<decimal>("ExchangeRateAtDisbursement")
+                        .HasColumnType("decimal(65,30)");
+
                     b.Property<int>("GracePeriodMonths")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Ifrs9EclAmount")
+                        .HasColumnType("decimal(65,30)");
+
+                    b.Property<int>("Ifrs9Stage")
                         .HasColumnType("int");
 
                     b.Property<string>("IndustryCode")
@@ -2741,6 +2903,56 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.ToTable("SuspenseTransactions");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.SuspiciousTransactionReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ApprovedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("RelatedTransactionIdsJson")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("ReportDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("StrNumber")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("SuspicionType")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.ToTable("SuspiciousTransactionReports");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.SystemConfig", b =>
                 {
                     b.Property<string>("Key")
@@ -2909,6 +3121,17 @@ namespace LoanFlow.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("ClosedBy");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.AmlRiskAssessment", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.ApplicationDecision", b =>
@@ -3191,6 +3414,17 @@ namespace LoanFlow.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.InterestRateHistory", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.Loan", "Loan")
+                        .WithMany()
+                        .HasForeignKey("LoanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Loan");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.JournalEntryLine", b =>
@@ -3715,6 +3949,17 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.Navigation("SourceLoanTransaction");
 
                     b.Navigation("SourcePayment");
+                });
+
+            modelBuilder.Entity("LoanFlow.Domain.Entities.SuspiciousTransactionReport", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("LoanFlow.Domain.Entities.TransactionReversal", b =>

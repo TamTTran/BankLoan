@@ -9,5 +9,9 @@ public class JournalEntry
     
     public DateTime PostedAt { get; set; } = DateTime.UtcNow;
     
+    // ── Nâng cấp Core Banking (Module 7) ─────────────────────────────────────
+    public string SyncStatus { get; set; } = "Pending"; // Pending | Synced | Failed
+    public DateTime? SyncedAt { get; set; }
+
     public ICollection<JournalEntryLine> Lines { get; set; } = new List<JournalEntryLine>();
 }

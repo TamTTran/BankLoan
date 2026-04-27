@@ -59,9 +59,11 @@ public class AuthController : ControllerBase
         // RefreshToken → HttpOnly cookie; AccessToken → JSON body
         SetRefreshTokenCookie(result.Value.RefreshToken);
 
+        var permissions = GetPermissionsForRole(result.Value.Role);
         var publicResponse = new PublicLoginResponse(
             result.Value.AccessToken, result.Value.Username, result.Value.FullName,
-            result.Value.Role, result.Value.UserId, result.Value.ExpiresAt);
+            result.Value.Role, result.Value.UserId, result.Value.ExpiresAt,
+            result.Value.RequiresMfa, result.Value.MfaToken, result.Value.RequiresPasswordChange, permissions);
 
         return Ok(new { success = true, data = publicResponse });
     }
@@ -85,9 +87,11 @@ public class AuthController : ControllerBase
 
         SetRefreshTokenCookie(result.Value.RefreshToken);
 
+        var permissions = GetPermissionsForRole(result.Value.Role);
         var publicResponse = new PublicLoginResponse(
             result.Value.AccessToken, result.Value.Username, result.Value.FullName,
-            result.Value.Role, result.Value.UserId, result.Value.ExpiresAt);
+            result.Value.Role, result.Value.UserId, result.Value.ExpiresAt,
+            result.Value.RequiresMfa, result.Value.MfaToken, result.Value.RequiresPasswordChange, permissions);
 
         return Ok(new { success = true, data = publicResponse });
     }
@@ -148,6 +152,38 @@ public class AuthController : ControllerBase
 
         ClearRefreshTokenCookie(); // Force re-login
         return Ok(new { success = true, message = "Password changed successfully. Please login again." });
+    }
+
+    [HttpPost("change-expired-password")]
+    [AllowAnonymous]
+    [EnableRateLimiting("LoginRateLimit")]
+    public async Task<IActionResult> ChangeExpiredPassword([FromBody] ChangeExpiredPasswordRequest request)
+    {
+        var result = await _service.ChangeExpiredPasswordAsync(request.MfaToken, request.NewPassword);
+        if (!result.IsSuccess)
+            return BadRequest(new { success = false, error = new { message = result.Error } });
+
+        SetRefreshTokenCookie(result.Value.RefreshToken);
+
+        var permissions = GetPermissionsForRole(result.Value.Role);
+        var publicResponse = new PublicLoginResponse(
+            result.Value.AccessToken, result.Value.Username, result.Value.FullName,
+            result.Value.Role, result.Value.UserId, result.Value.ExpiresAt,
+            result.Value.RequiresMfa, result.Value.MfaToken, result.Value.RequiresPasswordChange, permissions);
+
+        return Ok(new { success = true, data = publicResponse });
+    }
+
+    private List<string> GetPermissionsForRole(string role)
+    {
+        return role switch
+        {
+            "Admin" => new List<string> { "all" },
+            "Approver" => new List<string> { "approveApplication", "viewApprovalsNav", "viewProductsNav" },
+            "LoanOfficer" => new List<string> { "createCustomer", "createLoan", "viewProductsNav" },
+            "Manager" => new List<string> { "viewReports", "viewCollectionQueue", "viewApprovalsNav", "viewProductsNav" },
+            _ => new List<string>()
+        };
     }
 
     [HttpPost("verify-mfa")]

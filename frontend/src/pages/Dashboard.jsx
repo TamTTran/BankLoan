@@ -9,8 +9,8 @@ const KPI_CARDS = [
   { key: 'totalOutstanding', icon: 'VND', label: 'Total outstanding', cls: 'kpi-blue', fmt: formatCurrency },
   { key: 'totalActiveLoans', icon: 'LN', label: 'Active loans', cls: 'kpi-green', fmt: formatNumber },
   { key: 'pendingApprovals', icon: 'AP', label: 'Pending approvals', cls: 'kpi-amber', fmt: formatNumber },
-  { key: 'overdueAccounts', icon: 'OD', label: 'Overdue accounts', cls: 'kpi-red', fmt: formatNumber },
-  { key: 'totalDisbursedThisMonth', icon: 'DIS', label: 'Disbursed this month', cls: 'kpi-purple', fmt: formatCurrency },
+  { key: 'carRatio', icon: 'CAR', label: 'CAR', cls: 'kpi-purple', fmt: (v) => `${Number(v || 0).toFixed(2)}%` },
+  { key: 'nplRatio', icon: 'NPL', label: 'NPL Ratio', cls: 'kpi-red', fmt: (v) => `${Number(v || 0).toFixed(2)}%` },
   { key: 'collectedThisMonth', icon: 'COL', label: 'Collected this month', cls: 'kpi-teal', fmt: formatCurrency },
 ];
 
@@ -26,14 +26,17 @@ export default function Dashboard({ onPendingCount }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    dashboardApi.summary()
-      .then(mapDashboardSummary)
-      .then((data) => {
-        setSummary(data);
-        onPendingCount?.(data?.pendingApprovals || 0);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    Promise.all([
+      dashboardApi.summary().then(mapDashboardSummary),
+      dashboardApi.capitalAdequacy()
+    ])
+    .then(([dashData, capData]) => {
+      const merged = { ...dashData, ...capData };
+      setSummary(merged);
+      onPendingCount?.(merged?.pendingApprovals || 0);
+    })
+    .catch(console.error)
+    .finally(() => setLoading(false));
   }, []);
 
   const overdueBuckets = summary?.overdueBuckets || [];
