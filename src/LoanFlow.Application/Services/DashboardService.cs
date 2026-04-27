@@ -9,6 +9,7 @@ public interface IDashboardService
 {
     Task<DashboardSummaryDto> GetSummaryAsync();
     Task<OverdueBucketReportDto> GetOverdueBucketReportAsync();
+    Task<MonthlyTrendDto> GetMonthlyTrendAsync(int months = 6);
 }
 
 public class DashboardService : IDashboardService
@@ -106,4 +107,58 @@ public class DashboardService : IDashboardService
         DpdBucket.Dpd31Plus => "31+ Days Past Due",
         _ => bucket
     };
+
+    /// <summary>
+    /// GET /dashboard/monthly-trend — RPT-003
+    /// Returns last N months of disbursement, collection and new-loan volume.
+    /// </summary>
+    public async Task<MonthlyTrendDto> GetMonthlyTrendAsync(int months = 6)
+    {
+        var tz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+        var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+        var startDate = new DateOnly(now.Year, now.Month, 1).AddMonths(-(months - 1));
+
+        // Disbursed per month: sum of ApprovedAmount for loans disbursed in window
+        var disbursed = await _db.Loans
+            .Where(l => l.DisbursementDate.HasValue &&
+                        DateOnly.FromDateTime(l.DisbursementDate.Value) >= startDate)
+            .GroupBy(l => new { l.DisbursementDate!.Value.Year, l.DisbursementDate.Value.Month })
+            .Select(g => new
+            {
+                Year = g.Key.Year,
+                Month = g.Key.Month,
+                Disbursed = g.Sum(l => l.ApprovedAmount),
+                NewLoans = g.Count()
+            })
+            .ToListAsync();
+
+        // Collected per month: sum of payments received in window
+        var collected = await _db.LoanPayments
+            .Where(p => DateOnly.FromDateTime(p.PaymentDate) >= startDate)
+            .GroupBy(p => new { p.PaymentDate.Year, p.PaymentDate.Month })
+            .Select(g => new
+            {
+                Year = g.Key.Year,
+                Month = g.Key.Month,
+                Collected = g.Sum(p => p.Amount)
+            })
+            .ToListAsync();
+
+        var points = new List<MonthlyTrendPointDto>();
+        for (int i = 0; i < months; i++)
+        {
+            var d = startDate.AddMonths(i);
+            var dis = disbursed.FirstOrDefault(x => x.Year == d.Year && x.Month == d.Month);
+            var col = collected.FirstOrDefault(x => x.Year == d.Year && x.Month == d.Month);
+            points.Add(new MonthlyTrendPointDto
+            {
+                Month = $"{d.Year}-{d.Month:D2}",
+                Label = d.ToString("MMM yy"),
+                Disbursed = dis?.Disbursed ?? 0,
+                Collected = col?.Collected ?? 0,
+                NewLoans  = dis?.NewLoans ?? 0,
+            });
+        }
+        return new MonthlyTrendDto { Points = points };
+    }
 }

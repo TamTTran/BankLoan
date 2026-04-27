@@ -31,3 +31,18 @@ public class LoanStatusSummaryDto
     public int Count { get; set; }
     public decimal TotalAmount { get; set; }
 }
+
+// GET /dashboard/monthly-trend — RPT-003
+public class MonthlyTrendDto
+{
+    public List<MonthlyTrendPointDto> Points { get; set; } = [];
+}
+
+public class MonthlyTrendPointDto
+{
+    public string Month { get; set; } = default!;  // "YYYY-MM"
+    public string Label { get; set; } = default!;  // "Jan 25"
+    public decimal Disbursed { get; set; }
+    public decimal Collected { get; set; }
+    public int NewLoans { get; set; }
+}

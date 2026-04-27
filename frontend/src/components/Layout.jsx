@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useT } from '../i18n/useT';
@@ -12,7 +12,7 @@ export function Layout({ children, badgeCounts = {} }) {
   const location = useLocation();
   const [isNavOpen, setIsNavOpen] = useState(false);
 
-  const NAV = [
+  const NAV = useMemo(() => [
     { to: '/dashboard',    icon: 'DB', label: t('nav.dashboard'),    id: 'nav-dashboard' },
     { to: '/customers',    icon: 'KH', label: t('nav.customers'),    id: 'nav-customers' },
     { to: '/products',     icon: 'SP', label: t('nav.products'),     id: 'nav-products',     gated: !can.viewProductsNav },
@@ -27,7 +27,7 @@ export function Layout({ children, badgeCounts = {} }) {
     { to: '/interbank-sync', icon: '🏦', label: 'Interbank Sync',     id: 'nav-interbank' },
     { to: '/approvals',    icon: '✅', label: t('nav.approvals'),    id: 'nav-approvals',    badge: true, badgeKey: 'approvals', gated: !can.viewApprovalsNav },
     { to: '/system-ops',   icon: '⚙️', label: t('nav.system'),      id: 'nav-ops',          gated: !can.viewSystemOpsNav },
-  ];
+  ], [t, can]);
 
   const visible = NAV.filter(n => !n.gated);
 
