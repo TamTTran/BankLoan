@@ -21,6 +21,7 @@ export function Layout({ children, pendingCount = 0 }) {
     { to: '/aml',          icon: '🛡️', label: 'AML/KYC',            id: 'nav-aml' },
     { to: '/risk',         icon: '⚖️', label: 'Risk & Capital',     id: 'nav-risk' },
     { to: '/regulatory',   icon: '📜', label: 'Regulatory',         id: 'nav-reg' },
+    { to: '/interbank-sync', icon: '🏦', label: 'Interbank Sync',     id: 'nav-interbank' },
     { to: '/approvals',    icon: '✅', label: t('nav.approvals'),    id: 'nav-approvals',    badge: true, gated: !can.viewApprovalsNav },
     { to: '/system-ops',   icon: '⚙️', label: t('nav.system'),      id: 'nav-ops',          gated: !can.viewSystemOpsNav },
   ];

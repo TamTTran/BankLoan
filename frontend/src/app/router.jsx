@@ -18,6 +18,7 @@ import AmlDashboard from '../pages/AmlDashboard';
 import RiskDashboard from '../pages/RiskDashboard';
 import RegulatoryReports from '../pages/RegulatoryReports';
 import Profile from '../pages/Profile';
+import InterbankSync from '../pages/InterbankSync';
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -43,6 +44,7 @@ function AppShell() {
         <Route path="/aml"          element={<AmlDashboard />} />
         <Route path="/risk"         element={<RiskDashboard />} />
         <Route path="/regulatory"   element={<RegulatoryReports />} />
+        <Route path="/interbank-sync" element={<InterbankSync />} />
         <Route path="/profile"      element={<Profile />} />
         <Route path="*"             element={<Navigate to="/dashboard" replace />} />
       </Routes>

@@ -44,9 +44,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    expose:
-      - "8080"
-      - "8443"
+    ports:
+      - "8080:8080"   # HTTP  — Swagger UI: http://localhost:8080/swagger
+      - "8443:8443"   # HTTPS — Direct API:  https://localhost:8443/api
     volumes:
       - ./certs:/certs:ro    # C9: Mount internal CA certs
     environment:
@@ -118,7 +118,7 @@ services:
     volumes:
       - ./certs:/etc/nginx/certs:ro  # TLS for browser traffic and mTLS to API
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health || exit 1"]
       interval: 20s
       timeout: 5s
       retries: 3

@@ -207,22 +207,22 @@ Hệ thống tự động:            ├─ Tạo bản ghi Mirror âm (Payment
 
 ---
 
-### Phase 7 — Sổ cái, Đối soát & Báo cáo (Ledger & Reconciliation)
+### Phase 7 — Sổ cái, Đối soát, Đa tiền tệ & Báo cáo (Ledger, Multi-currency & Reconciliation)
 
 > **Ai thực hiện:** Hệ thống (tự động, cuối ngày) + Manager (xem báo cáo)  
-> **Mục tiêu:** Đảm bảo tính toàn vẹn tài chính, xuất báo cáo pháp quy.
+> **Mục tiêu:** Đảm bảo tính toàn vẹn tài chính, đồng bộ liên ngân hàng (Interbank) và xuất báo cáo pháp quy.
 
 | Bước | Hành động | Service |
 |------|-----------|---------|
 | 7.1 | End-of-Day Job — chạy tự động cuối ngày | `EndOfDayService` |
-| 7.2 | Kiểm tra Overdue & cập nhật trạng thái | `OverdueJobService` |
-| 7.3 | Đối soát 6 điểm (Reconciliation Engine) | `ReconciliationService` |
-| 7.4 | Ghi nhận ngoại lệ đối soát (nếu có) | `ReconciliationException` |
-| 7.5 | Quản lý kỳ kế toán (Mở / Đóng sổ) | `AccountingPeriodService` |
-| 7.6 | Bút toán kế toán (Journal Entry) | `AccountingService` → `JournalEntry`, `JournalEntryLine` |
-| 7.7 | Báo cáo NPL (Non-Performing Loan) | `NplReportingService` |
-| 7.8 | Báo cáo pháp quy (Regulatory Report) | `RegulatoryReportingService` |
-| 7.9 | Xuất dữ liệu (Data Export) | `DataExportService` |
+| 7.2 | Đánh giá lại tỷ giá ngoại tệ (FX Revaluation) | `EndOfDayService.ProcessExchangeRateRevaluationAsync()` |
+| 7.3 | Khớp lệnh tài khoản ảo (Virtual Account Matching) | `VirtualAccountMatchingService` |
+| 7.4 | Đồng bộ bút toán liên ngân hàng (Core Banking Sync) | `CoreBankingIntegrationService` |
+| 7.5 | Đối soát 6 điểm (Reconciliation Engine) | `ReconciliationService` |
+| 7.6 | Quản lý kỳ kế toán (Mở / Đóng sổ) | `AccountingPeriodService` |
+| 7.7 | Bút toán kế toán (Journal Entry) | `AccountingService` → `JournalEntry`, `JournalEntryLine` |
+| 7.8 | Báo cáo NPL (Non-Performing Loan) | `NplReportingService` |
+| 7.9 | Báo cáo pháp quy (Regulatory Report) | `RegulatoryReportingService` |
 
 **6 điểm đối soát (Reconciliation Checks):**
 ```
@@ -381,7 +381,7 @@ cd frontend && npm run dev
 | `POST` | `/api/loans/{id}/write-off` | Xóa nợ |
 | `POST` | `/api/loans/{id}/recovery` | Thu hồi sau xóa nợ |
 
-### 📊 Reports & Reconciliation (Phase 7)
+### 📊 Reports, Ledger & Interbank (Phase 7)
 | Method | Endpoint | Mô tả |
 |--------|----------|-------|
 | `GET` | `/api/dashboard/summary` | Tổng quan portfolio |
@@ -389,6 +389,8 @@ cd frontend && npm run dev
 | `GET` | `/api/reports/npl` | Báo cáo nợ xấu |
 | `GET` | `/api/reports/regulatory` | Báo cáo pháp quy |
 | `GET` | `/api/data-export/{type}` | Xuất dữ liệu |
+| `POST` | `/api/interbank/sync-journals` | Push bút toán lên Core Banking |
+| `POST` | `/api/interbank/virtual-account-webhook` | Webhook nhận thanh toán từ VA |
 
 ---
 
