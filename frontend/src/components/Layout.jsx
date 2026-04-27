@@ -1,37 +1,33 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useT } from '../i18n/useT';
 import { NotificationBell } from '../features/notifications/components/NotificationBell';
-
-const NAV = [
-  { to: '/dashboard', icon: 'DB', label: 'Dashboard', id: 'nav-dashboard' },
-  { to: '/customers', icon: 'KH', label: 'Khach hang', id: 'nav-customers' },
-  { to: '/products', icon: 'SP', label: 'San pham vay', id: 'nav-products' },
-  { to: '/applications', icon: 'HS', label: 'Ho so vay', id: 'nav-applications', badge: true },
-  { to: '/loans', icon: 'KV', label: 'Khoan vay', id: 'nav-loans' },
-  { to: '/overdue', icon: 'QH', label: 'Qua han', id: 'nav-overdue' },
-  { to: '/collections', icon: 'TH', label: 'Thu hoi no', id: 'nav-collections' },
-  { to: '/reports', icon: 'BC', label: 'Bao cao', id: 'nav-reports' },
-  { to: '/approvals', icon: '✅', label: 'Phe duyet', id: 'nav-approvals', badge: true },
-  { to: '/system-ops', icon: '⚙️', label: 'He thong', id: 'nav-ops' },
-];
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 export function Layout({ children, pendingCount = 0 }) {
   const { user, logout, roleLabel, can } = useAuth();
+  const { t } = useT();
   const navigate = useNavigate();
+
+  const NAV = [
+    { to: '/dashboard',    icon: 'DB', label: t('nav.dashboard'),    id: 'nav-dashboard' },
+    { to: '/customers',    icon: 'KH', label: t('nav.customers'),    id: 'nav-customers' },
+    { to: '/products',     icon: 'SP', label: t('nav.products'),     id: 'nav-products',     gated: !can.viewProductsNav },
+    { to: '/applications', icon: 'HS', label: t('nav.applications'), id: 'nav-applications', badge: true },
+    { to: '/loans',        icon: 'KV', label: t('nav.loans'),        id: 'nav-loans' },
+    { to: '/overdue',      icon: 'QH', label: t('nav.overdue'),      id: 'nav-overdue' },
+    { to: '/collections',  icon: 'TH', label: t('nav.collections'),  id: 'nav-collections',  gated: !can.viewCollectionQueue },
+    { to: '/reports',      icon: 'BC', label: t('nav.reports'),      id: 'nav-reports',      gated: !can.viewReports },
+    { to: '/approvals',    icon: '✅', label: t('nav.approvals'),    id: 'nav-approvals',    badge: true, gated: !can.viewApprovalsNav },
+    { to: '/system-ops',   icon: '⚙️', label: t('nav.system'),      id: 'nav-ops',          gated: !can.viewSystemOpsNav },
+  ];
+
+  const visible = NAV.filter(n => !n.gated);
 
   const handleLogout = () => {
     logout();
     navigate('/');
   };
-
-  const visible = NAV.filter((n) => {
-    if (n.to === '/products' && !can.viewProductsNav) return false;
-    if (n.to === '/collections' && !can.viewCollectionQueue) return false;
-    if (n.to === '/reports' && !can.viewReports) return false;
-    if (n.to === '/approvals' && !can.viewApprovalsNav) return false;
-    if (n.to === '/system-ops' && !can.viewSystemOpsNav) return false;
-    return true;
-  });
 
   return (
     <div className="app-layout">
@@ -64,8 +60,9 @@ export function Layout({ children, pendingCount = 0 }) {
             <p className="user-role">{roleLabel}</p>
           </div>
           <div className="sidebar-actions">
+            <LanguageSwitcher />
             <NotificationBell />
-            <button className="btn-logout" onClick={handleLogout} title="Dang xuat">
+            <button className="btn-logout" onClick={handleLogout} title={t('common.logout')}>
               OUT
             </button>
           </div>

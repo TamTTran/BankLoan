@@ -24,8 +24,11 @@ public interface INotificationService
     Task GenerateOverdueRemindersAsync(DateOnly businessDate);
     Task<PagedResult<NotificationDto>> GetUserNotificationsAsync(int userId, bool unreadOnly, int page = 1, int pageSize = 50);
     Task<Result> MarkAsReadAsync(int notificationId, int userId);
+    Task MarkAllAsReadAsync(int userId);
     Task<int> GetUnreadCountAsync(int userId);
-    Task ProcessDeliveryQueueAsync(); // CF5 Delivery Log loop
+    Task ProcessDeliveryQueueAsync();
+    /// <summary>Instantly push an in-app notification to a specific user.</summary>
+    Task SendAsync(int userId, string type, string title, string message, string? deeplinkUrl = null, int? loanId = null, int? customerId = null);
 }
 
 public class NotificationService : INotificationService
@@ -216,5 +219,31 @@ public class NotificationService : INotificationService
     public async Task<int> GetUnreadCountAsync(int userId)
     {
         return await _db.Notifications.CountAsync(n => n.UserId == userId && !n.IsRead);
+    }
+
+    public async Task MarkAllAsReadAsync(int userId)
+    {
+        var unread = await _db.Notifications
+            .Where(n => n.UserId == userId && !n.IsRead)
+            .ToListAsync();
+        var now = _businessClock.UtcNow;
+        foreach (var n in unread) { n.IsRead = true; n.ReadAt = now; }
+        if (unread.Count > 0) await _db.SaveChangesAsync();
+    }
+
+    public async Task SendAsync(int userId, string type, string title, string message, string? deeplinkUrl = null, int? loanId = null, int? customerId = null)
+    {
+        _db.Notifications.Add(new Notification
+        {
+            UserId     = userId,
+            LoanId     = loanId,
+            CustomerId = customerId,
+            Type       = type,
+            Title      = title,
+            Message    = message,
+            DeeplinkUrl = deeplinkUrl,
+        });
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Sent notification '{Type}' to user {UserId}: {Title}", type, userId, title);
     }
 }

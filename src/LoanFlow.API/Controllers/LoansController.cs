@@ -19,13 +19,15 @@ public class LoansController : ControllerBase
     private readonly ICollateralService _collateralService;
     private readonly IApprovalFlowService _approvalFlowService;
     private readonly IEContractService _eContractService;
+    private readonly INotificationService _notifications;
 
-    public LoansController(ILoanService service, ICollateralService collateralService, IApprovalFlowService approvalFlowService, IEContractService eContractService)
+    public LoansController(ILoanService service, ICollateralService collateralService, IApprovalFlowService approvalFlowService, IEContractService eContractService, INotificationService notifications)
     {
         _service = service;
         _collateralService = collateralService;
         _approvalFlowService = approvalFlowService;
         _eContractService = eContractService;
+        _notifications = notifications;
     }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -118,6 +120,16 @@ public class LoansController : ControllerBase
     {
         var result = await _service.RecordPaymentAsync(id, request, CurrentUserId);
         if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
+
+        // Notify the recording officer
+        await _notifications.SendAsync(
+            CurrentUserId,
+            NotificationType.PaymentReceived,
+            "Thanh toán đã được ghi nhận",
+            $"Đã thu {request.Amount:N0} VND cho khoản vay #{id}. Tiếp tục theo dõi lịch trả nợ.",
+            deeplinkUrl: $"/loans/{id}",
+            loanId: id);
+
         return Ok(new { success = true, data = new { message = "Payment recorded." } });
     }
 

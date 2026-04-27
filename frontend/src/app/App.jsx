@@ -1,6 +1,7 @@
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
 import { ToastProvider } from '../context/ToastContext';
+import { NotificationProvider } from '../context/NotificationContext';
 import { AppRouter } from './router';
 
 export function App() {
@@ -8,9 +9,12 @@ export function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
-          <AppRouter />
+          <NotificationProvider>
+            <AppRouter />
+          </NotificationProvider>
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );
 }
+

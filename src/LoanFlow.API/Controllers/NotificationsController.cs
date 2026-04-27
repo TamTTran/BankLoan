@@ -41,4 +41,12 @@ public class NotificationsController : ControllerBase
         if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
         return Ok(new { success = true, data = new { message = "Notification marked as read." } });
     }
+
+    [HttpPost("read-all")]
+    public async Task<IActionResult> MarkAllAsRead()
+    {
+        await _service.MarkAllAsReadAsync(CurrentUserId);
+        return Ok(new { success = true, data = new { message = "All notifications marked as read." } });
+    }
 }
+

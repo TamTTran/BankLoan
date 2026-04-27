@@ -15,11 +15,13 @@ public class LoanLifecycleController : ControllerBase
 {
     private readonly ILoanLifecycleService _service;
     private readonly IApprovalFlowService _approvalFlowService;
+    private readonly INotificationService _notifications;
 
-    public LoanLifecycleController(ILoanLifecycleService service, IApprovalFlowService approvalFlowService)
+    public LoanLifecycleController(ILoanLifecycleService service, IApprovalFlowService approvalFlowService, INotificationService notifications)
     {
         _service = service;
         _approvalFlowService = approvalFlowService;
+        _notifications = notifications;
     }
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -31,13 +33,12 @@ public class LoanLifecycleController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.Approver},{Roles.Manager}")]
     public async Task<IActionResult> Restructure(int loanId, [FromBody] RestructureRequest request)
     {
-        return await SubmitApprovalAsync(
-            "LoanRestructure",
-            new RestructureApprovalPayload
-            {
-                LoanId = loanId,
-                Request = request
-            });
+        var result = await SubmitApprovalAsync("LoanRestructure", new RestructureApprovalPayload { LoanId = loanId, Request = request });
+        await _notifications.SendAsync(CurrentUserId, NotificationType.LoanOpSubmitted,
+            "Yêu cầu cơ cấu đã được gửi",
+            $"Yêu cầu cơ cấu lại khoản vay #{loanId} đã vào hàng đợi phê duyệt.",
+            deeplinkUrl: "/approvals", loanId: loanId);
+        return result;
     }
 
     [HttpPost("restructure/request")]
@@ -60,13 +61,12 @@ public class LoanLifecycleController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.Approver},{Roles.Manager}")]
     public async Task<IActionResult> Reschedule(int loanId, [FromBody] RescheduleRequest request)
     {
-        return await SubmitApprovalAsync(
-            "LoanReschedule",
-            new RescheduleApprovalPayload
-            {
-                LoanId = loanId,
-                Request = request
-            });
+        var result = await SubmitApprovalAsync("LoanReschedule", new RescheduleApprovalPayload { LoanId = loanId, Request = request });
+        await _notifications.SendAsync(CurrentUserId, NotificationType.LoanOpSubmitted,
+            "Yêu cầu dời ngày đã được gửi",
+            $"Yêu cầu dời ngày trả nợ cho khoản vay #{loanId} đã vào hàng đợi phê duyệt.",
+            deeplinkUrl: "/approvals", loanId: loanId);
+        return result;
     }
 
     [HttpPost("reschedule/request")]
@@ -89,13 +89,12 @@ public class LoanLifecycleController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.Manager}")]
     public async Task<IActionResult> WriteOff(int loanId, [FromBody] WriteOffRequest request)
     {
-        return await SubmitApprovalAsync(
-            "LoanWriteOff",
-            new WriteOffApprovalPayload
-            {
-                LoanId = loanId,
-                Request = request
-            });
+        var result = await SubmitApprovalAsync("LoanWriteOff", new WriteOffApprovalPayload { LoanId = loanId, Request = request });
+        await _notifications.SendAsync(CurrentUserId, NotificationType.LoanOpSubmitted,
+            "Yêu cầu xóa nợ đã được gửi",
+            $"Yêu cầu xóa nợ cho khoản vay #{loanId} đã vào hàng đợi phê duyệt cấp Quản lý.",
+            deeplinkUrl: "/approvals", loanId: loanId);
+        return result;
     }
 
     [HttpPost("write-off/request")]

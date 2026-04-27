@@ -1,25 +1,9 @@
-import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { notificationsApi } from '../api/notificationsApi';
+import { useNotifications } from '../../../context/NotificationContext';
 
 export function NotificationBell() {
-  const [count, setCount] = useState(0);
+  const { unreadCount } = useNotifications();
   const navigate = useNavigate();
-
-  const fetchUnread = async () => {
-    try {
-      const resp = await notificationsApi.getUnreadCount();
-      setCount(resp);
-    } catch {
-      // noop
-    }
-  };
-
-  useEffect(() => {
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 300000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <button
@@ -27,10 +11,10 @@ export function NotificationBell() {
       className="notification-bell"
       title="Notifications"
     >
-      <span className="notification-bell-icon">N</span>
-      {count > 0 && (
+      <span className="notification-bell-icon">🔔</span>
+      {unreadCount > 0 && (
         <span className="notification-bell-count">
-          {count > 99 ? '99+' : count}
+          {unreadCount > 99 ? '99+' : unreadCount}
         </span>
       )}
     </button>

@@ -1,13 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { notificationsApi } from '../features/notifications/api/notificationsApi';
 import { useNavigate } from 'react-router-dom';
+import { useT } from '../i18n/useT';
+import { Card, CardHeader, CardBody } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { useNotifications } from '../context/NotificationContext';
+
 
 export default function Notifications() {
+  const { t } = useT();
+  const { refreshCount } = useNotifications();
   const [notifications, setNotifications] = useState([]);
+
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
   const pageSize = 20;
   const navigate = useNavigate();
 
@@ -20,149 +29,179 @@ export default function Notifications() {
       setNotifications(resp.items || []);
       setTotalCount(resp.totalCount || 0);
     } catch (e) {
-      console.error("Failed to load notifications", e);
+      console.error('Failed to load notifications', e);
     } finally {
       setLoading(false);
     }
   }, [unreadOnly, page]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  // Reset to page 1 when switching filter
-  useEffect(() => {
-    setPage(1);
-  }, [unreadOnly]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [unreadOnly]);
 
   const handleRead = async (id, deeplinkUrl) => {
     try {
       await notificationsApi.markAsRead(id);
       load();
+      refreshCount(); // Update bell immediately
       if (deeplinkUrl) navigate(deeplinkUrl);
     } catch (e) {
-      alert(e.message || "Failed to mark as read");
+      console.error('markAsRead failed', e);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    setMarkingAll(true);
+    try {
+      await notificationsApi.markAllAsRead();
+      load();
+      refreshCount(); // Update bell immediately
+    } catch (e) {
+      console.error('markAllAsRead failed', e);
+    } finally {
+      setMarkingAll(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center bg-[#1E1E2D] p-5 rounded-xl shadow-lg border border-gray-800">
+    <div className="page">
+      <div className="page-header">
         <div>
-          <h2 className="text-2xl font-bold text-white">Thông báo</h2>
-          <p className="text-gray-400 text-sm mt-1">
-            Quản lý các nhắc nhở và thông báo hệ thống
-            {totalCount > 0 && <span className="ml-2 text-blue-400">({totalCount} thông báo)</span>}
+          <h2>{t('notifications.title')}</h2>
+          <p className="subtitle" style={{ marginTop: '0.2rem' }}>
+            {t('notifications.subtitle')}
+            {totalCount > 0 && (
+              <span style={{ marginLeft: '0.5rem', color: 'var(--blue)', fontWeight: 700 }}>
+                ({t('notifications.count', { count: totalCount })})
+              </span>
+            )}
           </p>
         </div>
-        <div className="flex bg-[#2A2A3C] p-1 rounded-lg">
-          <button
-            onClick={() => setUnreadOnly(false)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${!unreadOnly ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <Button
+            variant="ghost"
+            onClick={handleMarkAllRead}
+            disabled={markingAll || notifications.every(n => n.isRead)}
           >
-            Tất cả
-          </button>
-          <button
-            onClick={() => setUnreadOnly(true)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${unreadOnly ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-          >
-            Chưa đọc
-          </button>
+            {markingAll ? t('common.processing') : `✓ ${t('notifications.markAllRead')}`}
+          </Button>
+          <div style={{ display: 'flex', background: 'var(--bg-muted)', borderRadius: '12px', padding: '3px', gap: '2px' }}>
+            {[
+              { key: false, label: t('notifications.all') },
+              { key: true,  label: t('notifications.unreadOnly') },
+            ].map(({ key, label }) => (
+              <button
+                key={String(key)}
+                onClick={() => setUnreadOnly(key)}
+                style={{
+                  padding: '0.38rem 0.9rem', borderRadius: '10px', border: 'none', fontFamily: 'inherit',
+                  fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.18s',
+                  background: unreadOnly === key ? 'var(--blue)' : 'transparent',
+                  color: unreadOnly === key ? '#fff' : 'var(--text-muted)',
+                  boxShadow: unreadOnly === key ? '0 2px 8px rgba(31,95,191,0.18)' : 'none',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* List */}
-      <div className="bg-[#1E1E2D] rounded-xl border border-gray-800 p-4">
-        {loading ? (
-          <div className="text-center text-gray-500 py-8">
-            <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-gray-600 border-t-blue-500 mr-2"></div>
-            Đang tải...
-          </div>
-        ) : notifications.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">Không có thông báo nào</div>
-        ) : (
-          <div className="space-y-3">
-            {notifications.map(n => (
-              <div
-                key={n.id}
-                className={`flex justify-between items-start p-4 rounded-lg border transition-all hover:border-blue-900/50 ${n.isRead ? 'bg-[#1E1E2D] border-gray-800' : 'bg-[#2A2A3C]/50 border-blue-900/30'}`}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2">
-                    {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>}
-                    <h3 className={`font-semibold truncate ${n.isRead ? 'text-gray-400' : 'text-white'}`}>{n.title}</h3>
-                  </div>
-                  <p className={`mt-1 text-sm ${n.isRead ? 'text-gray-500' : 'text-gray-300'}`}>{n.message}</p>
-                  <p className="mt-2 text-xs text-gray-500">{new Date(n.createdAt).toLocaleString('vi-VN')}</p>
-                </div>
-                <div className="ml-4 flex-shrink-0">
-                  {!n.isRead && (
-                    <button
-                      onClick={() => handleRead(n.id, n.deeplinkUrl)}
-                      className="text-sm px-3 py-1 bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/40 transition-colors"
-                    >
-                      Đánh dấu đã đọc
-                    </button>
-                  )}
-                  {n.isRead && n.deeplinkUrl && (
-                    <button
-                      onClick={() => navigate(n.deeplinkUrl)}
-                      className="text-sm px-3 py-1 bg-gray-800 text-gray-400 rounded hover:bg-gray-700 transition-colors"
-                    >
-                      Xem chi tiết
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-800">
-            <p className="text-sm text-gray-500">
-              Trang {page} / {totalPages} • Hiển thị {notifications.length} / {totalCount}
-            </p>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="px-3 py-1.5 rounded-md text-sm font-medium bg-[#2A2A3C] text-gray-300 hover:bg-[#3A3A4C] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                ← Trước
-              </button>
-              {/* Page number buttons */}
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const start = Math.max(1, Math.min(page - 2, totalPages - 4));
-                const pageNum = start + i;
-                if (pageNum > totalPages) return null;
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setPage(pageNum)}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      pageNum === page
-                        ? 'bg-blue-600 text-white shadow'
-                        : 'bg-[#2A2A3C] text-gray-300 hover:bg-[#3A3A4C]'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="px-3 py-1.5 rounded-md text-sm font-medium bg-[#2A2A3C] text-gray-300 hover:bg-[#3A3A4C] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Sau →
-              </button>
+      <Card>
+        <CardBody>
+          {loading ? (
+            <div style={{ padding: '3rem 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <div className="spinner" style={{ width: 22, height: 22, margin: '0 auto 0.75rem', borderColor: 'var(--border)', borderTopColor: 'var(--blue)' }} />
+              {t('notifications.loading')}
             </div>
-          </div>
-        )}
-      </div>
+          ) : notifications.length === 0 ? (
+            <div className="empty-state" style={{ padding: '3rem 0' }}>
+              <span className="empty-icon">🔔</span>
+              <p>{t('notifications.noNotifications')}</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              {notifications.map(n => (
+                <div
+                  key={n.id}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                    padding: '1rem 1.15rem', borderRadius: '14px', transition: 'all 0.18s',
+                    border: n.isRead ? '1px solid var(--border)' : '1px solid rgba(33,96,196,0.25)',
+                    background: n.isRead ? 'transparent' : 'var(--bg-accent-soft)',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                      {!n.isRead && (
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--blue)', flexShrink: 0, display: 'block' }} />
+                      )}
+                      <h3 style={{
+                        fontWeight: n.isRead ? 600 : 800, fontSize: '0.9rem', margin: 0,
+                        color: n.isRead ? 'var(--text-secondary)' : 'var(--navy)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {n.title}
+                      </h3>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.84rem', color: n.isRead ? 'var(--text-muted)' : 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      {n.message}
+                    </p>
+                    <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {new Date(n.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                    </p>
+                  </div>
+                  <div style={{ marginLeft: '1rem', flexShrink: 0, display: 'flex', gap: '0.5rem' }}>
+                    {!n.isRead && (
+                      <Button variant="outline" onClick={() => handleRead(n.id, n.deeplinkUrl)}
+                        style={{ fontSize: '0.78rem', padding: '0.32rem 0.7rem' }}>
+                        {t('notifications.markRead')}
+                      </Button>
+                    )}
+                    {n.isRead && n.deeplinkUrl && (
+                      <Button variant="ghost" onClick={() => navigate(n.deeplinkUrl)}
+                        style={{ fontSize: '0.78rem', padding: '0.32rem 0.7rem' }}>
+                        {t('notifications.viewDetail')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                {t('notifications.pageInfo', { page, total: totalPages, count: notifications.length, totalCount })}
+              </p>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <Button variant="ghost" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+                  style={{ fontSize: '0.82rem', padding: '0.38rem 0.75rem' }}>
+                  {t('notifications.prev')}
+                </Button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                  const pageNum = start + i;
+                  if (pageNum > totalPages) return null;
+                  return (
+                    <Button key={pageNum} variant={pageNum === page ? 'primary' : 'ghost'}
+                      onClick={() => setPage(pageNum)}
+                      style={{ fontSize: '0.82rem', padding: '0.38rem 0.65rem', minWidth: '2rem' }}>
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+                <Button variant="ghost" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+                  style={{ fontSize: '0.82rem', padding: '0.38rem 0.75rem' }}>
+                  {t('notifications.next')}
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }
