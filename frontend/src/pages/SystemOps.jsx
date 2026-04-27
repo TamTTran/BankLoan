@@ -343,8 +343,6 @@ function PeriodTab({ toast }) {
     finally { setBusy(false); }
   };
 
-  const now = new Date();
-
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem' }}>
 
@@ -355,7 +353,11 @@ function PeriodTab({ toast }) {
           <div style={{ marginBottom: '1rem' }}>
             <Input type="date" label="Ngày giao dịch" value={bodDate} onChange={e => setBodDate(e.target.value)} />
           </div>
-          <Button variant="primary" disabled={busy} onClick={() => doAction(() => systemApi.openBod(bodDate), 'Đã mở kỳ giao dịch!')}>
+          <Button
+            variant="primary"
+            disabled={busy || !bodDate}
+            onClick={() => doAction(() => systemApi.runBod(bodDate), 'Đã chạy BOD thành công!')}
+          >
             {busy ? 'Đang xử lý…' : '▶ Mở BOD'}
           </Button>
         </CardBody>
@@ -383,14 +385,20 @@ function PeriodTab({ toast }) {
                 <div style={{ marginBottom: '1.25rem', color: 'var(--text-muted)', fontSize: '0.88rem' }}>Chưa có kỳ kế toán nào.</div>
               )}
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <Button variant="primary" disabled={busy || period?.status === 'Open'} onClick={() =>
-                  doAction(() => systemApi.openPeriod(now.getFullYear(), now.getMonth() + 1), 'Đã mở kỳ kế toán!')
-                }>
-                  Mở kỳ mới
+                <Button
+                  variant="primary"
+                  disabled={busy || !period || period.status === 'Open'}
+                  onClick={() => doAction(() => systemApi.reopenPeriod(period.year, period.month), 'Đã mở lại kỳ kế toán!')}
+                >
+                  Mở lại kỳ hiện tại
                 </Button>
-                <Button variant="outline" disabled={busy || period?.status !== 'Open'} onClick={() =>
-                  doAction(() => systemApi.closePeriod(period.year, period.month), 'Đã đóng kỳ kế toán!')
-                }>
+                <Button
+                  variant="outline"
+                  disabled={busy || !period || period.status !== 'Open'}
+                  onClick={() =>
+                    doAction(() => systemApi.closePeriod(period.year, period.month), 'Đã đóng kỳ kế toán!')
+                  }
+                >
                   Đóng kỳ hiện tại
                 </Button>
               </div>

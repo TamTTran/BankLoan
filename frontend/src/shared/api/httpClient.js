@@ -18,10 +18,17 @@ export async function httpClient(method, path, body = null) {
   });
 
   if (res.status === 401) {
-    // HIGH-004: Attempt server-side token revocation before redirect
-    try { await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch {}
-    clearToken();
-    window.location.href = '/';
+    // Only redirect if user was previously authenticated (has a token in memory).
+    // If token is absent, the user is simply not logged in — do not redirect/loop.
+    if (token) {
+      // HIGH-004: Attempt server-side token revocation before redirect.
+      // Guard: skip if the current path is already an auth endpoint to prevent recursion.
+      if (!path.startsWith('/auth/')) {
+        try { await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch {}
+      }
+      clearToken();
+      window.location.href = '/';
+    }
     throw new Error('Phiên đăng nhập hết hạn');
   }
 

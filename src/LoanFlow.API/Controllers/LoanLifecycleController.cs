@@ -34,10 +34,13 @@ public class LoanLifecycleController : ControllerBase
     public async Task<IActionResult> Restructure(int loanId, [FromBody] RestructureRequest request)
     {
         var result = await SubmitApprovalAsync("LoanRestructure", new RestructureApprovalPayload { LoanId = loanId, Request = request });
-        await _notifications.SendAsync(CurrentUserId, NotificationType.LoanOpSubmitted,
-            "Yêu cầu cơ cấu đã được gửi",
-            $"Yêu cầu cơ cấu lại khoản vay #{loanId} đã vào hàng đợi phê duyệt.",
-            deeplinkUrl: "/approvals", loanId: loanId);
+        if (result is AcceptedResult)
+        {
+            await _notifications.SendAsync(CurrentUserId, NotificationType.LoanOpSubmitted,
+                "Yêu cầu cơ cấu đã được gửi",
+                $"Yêu cầu cơ cấu lại khoản vay #{loanId} đã vào hàng đợi phê duyệt.",
+                deeplinkUrl: "/approvals", loanId: loanId);
+        }
         return result;
     }
 
@@ -62,10 +65,13 @@ public class LoanLifecycleController : ControllerBase
     public async Task<IActionResult> Reschedule(int loanId, [FromBody] RescheduleRequest request)
     {
         var result = await SubmitApprovalAsync("LoanReschedule", new RescheduleApprovalPayload { LoanId = loanId, Request = request });
-        await _notifications.SendAsync(CurrentUserId, NotificationType.LoanOpSubmitted,
-            "Yêu cầu dời ngày đã được gửi",
-            $"Yêu cầu dời ngày trả nợ cho khoản vay #{loanId} đã vào hàng đợi phê duyệt.",
-            deeplinkUrl: "/approvals", loanId: loanId);
+        if (result is AcceptedResult)
+        {
+            await _notifications.SendAsync(CurrentUserId, NotificationType.LoanOpSubmitted,
+                "Yêu cầu dời ngày đã được gửi",
+                $"Yêu cầu dời ngày trả nợ cho khoản vay #{loanId} đã vào hàng đợi phê duyệt.",
+                deeplinkUrl: "/approvals", loanId: loanId);
+        }
         return result;
     }
 
@@ -90,10 +96,13 @@ public class LoanLifecycleController : ControllerBase
     public async Task<IActionResult> WriteOff(int loanId, [FromBody] WriteOffRequest request)
     {
         var result = await SubmitApprovalAsync("LoanWriteOff", new WriteOffApprovalPayload { LoanId = loanId, Request = request });
-        await _notifications.SendAsync(CurrentUserId, NotificationType.LoanOpSubmitted,
-            "Yêu cầu xóa nợ đã được gửi",
-            $"Yêu cầu xóa nợ cho khoản vay #{loanId} đã vào hàng đợi phê duyệt cấp Quản lý.",
-            deeplinkUrl: "/approvals", loanId: loanId);
+        if (result is AcceptedResult)
+        {
+            await _notifications.SendAsync(CurrentUserId, NotificationType.LoanOpSubmitted,
+                "Yêu cầu xóa nợ đã được gửi",
+                $"Yêu cầu xóa nợ cho khoản vay #{loanId} đã vào hàng đợi phê duyệt cấp Quản lý.",
+                deeplinkUrl: "/approvals", loanId: loanId);
+        }
         return result;
     }
 

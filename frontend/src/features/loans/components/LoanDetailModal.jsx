@@ -32,6 +32,7 @@ function OpsModal({ title, onClose, onSubmit, submitting, children }) {
 // ── Early Settlement preview modal ───────────────────────────────────────────
 function EarlySettleModal({ loanId, onClose, onDone }) {
   const { toast } = useToast();
+  const { refreshCount } = useNotifications();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [preview, setPreview] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -54,7 +55,8 @@ function EarlySettleModal({ loanId, onClose, onDone }) {
     setSubmitting(true);
     try {
       await loanApi.earlySettle(loanId, { settlementDate: date });
-      toast('Tất toán sớm thành công!', 'success');
+      refreshCount();
+      toast('Đã gửi yêu cầu tất toán sớm. Đang chờ phê duyệt.', 'success');
       onDone();
     } catch (e) {
       toast('Lỗi tất toán: ' + (e.message || 'Có lỗi xảy ra'), 'error');
@@ -75,9 +77,10 @@ function EarlySettleModal({ loanId, onClose, onDone }) {
           <div style={{ padding: '1rem', background: 'var(--bg-muted)', borderRadius: '12px', fontSize: '0.88rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
               {[
-                ['Gốc còn lại',       formatCurrency(preview.principalOutstanding)],
-                ['Lãi đến ngày TT',   formatCurrency(preview.accruedInterest)],
+                ['Gốc còn lại',       formatCurrency(preview.remainingPrincipal)],
+                ['Lãi đến ngày TT',   formatCurrency(preview.proRataInterest)],
                 ['Phí tất toán sớm',  formatCurrency(preview.earlySettlementFee)],
+                ['Phí phạt chưa thu', formatCurrency(preview.unpaidLateFees)],
                 ['Tổng cần thanh toán',formatCurrency(preview.totalSettlementAmount)],
               ].map(([k, v]) => (
                 <div key={k}>
@@ -137,6 +140,10 @@ export function LoanDetailModal({ loanId, onClose }) {
   useEffect(() => { reload(); }, [loanId]);
 
   const closeSubModal = () => setSubModal(null);
+  const openReversalModal = (paymentId) => {
+    setReversalForm({ paymentId: String(paymentId), reason: '' });
+    setSubModal('reversal');
+  };
 
   const submitOp = async (apiFn, successMsg, payload) => {
     setSubmitting(true);
@@ -275,6 +282,22 @@ export function LoanDetailModal({ loanId, onClose }) {
             { paymentId: reversalForm.paymentId ? +reversalForm.paymentId : undefined, reason: reversalForm.reason }
           )}
         >
+          <Input
+            type="select"
+            label="Khoản thanh toán cần đảo"
+            value={reversalForm.paymentId}
+            onChange={e => setReversalForm(f => ({ ...f, paymentId: e.target.value }))}
+          >
+            <option value="">-- Chọn khoản thanh toán --</option>
+            {payments.map((p, index) => {
+              const paymentKey = p.id ?? `${p.paymentDate}-${p.amount}-${index}`;
+              return (
+                <option key={paymentKey} value={p.id ?? ''} disabled={!p.id}>
+                  {`${formatDate(p.paymentDate)} • ${formatCurrency(p.amount)}${p.id ? ` • #${p.id}` : ''}`}
+                </option>
+              );
+            })}
+          </Input>
           <Input label="Lý do hoàn tiền" type="textarea" value={reversalForm.reason}
             onChange={e => setReversalForm(f => ({ ...f, reason: e.target.value }))} />
         </OpsModal>
@@ -349,21 +372,31 @@ export function LoanDetailModal({ loanId, onClose }) {
         {tab === 'payments' && (
           <div className="modal-tab-content" style={{ padding: 0 }}>
             <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-              <Button variant="outline" onClick={() => setSubModal('reversal')} style={{ fontSize: '0.8rem' }}>
+              <Button variant="outline" onClick={() => openReversalModal(payments[0]?.id ?? '')} style={{ fontSize: '0.8rem' }} disabled={!payments.length}>
                 ↩️ Yêu cầu đảo bút toán
               </Button>
             </div>
             <table className="data-table">
-              <thead><tr><th>Ngày thu</th><th>Số tiền</th><th>Phương thức</th><th>Ghi chú</th></tr></thead>
+              <thead><tr><th>Ngày thu</th><th>Số tiền</th><th>Phương thức</th><th>Ghi chú</th><th>Thao tác</th></tr></thead>
               <tbody>
                 {!payments.length
-                  ? <tr><td colSpan={4} className="empty-row"><div className="empty-state"><span className="empty-icon">💳</span><p>Chưa có thanh toán</p></div></td></tr>
+                  ? <tr><td colSpan={5} className="empty-row"><div className="empty-state"><span className="empty-icon">💳</span><p>Chưa có thanh toán</p></div></td></tr>
                   : payments.map((p, i) => (
-                    <tr key={i}>
+                    <tr key={p.id ?? i}>
                       <td>{formatDate(p.paymentDate)}</td>
                       <td><strong>{formatCurrency(p.amount)}</strong></td>
                       <td>{p.paymentMethod === 'Cash' ? 'Tiền mặt' : 'Chuyển khoản'}</td>
                       <td><span className="cell-sub">{p.remarks || '—'}</span></td>
+                      <td>
+                        <Button
+                          variant="ghost"
+                          onClick={() => openReversalModal(p.id)}
+                          disabled={!p.id}
+                          style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
+                        >
+                          ↩️ Đảo bút toán
+                        </Button>
+                      </td>
                     </tr>
                   ))}
               </tbody>

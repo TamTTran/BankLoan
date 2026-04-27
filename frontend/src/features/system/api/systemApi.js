@@ -21,17 +21,16 @@ export const systemApi = {
   },
 
   // BOD (Beginning of Day)
-  getBodStatus: ()     => httpClient('GET',  '/bod/status'),
-  openBod:      (date) => httpClient('POST', `/bod/open${date ? `?date=${date}` : ''}`),
+  runBod: (date) => httpClient('POST', `/bod/run?newBusinessDate=${encodeURIComponent(date)}`),
 
   // Accounting Period
-  getAccountingPeriod: ()           => httpClient('GET',  '/accounting-periods/current'),
-  openPeriod:          (year, month)=> httpClient('POST', '/accounting-periods/open', { year, month }),
-  closePeriod:         (year, month)=> httpClient('POST', '/accounting-periods/close', { year, month }),
+  getAccountingPeriod: ()            => httpClient('GET', `/accounting/periods/current`),
+  closePeriod:         (year, month, notes) =>
+    httpClient('POST', `/accounting/periods/${year}/${month}/close`, notes ? { notes } : {}),
+  reopenPeriod:        (year, month) => httpClient('POST', `/accounting/periods/${year}/${month}/reopen`),
 
   // NPL Reports
   getNplSummary:    (asOfDate) => httpClient('GET', `/reports/npl/summary${asOfDate ? `?asOfDate=${asOfDate}` : ''}`),
   getNplByProduct:  (asOfDate) => httpClient('GET', `/reports/npl/by-product${asOfDate ? `?asOfDate=${asOfDate}` : ''}`),
   getNplByOfficer:  (asOfDate) => httpClient('GET', `/reports/npl/by-officer${asOfDate ? `?asOfDate=${asOfDate}` : ''}`),
 };
-

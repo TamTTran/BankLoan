@@ -31,8 +31,8 @@ export function EarlySettleModal({ loanId, onClose, onDone }) {
     if (!preview) return;
     setSubmitting(true);
     try {
-      await loanApi.earlySettle(loanId, { settlementDate: date, paymentMethod: 'Transfer', remarks: 'Khách hàng tất toán trước hạn qua Hệ thống' });
-      toast('Tất toán khoản vay thành công!', 'success');
+      await loanApi.earlySettle(loanId, { settlementDate: date });
+      toast('Đã gửi yêu cầu tất toán sớm. Đang chờ phê duyệt.', 'success');
       onDone();
     } catch (e) {
       toast(e.message || 'Tất toán thất bại', 'error');
@@ -64,30 +64,19 @@ export function EarlySettleModal({ loanId, onClose, onDone }) {
         </Button>
       </div>
 
-      {preview && (
-        <div className="card" style={{ background: 'var(--bg-card)', padding: '1.5rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-          <h4 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Chi tiết Tất toán</h4>
-          
-          <div className="detail-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <div className="detail-item">
-              <div className="detail-label">Ngày tính toán</div>
-              <div className="detail-value">{formatDate(preview.settlementDate)}</div>
-            </div>
-            <div className="detail-item">
-              <div className="detail-label">Số ngày lãi tích lũy</div>
-              <div className="detail-value">{preview.daysAccrued} ngày</div>
-            </div>
-          </div>
+        {preview && (
+          <div className="card" style={{ background: 'var(--bg-card)', padding: '1.5rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+            <h4 style={{ marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Chi tiết Tất toán</h4>
 
           <table className="data-table" style={{ marginTop: '1rem' }}>
             <tbody>
               <tr>
                 <td>Dư nợ gốc còn lại (Principal Balance)</td>
-                <td className="text-right"><strong>{formatCurrency(preview.principalBalance)}</strong></td>
+                <td className="text-right"><strong>{formatCurrency(preview.remainingPrincipal)}</strong></td>
               </tr>
               <tr>
                 <td>Lãi tính đến ngày tất toán (Interest Accrued)</td>
-                <td className="text-right"><strong>{formatCurrency(preview.interestAccrued)}</strong></td>
+                <td className="text-right"><strong>{formatCurrency(preview.proRataInterest)}</strong></td>
               </tr>
               <tr>
                 <td>Phí trả nợ trước hạn (Early Settlement Fee)</td>
@@ -95,7 +84,7 @@ export function EarlySettleModal({ loanId, onClose, onDone }) {
               </tr>
               <tr>
                 <td>Phí phạt trễ hạn chưa thu (Late Fees)</td>
-                <td className="text-right"><strong>{formatCurrency(preview.lateFeesDue)}</strong></td>
+                <td className="text-right"><strong>{formatCurrency(preview.unpaidLateFees)}</strong></td>
               </tr>
               <tr style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
                 <td style={{ fontSize: '1.1rem', color: 'var(--red)', fontWeight: 'bold' }}>TỔNG SỐ TIỀN PHẢI THU</td>
