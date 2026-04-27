@@ -141,6 +141,7 @@ builder.Services.AddScoped<IApprovalFlowService, ApprovalFlowService>();
 builder.Services.AddScoped<ILoanAdjustmentService, LoanAdjustmentService>();
 builder.Services.AddScoped<ILoanLifecycleService, LoanLifecycleService>();
 builder.Services.AddScoped<IAccountingService, AccountingService>();
+builder.Services.AddScoped<ITotpService, TotpService>();
 
 // === Phase 4: Enterprise Banking ===
 builder.Services.AddScoped<INplReportingService, NplReportingService>();

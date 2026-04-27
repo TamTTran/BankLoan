@@ -121,7 +121,6 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>GET /auth/sessions — AUTH-005</summary>
     [HttpGet("sessions")]
     [Authorize]
     public async Task<IActionResult> GetSessions()
@@ -131,5 +130,69 @@ public class AuthController : ControllerBase
 
         var sessions = await _service.GetSessionsAsync(userId);
         return Ok(new { success = true, data = sessions });
+    }
+
+    /// <summary>POST /auth/change-password</summary>
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(userIdString, out int userId)) return Unauthorized();
+
+        var result = await _service.ChangePasswordAsync(userId, request.OldPassword, request.NewPassword);
+        if (!result.IsSuccess)
+        {
+            return BadRequest(new { success = false, error = new { message = result.Error } });
+        }
+
+        ClearRefreshTokenCookie(); // Force re-login
+        return Ok(new { success = true, message = "Password changed successfully. Please login again." });
+    }
+
+    [HttpPost("verify-mfa")]
+    [AllowAnonymous]
+    [EnableRateLimiting("LoginRateLimit")]
+    public async Task<IActionResult> VerifyMfa([FromBody] VerifyMfaRequest request)
+    {
+        var result = await _service.VerifyMfaAsync(request, null, null);
+        if (!result.IsSuccess)
+            return Unauthorized(new { success = false, error = new { message = result.Error } });
+
+        SetRefreshTokenCookie(result.Value.RefreshToken);
+
+        var publicResponse = new PublicLoginResponse(
+            result.Value.AccessToken, result.Value.Username, result.Value.FullName,
+            result.Value.Role, result.Value.UserId, result.Value.ExpiresAt);
+
+        return Ok(new { success = true, data = publicResponse });
+    }
+
+    [HttpGet("mfa-setup")]
+    [Authorize]
+    public async Task<IActionResult> SetupMfa()
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(userIdString, out int userId)) return Unauthorized();
+
+        var result = await _service.GetMfaSetupAsync(userId);
+        if (!result.IsSuccess)
+            return BadRequest(new { success = false, error = new { message = result.Error } });
+
+        return Ok(new { success = true, data = result.Value });
+    }
+
+    [HttpPost("enable-mfa")]
+    [Authorize]
+    public async Task<IActionResult> EnableMfa([FromBody] EnableMfaRequest request)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(userIdString, out int userId)) return Unauthorized();
+
+        var result = await _service.EnableMfaAsync(userId, request.TotpCode);
+        if (!result.IsSuccess)
+            return BadRequest(new { success = false, error = new { message = result.Error } });
+
+        return Ok(new { success = true, message = "MFA enabled successfully." });
     }
 }

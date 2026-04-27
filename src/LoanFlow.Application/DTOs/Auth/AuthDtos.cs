@@ -19,7 +19,9 @@ public record LoginResponse(
     string FullName,
     string Role,
     int UserId,
-    DateTime ExpiresAt
+    DateTime ExpiresAt,
+    bool RequiresMfa = false,
+    string? MfaToken = null
 );
 
 /// <summary>JSON-safe response sent to the browser — no refresh token.</summary>
@@ -29,8 +31,29 @@ public record PublicLoginResponse(
     string FullName,
     string Role,
     int UserId,
-    DateTime ExpiresAt
+    DateTime ExpiresAt,
+    bool RequiresMfa = false,
+    string? MfaToken = null
 );
 
 public record LogoutRequest(string? DeviceHint = null);
 public record SessionDto(int Id, string DeviceName, DateTime CreatedAt, DateTime ExpiresAt, bool IsActive);
+
+public record ChangePasswordRequest(
+    [Required] string OldPassword,
+    [Required] string NewPassword
+);
+
+public record VerifyMfaRequest(
+    [Required] string MfaToken,
+    [Required] string TotpCode
+);
+
+public record EnableMfaRequest(
+    [Required] string TotpCode
+);
+
+public record MfaSetupResponse(
+    string SecretKey,
+    string QrCodeUri
+);

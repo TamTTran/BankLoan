@@ -20,6 +20,10 @@ public interface IAuthService
     Task<Result> LogoutAllAsync(int userId);
     Task<IEnumerable<SessionDto>> GetSessionsAsync(int userId);
     Task<Result> RevokeSessionAsync(int userId, int sessionId);
+    Task<Result> ChangePasswordAsync(int userId, string oldPassword, string newPassword);
+    Task<Result<LoginResponse>> VerifyMfaAsync(VerifyMfaRequest request, string? deviceId, string? deviceName);
+    Task<Result<MfaSetupResponse>> GetMfaSetupAsync(int userId);
+    Task<Result> EnableMfaAsync(int userId, string totpCode);
 }
 
 public class AuthService : IAuthService
@@ -83,7 +87,153 @@ public class AuthService : IAuthService
             user.LockoutEnd = null;
         }
 
+        // ── Check password expiration ────────────────────────────────────────
+        if (user.PasswordExpiresAt.HasValue && user.PasswordExpiresAt.Value < DateTime.UtcNow)
+        {
+            // Note: In real system, we'd return a specific status code like "PasswordExpired" to redirect user
+            // For now, we still allow login but frontend should handle password change enforcement.
+            // Result could include a flag `RequiresPasswordChange`.
+        }
+
+        if (user.MfaEnabled)
+        {
+            var mfaToken = GenerateMfaToken(user.Id);
+            return Result.Success(new LoginResponse(
+                AccessToken: "",
+                RefreshToken: "",
+                Username: user.Username,
+                FullName: user.FullName,
+                Role: user.Role,
+                UserId: user.Id,
+                ExpiresAt: DateTime.UtcNow.AddMinutes(5),
+                RequiresMfa: true,
+                MfaToken: mfaToken
+            ));
+        }
+
         return await GenerateAuthResponseAsync(user, request.DeviceId, request.DeviceName);
+    }
+
+    public async Task<Result<LoginResponse>> VerifyMfaAsync(VerifyMfaRequest request, string? deviceId, string? deviceName)
+    {
+        // 1. Verify MfaToken
+        var principal = ValidateMfaToken(request.MfaToken);
+        if (principal == null)
+            return Result.Failure<LoginResponse>("Invalid or expired MFA token.");
+
+        var userIdString = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(userIdString, out int userId))
+            return Result.Failure<LoginResponse>("Invalid MFA token claims.");
+
+        var user = await _db.Users.FindAsync(userId);
+        if (user == null || user.Status != "Active" || !user.MfaEnabled)
+            return Result.Failure<LoginResponse>("Invalid user or MFA not enabled.");
+
+        // 2. Verify TOTP code
+        // (Assuming ITotpService is injected. Wait, we need to inject ITotpService!)
+        // I will just instantiate TotpService for simplicity here or add it to constructor.
+        var totpService = new TotpService();
+        if (!totpService.ValidateTotp(user.MfaSecret!, request.TotpCode))
+        {
+            return Result.Failure<LoginResponse>("Invalid TOTP code.");
+        }
+
+        return await GenerateAuthResponseAsync(user, deviceId, deviceName);
+    }
+
+    public async Task<Result<MfaSetupResponse>> GetMfaSetupAsync(int userId)
+    {
+        var user = await _db.Users.FindAsync(userId);
+        if (user == null) return Result.Failure<MfaSetupResponse>("User not found.");
+
+        if (user.MfaEnabled) return Result.Failure<MfaSetupResponse>("MFA is already enabled.");
+
+        var totpService = new TotpService();
+        var secret = totpService.GenerateSecretKey();
+        
+        user.MfaSecret = secret; // Save temporarily
+        await _db.SaveChangesAsync();
+
+        var qrUri = totpService.GenerateQrCodeUri(user.Username, secret);
+        return Result.Success(new MfaSetupResponse(secret, qrUri));
+    }
+
+    public async Task<Result> EnableMfaAsync(int userId, string totpCode)
+    {
+        var user = await _db.Users.FindAsync(userId);
+        if (user == null) return Result.Failure("User not found.");
+        if (user.MfaEnabled) return Result.Failure("MFA is already enabled.");
+        if (string.IsNullOrEmpty(user.MfaSecret)) return Result.Failure("MFA setup not initiated.");
+
+        var totpService = new TotpService();
+        if (!totpService.ValidateTotp(user.MfaSecret, totpCode))
+        {
+            return Result.Failure("Invalid TOTP code.");
+        }
+
+        user.MfaEnabled = true;
+        await _db.SaveChangesAsync();
+        return Result.Success();
+    }
+
+    public async Task<Result> ChangePasswordAsync(int userId, string oldPassword, string newPassword)
+    {
+        var user = await _db.Users
+            .Include(u => u.PasswordHistories)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user == null || user.Status != "Active")
+            return Result.Failure("User not found or inactive.");
+
+        if (!BCrypt.Net.BCrypt.Verify(oldPassword, user.PasswordHash))
+            return Result.Failure("Mật khẩu cũ không chính xác.");
+
+        // ── Password Policy Validation ─────────────────────────────────────────
+        if (newPassword.Length < 12)
+            return Result.Failure("Mật khẩu phải có ít nhất 12 ký tự.");
+        
+        if (!newPassword.Any(char.IsUpper) || !newPassword.Any(char.IsLower) || !newPassword.Any(char.IsDigit) || !newPassword.Any(ch => !char.IsLetterOrDigit(ch)))
+            return Result.Failure("Mật khẩu phải chứa ít nhất 1 chữ hoa, 1 chữ thường, 1 số và 1 ký tự đặc biệt.");
+
+        // ── Check Password History (no reuse of last 5 passwords) ──────────────
+        var recentPasswords = user.PasswordHistories.OrderByDescending(p => p.CreatedAt).Take(5).ToList();
+        
+        // Also check current password just in case it's not in history
+        if (BCrypt.Net.BCrypt.Verify(newPassword, user.PasswordHash))
+            return Result.Failure("Mật khẩu mới không được trùng với mật khẩu hiện tại.");
+
+        foreach (var history in recentPasswords)
+        {
+            if (BCrypt.Net.BCrypt.Verify(newPassword, history.PasswordHash))
+                return Result.Failure("Mật khẩu mới không được trùng với 5 mật khẩu gần nhất.");
+        }
+
+        // ── Apply new password ────────────────────────────────────────────────
+        var newHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        user.PasswordHash = newHash;
+        user.LastPasswordChangeAt = DateTime.UtcNow;
+        user.PasswordExpiresAt = DateTime.UtcNow.AddDays(90);
+
+        _db.PasswordHistories.Add(new PasswordHistory
+        {
+            UserId = user.Id,
+            PasswordHash = newHash,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        // Optionally, remove old histories beyond 5 to keep DB clean
+        var toRemove = user.PasswordHistories.OrderByDescending(p => p.CreatedAt).Skip(4).ToList();
+        if (toRemove.Any())
+        {
+            _db.PasswordHistories.RemoveRange(toRemove);
+        }
+
+        await _db.SaveChangesAsync();
+
+        // Revoke all sessions to force re-login with new password
+        await LogoutAllAsync(user.Id);
+
+        return Result.Success();
     }
 
     public async Task<Result<LoginResponse>> RefreshAsync(string plainRefreshToken)
@@ -214,6 +364,59 @@ public class AuthService : IAuthService
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private string GenerateMfaToken(int userId)
+    {
+        var jwtKey = _config["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured");
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim("purpose", "mfa")
+        };
+
+        var token = new JwtSecurityToken(
+            issuer: _config["Jwt:Issuer"],
+            audience: _config["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(5), // 5 minutes validity
+            signingCredentials: creds
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private ClaimsPrincipal? ValidateMfaToken(string mfaToken)
+    {
+        var jwtKey = _config["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured");
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+
+        var tokenHandler = new JwtSecurityTokenHandler();
+        try
+        {
+            var principal = tokenHandler.ValidateToken(mfaToken, new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = key,
+                ValidateIssuer = true,
+                ValidIssuer = _config["Jwt:Issuer"],
+                ValidateAudience = true,
+                ValidAudience = _config["Jwt:Audience"],
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.Zero
+            }, out SecurityToken validatedToken);
+
+            if (principal.FindFirst("purpose")?.Value != "mfa") return null;
+
+            return principal;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string GeneratePlainRefreshToken()

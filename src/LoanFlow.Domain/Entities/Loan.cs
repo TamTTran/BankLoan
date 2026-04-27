@@ -25,6 +25,16 @@ public class Loan
     public int CurrentClassification { get; set; } = LoanClassification.Group1_Standard;
     public decimal ProvisionAmount { get; set; } = 0;
 
+    // Phân loại định tính (Qualitative)
+    public int? QualitativeClassification { get; set; }
+    public string? QualitativeReason { get; set; }
+
+    // ── NHNN Reporting Fields ────────────────────────────────────────
+    public string CurrencyCode { get; set; } = "VND";
+    public string? PurposeCode { get; set; }
+    public string? IndustryCode { get; set; }
+
+
     // ── Bank-grade snapshot fields (frozen at loan creation from product) ────
     public string InterestMethod { get; set; } = "Flat";    // snapshot: Flat | ReducingBalance
     public int GracePeriodMonths { get; set; } = 0;         // snapshot: grace period from product

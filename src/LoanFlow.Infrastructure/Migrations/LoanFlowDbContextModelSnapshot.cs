@@ -1315,6 +1315,10 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<int>("CurrentClassification")
                         .HasColumnType("int");
 
@@ -1330,6 +1334,9 @@ namespace LoanFlow.Infrastructure.Migrations
 
                     b.Property<int>("GracePeriodMonths")
                         .HasColumnType("int");
+
+                    b.Property<string>("IndustryCode")
+                        .HasColumnType("longtext");
 
                     b.Property<string>("InterestMethod")
                         .IsRequired()
@@ -1384,6 +1391,15 @@ namespace LoanFlow.Infrastructure.Migrations
 
                     b.Property<decimal>("ProvisionAmount")
                         .HasColumnType("decimal(65,30)");
+
+                    b.Property<string>("PurposeCode")
+                        .HasColumnType("longtext");
+
+                    b.Property<int?>("QualitativeClassification")
+                        .HasColumnType("int");
+
+                    b.Property<string>("QualitativeReason")
+                        .HasColumnType("longtext");
 
                     b.Property<DateTime?>("RowVersion")
                         .IsConcurrencyToken()
@@ -2265,6 +2281,32 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.ToTable("OverdueDailySnapshots");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.PasswordHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_PasswordHistories_UserId");
+
+                    b.ToTable("PasswordHistories");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.Payment", b =>
                 {
                     b.Property<int>("Id")
@@ -2747,7 +2789,19 @@ namespace LoanFlow.Infrastructure.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("varchar(150)");
 
+                    b.Property<DateTime?>("LastPasswordChangeAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<DateTime?>("LockoutEnd")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("MfaEnabled")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("MfaSecret")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("PasswordExpiresAt")
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("PasswordHash")
@@ -3438,6 +3492,17 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.Navigation("Loan");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.PasswordHistory", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.User", "User")
+                        .WithMany("PasswordHistories")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.Payment", b =>
                 {
                     b.HasOne("LoanFlow.Domain.Entities.User", "CreatedBy")
@@ -3678,6 +3743,8 @@ namespace LoanFlow.Infrastructure.Migrations
             modelBuilder.Entity("LoanFlow.Domain.Entities.User", b =>
                 {
                     b.Navigation("AuditLogs");
+
+                    b.Navigation("PasswordHistories");
 
                     b.Navigation("RefreshTokens");
                 });

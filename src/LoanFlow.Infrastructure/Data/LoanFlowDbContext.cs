@@ -21,6 +21,7 @@ public class LoanFlowDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasswordHistory> PasswordHistories => Set<PasswordHistory>();
 
     // ── Bank-grade entities ─────────────────────────────────────────────────
     public DbSet<LateFee> LateFees => Set<LateFee>();
@@ -89,6 +90,15 @@ public class LoanFlowDbContext : DbContext
         {
             b.HasKey(x => x.IdempotencyKey);
             b.Property(x => x.IdempotencyKey).HasMaxLength(128);
+        });
+
+        modelBuilder.Entity<PasswordHistory>(b =>
+        {
+            b.HasIndex(x => x.UserId).HasDatabaseName("IX_PasswordHistories_UserId");
+            b.HasOne(p => p.User)
+             .WithMany(u => u.PasswordHistories)
+             .HasForeignKey(p => p.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<TransactionReversal>(b =>

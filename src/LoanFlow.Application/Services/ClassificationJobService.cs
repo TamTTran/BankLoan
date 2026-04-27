@@ -33,10 +33,15 @@ public class ClassificationJobService : IClassificationJobService
         var activeLoans = await _db.Loans
             .Include(l => l.RepaymentSchedules)
             .Include(l => l.LoanCollaterals)
+                .ThenInclude(lc => lc.Collateral)
             .Where(l => l.Status == LoanStatus.Active || l.Status == LoanStatus.Overdue || l.Status == LoanStatus.Restructured)
             .ToListAsync(ct);
 
         int updateCount = 0;
+
+        // Pass 1: Calculate provisional classifications and max per customer
+        var customerMaxClass = new Dictionary<int, int>();
+        var loanMaxDpd = new Dictionary<int, int>();
 
         foreach (var loan in activeLoans)
         {
@@ -50,17 +55,55 @@ public class ClassificationJobService : IClassificationJobService
                 var oldestDue = unpaidSchedules.Min(s => s.DueDate.ToDateTime(TimeOnly.MinValue));
                 maxDpd = (int)(todaySys - oldestDue).TotalDays;
             }
+            loanMaxDpd[loan.Id] = maxDpd;
 
-            int newClass = LoanClassification.Group1_Standard;
-            decimal specificProvisionRatio = 0;
+            int provClass = LoanClassification.Group1_Standard;
+            if (maxDpd > 360) provClass = LoanClassification.Group5_Loss;
+            else if (maxDpd >= 181) provClass = LoanClassification.Group4_Doubtful;
+            else if (maxDpd >= 91) provClass = LoanClassification.Group3_Substandard;
+            else if (maxDpd >= 10) provClass = LoanClassification.Group2_SpecialMention;
 
-            if (maxDpd >= 360) { newClass = LoanClassification.Group5_Loss; specificProvisionRatio = 1.0m; }
-            else if (maxDpd >= 180) { newClass = LoanClassification.Group4_Doubtful; specificProvisionRatio = 0.50m; }
-            else if (maxDpd >= 90) { newClass = LoanClassification.Group3_Substandard; specificProvisionRatio = 0.20m; }
-            else if (maxDpd >= 10) { newClass = LoanClassification.Group2_SpecialMention; specificProvisionRatio = 0.05m; }
+            if (loan.QualitativeClassification.HasValue && loan.QualitativeClassification.Value > provClass)
+            {
+                provClass = loan.QualitativeClassification.Value;
+            }
 
-            // Lấy giá trị tài sản bảo đảm (Giả định chiết khấu 50% rủi ro thanh khoản theo chuẩn an toàn)
-            var collateralValue = loan.LoanCollaterals.Sum(lc => lc.AllocatedValue) * 0.5m;
+            if (!customerMaxClass.ContainsKey(loan.CustomerId) || provClass > customerMaxClass[loan.CustomerId])
+            {
+                customerMaxClass[loan.CustomerId] = provClass;
+            }
+        }
+
+        // Pass 2: Apply cross-classification and compute provisions
+        foreach (var loan in activeLoans)
+        {
+            int maxDpd = loanMaxDpd[loan.Id];
+            
+            // Áp dụng lây nhiễm nhóm nợ (Cross-Contagion)
+            int newClass = customerMaxClass[loan.CustomerId]; 
+
+            decimal specificProvisionRatio = newClass switch
+            {
+                LoanClassification.Group5_Loss => 1.0m,
+                LoanClassification.Group4_Doubtful => 0.50m,
+                LoanClassification.Group3_Substandard => 0.20m,
+                LoanClassification.Group2_SpecialMention => 0.05m,
+                _ => 0.0m
+            };
+
+            // Lấy giá trị tài sản bảo đảm đã chiết khấu (Haircut)
+            decimal collateralValue = 0;
+            foreach (var lc in loan.LoanCollaterals)
+            {
+                decimal haircut = lc.Collateral.CollateralType switch
+                {
+                    CollateralType.RealEstate => CollateralHaircutRate.RealEstate,
+                    CollateralType.Vehicle => CollateralHaircutRate.Vehicle,
+                    CollateralType.SavingsBook => CollateralHaircutRate.SavingsBook,
+                    _ => CollateralHaircutRate.Other
+                };
+                collateralValue += lc.AllocatedValue * haircut;
+            }
             
             // 3. Dự phòng Cụ thể (Specific Provision) = max(0, Outstanding - Collateral) * Ratio
             var specificProvision = Math.Round(Math.Max(0, loan.OutstandingAmount - collateralValue) * specificProvisionRatio, 2);

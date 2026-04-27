@@ -367,3 +367,20 @@ public static class LoanClassification
     public const int Group5_Loss = 5;             // Nợ có khả năng mất vốn
 }
 
+public static class QualitativeClassificationReason
+{
+    public const string Bankruptcy = "Bankruptcy";              // Khách hàng phá sản
+    public const string Litigation = "Litigation";              // Khách hàng đang bị khởi kiện
+    public const string Fraud = "Fraud";                        // Có dấu hiệu lừa đảo/gian lận
+    public const string Restructured = "Restructured";          // Khoản nợ cơ cấu lại
+    public const string CrossContagion = "CrossContagion";      // Bị lây nhiễm nhóm nợ từ khoản vay khác
+}
+
+public static class CollateralHaircutRate
+{
+    public const decimal RealEstate = 0.50m;      // BĐS: 50%
+    public const decimal Vehicle = 0.40m;         // Xe ô tô: 40%
+    public const decimal SavingsBook = 0.95m;     // Sổ tiết kiệm: 95%
+    public const decimal Other = 0.30m;           // Tài sản khác: 30%
+}
+
