@@ -3,6 +3,9 @@ using LoanFlow.Domain.Entities;
 using LoanFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
+using System.Xml;
+using System.Xml.Serialization;
+using ClosedXML.Excel;
 
 namespace LoanFlow.Application.Services;
 
@@ -98,6 +101,8 @@ public interface IRegulatoryReportingService
     Task<NhnnProvisionReportDto> GenerateNhnnProvisionReportAsync(int year, int month);
     Task<CicPeriodicReportDto> GenerateCicPeriodicReportAsync(int year, int month);
     string ToCsv<T>(IEnumerable<T> items);
+    byte[] ToExcel<T>(IEnumerable<T> items, string sheetName = "Data");
+    string ToXml<T>(IEnumerable<T> items, string rootName = "Data");
 }
 
 // ── Implementation ──────────────────────────────────────────────────────────
@@ -299,4 +304,64 @@ public class RegulatoryReportingService : IRegulatoryReportingService
 
         return sb.ToString();
     }
+
+    public byte[] ToExcel<T>(IEnumerable<T> items, string sheetName = "Data")
+    {
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add(sheetName);
+        
+        var properties = typeof(T).GetProperties();
+
+        // Header
+        for (int i = 0; i < properties.Length; i++)
+        {
+            worksheet.Cell(1, i + 1).Value = properties[i].Name;
+            worksheet.Cell(1, i + 1).Style.Font.Bold = true;
+        }
+
+        // Rows
+        var itemList = items.ToList();
+        for (int row = 0; row < itemList.Count; row++)
+        {
+            for (int col = 0; col < properties.Length; col++)
+            {
+                var val = properties[col].GetValue(itemList[row]);
+                if (val != null)
+                {
+                    worksheet.Cell(row + 2, col + 1).Value = XLCellValue.FromObject(val);
+                }
+            }
+        }
+
+        worksheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    public string ToXml<T>(IEnumerable<T> items, string rootName = "Data")
+    {
+        var wrapper = new XmlRootWrapper<T> { Items = items.ToList() };
+        var xmlSerializer = new XmlSerializer(typeof(XmlRootWrapper<T>), new XmlRootAttribute(rootName));
+        
+        var emptyNamespaces = new XmlSerializerNamespaces([XmlQualifiedName.Empty]);
+        var settings = new System.Xml.XmlWriterSettings 
+        { 
+            Indent = true,
+            OmitXmlDeclaration = true
+        };
+
+        using var stringWriter = new StringWriter();
+        using var xmlWriter = System.Xml.XmlWriter.Create(stringWriter, settings);
+        
+        xmlSerializer.Serialize(xmlWriter, wrapper, emptyNamespaces);
+        return stringWriter.ToString();
+    }
+}
+
+public class XmlRootWrapper<T>
+{
+    [XmlElement("Item")]
+    public List<T> Items { get; set; } = new();
 }

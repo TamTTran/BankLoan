@@ -156,6 +156,12 @@ builder.Services.AddScoped<IRegulatoryReportingService, RegulatoryReportingServi
 builder.Services.AddScoped<ICapitalAdequacyService, CapitalAdequacyService>();
 builder.Services.AddScoped<ILiquidityReportService, LiquidityReportService>();
 builder.Services.AddScoped<IInterestRateReportService, InterestRateReportService>();
+builder.Services.AddScoped<IRiskModelService, RiskModelService>();
+builder.Services.AddScoped<IStressTestService, StressTestService>();
+builder.Services.AddScoped<IConcentrationLimitService, ConcentrationLimitService>();
+builder.Services.AddScoped<ISanctionListProvider, MockSanctionListProvider>();
+builder.Services.AddScoped<IAmlScreeningService, AmlScreeningService>();
+builder.Services.AddScoped<ITransactionMonitoringService, TransactionMonitoringService>();
 if (extSvc.GetValue<bool>("UseMockCic", defaultValue: true))
     builder.Services.AddScoped<ICicProvider, LoanFlow.API.ExternalServices.MockCicProvider>();
 else

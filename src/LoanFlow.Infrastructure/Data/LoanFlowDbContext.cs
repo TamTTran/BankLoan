@@ -84,6 +84,10 @@ public class LoanFlowDbContext : DbContext
     public DbSet<SystemConfig> SystemConfigs => Set<SystemConfig>();
     public DbSet<EodBatchRecord> EodBatchRecords => Set<EodBatchRecord>();
 
+    // ── Module 4: AML & KYC ──────────────────────────────────────────────────
+    public DbSet<AmlRiskAssessment> AmlRiskAssessments => Set<AmlRiskAssessment>();
+    public DbSet<SuspiciousTransactionReport> SuspiciousTransactionReports => Set<SuspiciousTransactionReport>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -230,14 +230,40 @@ public class LoanApplicationService : ILoanApplicationService
                     var firstUnpaid = l.RepaymentSchedules.FirstOrDefault(s => s.Status != InstallmentStatus.Paid);
                     return firstUnpaid != null ? firstUnpaid.PrincipalDue + firstUnpaid.InterestDue : 0m;
                 });
+                // DTI Check (Module 3.1)
                 var dti = (existingEmi + newEmi) / entity.Customer.MonthlyIncome.Value;
                 
                 var maxDtiConfig = await _db.SystemConfigs.FirstOrDefaultAsync(s => s.Key == "MaxDTI");
-                decimal maxDti = maxDtiConfig != null && decimal.TryParse(maxDtiConfig.Value, out var v) ? v : 0.70m;
+                decimal maxDti = maxDtiConfig != null && decimal.TryParse(maxDtiConfig.Value, out var v) ? v : 0.50m; // Changed default to 50%
                 
                 if (dti > maxDti)
                     return Result.Failure($"APP-VAL-007: DTI limit exceeded. Max: {maxDti:P0}, Current: {dti:P0}.");
             }
+        }
+
+        // LTV Check (Module 3.2)
+        if (entity.Product.RequiresCollateral && entity.Product.MaxLtvRatio.HasValue)
+        {
+            // Lấy tổng tài sản bảo đảm của KH chưa được gán cho khoản vay nào (hoặc dùng tạm tổng TSĐB của KH)
+            // Trong thực tế sẽ cần ApplicationCollateral mapping, nhưng ở đây ta check tạm tổng TSĐB
+            var totalCollateralValue = await _db.Collaterals
+                .Where(c => c.CustomerId == entity.CustomerId && c.Status == "Active")
+                .SumAsync(c => c.AppraisedValue);
+
+            var allocatedValue = await _db.LoanCollaterals
+                .Include(lc => lc.Collateral)
+                .Where(lc => lc.Collateral.CustomerId == entity.CustomerId && lc.Status == "Active")
+                .SumAsync(lc => lc.AllocatedValue);
+
+            var availableCollateralValue = totalCollateralValue - allocatedValue;
+
+            if (availableCollateralValue <= 0)
+                return Result.Failure("APP-VAL-008: Customer has no available collateral for this secured product.");
+
+            var requestedLtv = entity.RequestedAmount / availableCollateralValue;
+
+            if (requestedLtv > entity.Product.MaxLtvRatio.Value)
+                return Result.Failure($"APP-VAL-009: LTV limit exceeded. Max LTV: {entity.Product.MaxLtvRatio.Value:P0}, Requested LTV: {requestedLtv:P0}.");
         }
 
         // DFI-STP-001: Straight-Through Processing (Auto-Approve via Rule Engine)

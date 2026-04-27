@@ -27,6 +27,13 @@ public class Customer
     public string? TaxCode { get; set; }                  // Mã số thuế
     public string? BusinessRegNo { get; set; }            // Giấy chứng nhận ĐKKD (nếu là Corporate)
 
+    // ── AML / KYC fields (TT09/2023) ────────────────────────────────────────
+    public string AmlRiskLevel { get; set; } = "Low";       // Low | Medium | High
+    public string PepStatus { get; set; } = "None";         // None | Domestic | Foreign
+    public string? SourceOfFunds { get; set; }
+    public string? Occupation { get; set; }
+    public string Nationality { get; set; } = "VN";
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

@@ -33,6 +33,18 @@ public class RegulatoryReportsController : ControllerBase
     {
         var report = await _regService.GenerateNhnnClassificationReportAsync(year, month);
 
+        if (Request.Headers.Accept.Any(a => a != null && a.Contains("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")))
+        {
+            var excel = _regService.ToExcel(report.Details, "NhnnClassification");
+            return File(excel, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"nhnn-classification-{year}{month:D2}.xlsx");
+        }
+
+        if (Request.Headers.Accept.Any(a => a != null && a.Contains("application/xml")))
+        {
+            var xml = _regService.ToXml(report.Details, "NhnnClassificationReport");
+            return Content(xml, "application/xml");
+        }
+
         if (Request.Headers.Accept.Any(a => a != null && a.Contains("text/csv")))
         {
             var csv = _regService.ToCsv(report.Rows);
@@ -47,6 +59,18 @@ public class RegulatoryReportsController : ControllerBase
     public async Task<IActionResult> NhnnProvision([FromQuery] int year, [FromQuery] int month)
     {
         var report = await _regService.GenerateNhnnProvisionReportAsync(year, month);
+
+        if (Request.Headers.Accept.Any(a => a != null && a.Contains("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")))
+        {
+            var excel = _regService.ToExcel(report.GroupDetails, "NhnnProvision");
+            return File(excel, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"nhnn-provision-{year}{month:D2}.xlsx");
+        }
+
+        if (Request.Headers.Accept.Any(a => a != null && a.Contains("application/xml")))
+        {
+            var xml = _regService.ToXml(report.GroupDetails, "NhnnProvisionReport");
+            return Content(xml, "application/xml");
+        }
 
         if (Request.Headers.Accept.Any(a => a != null && a.Contains("text/csv")))
         {

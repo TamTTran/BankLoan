@@ -49,6 +49,7 @@ public class EndOfDayService : IEndOfDayService
     private readonly LoanFlowDbContext _db;
     private readonly ILogger<EndOfDayService> _logger;
     private readonly IBusinessClock _businessClock;
+    private readonly ITransactionMonitoringService _transactionMonitoringService;
 
     public EndOfDayService(
         IAccrualJobService accrualService,
@@ -60,7 +61,8 @@ public class EndOfDayService : IEndOfDayService
         ISmsService smsService,
         LoanFlowDbContext db,
         ILogger<EndOfDayService> logger,
-        IBusinessClock businessClock)
+        IBusinessClock businessClock,
+        ITransactionMonitoringService transactionMonitoringService)
     {
         _accrualService = accrualService;
         _overdueService = overdueService;
@@ -72,6 +74,7 @@ public class EndOfDayService : IEndOfDayService
         _db = db;
         _logger = logger;
         _businessClock = businessClock;
+        _transactionMonitoringService = transactionMonitoringService;
     }
 
     private async Task SetSystemLockAsync(bool isLocked, CancellationToken ct)
@@ -167,12 +170,21 @@ public class EndOfDayService : IEndOfDayService
                 await _db.SaveChangesAsync(ct);
             }
 
+            // Step 6: AML Transaction Monitoring
+            if (batch.LastCompletedStep < 6)
+            {
+                _logger.LogInformation("EOD Step 6: AML Transaction Monitoring");
+                await _transactionMonitoringService.MonitorDailyTransactionsAsync(businessDate);
+                batch.LastCompletedStep = 6;
+                await _db.SaveChangesAsync(ct);
+            }
+
             // Completed Successfully
             batch.Status = "Completed";
             batch.CompletedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(ct);
 
-            // Step 6: Unlock System
+            // Step 7: Unlock System
             await SetSystemLockAsync(false, ct);
         }
         catch (Exception ex)
