@@ -7,7 +7,6 @@ import {
 import { dashboardApi } from '../features/dashboard/api/dashboardApi';
 import { mapDashboardSummary } from '../features/dashboard/mappers/dashboardMapper';
 import { formatCurrency, formatNumber, STATUS_LABELS } from '../utils/format';
-import { DpdBadge } from '../components/Badge';
 import { Card, CardHeader, CardBody } from '../components/ui/Card';
 
 /* ── Design tokens ─────────────────────────────────────────────────────── */
@@ -23,8 +22,8 @@ const PALETTE = {
 
 const BUCKET_COLORS = {
   Current:   PALETTE.green,
-  DPD1_7:   PALETTE.amber,
-  DPD8_30:  PALETTE.gold,
+  DPD1_7:    PALETTE.amber,
+  DPD8_30:   PALETTE.gold,
   DPD31Plus: PALETTE.red,
 };
 
@@ -36,15 +35,15 @@ const STATUS_COLORS = {
 };
 
 const KPI_CARDS = [
-  { key: 'totalOutstanding',      icon: 'VND', label: 'Total outstanding',    cls: 'kpi-blue',   fmt: formatCurrency },
-  { key: 'totalActiveLoans',      icon: 'LN',  label: 'Active loans',         cls: 'kpi-green',  fmt: formatNumber },
-  { key: 'pendingApprovals',      icon: 'AP',  label: 'Pending approvals',    cls: 'kpi-amber',  fmt: formatNumber },
-  { key: 'carRatio',              icon: 'CAR', label: 'CAR',                  cls: 'kpi-purple', fmt: v => `${Number(v || 0).toFixed(2)}%` },
-  { key: 'nplRatio',              icon: 'NPL', label: 'NPL ratio',            cls: 'kpi-red',    fmt: v => `${Number(v || 0).toFixed(2)}%` },
-  { key: 'collectedThisMonth',    icon: 'COL', label: 'Collected this month', cls: 'kpi-teal',   fmt: formatCurrency },
+  { key: 'totalOutstanding',   icon: 'VND', label: 'Total outstanding',    cls: 'kpi-blue',   fmt: formatCurrency },
+  { key: 'totalActiveLoans',   icon: 'LN',  label: 'Active loans',         cls: 'kpi-green',  fmt: formatNumber },
+  { key: 'pendingApprovals',   icon: 'AP',  label: 'Pending approvals',    cls: 'kpi-amber',  fmt: formatNumber },
+  { key: 'carRatio',           icon: 'CAR', label: 'CAR',                  cls: 'kpi-purple', fmt: v => `${Number(v || 0).toFixed(2)}%` },
+  { key: 'nplRatio',           icon: 'NPL', label: 'NPL ratio',            cls: 'kpi-red',    fmt: v => `${Number(v || 0).toFixed(2)}%` },
+  { key: 'collectedThisMonth', icon: 'COL', label: 'Collected this month', cls: 'kpi-teal',   fmt: formatCurrency },
 ];
 
-/* ── Custom tooltip shared across charts ───────────────────────────────── */
+/* ── Shared tooltip ────────────────────────────────────────────────────── */
 function ChartTooltip({ active, payload, label, currencyKeys = [] }) {
   if (!active || !payload?.length) return null;
   return (
@@ -61,19 +60,17 @@ function ChartTooltip({ active, payload, label, currencyKeys = [] }) {
       {payload.map(p => (
         <p key={p.dataKey} style={{ color: p.color }}>
           <span style={{ fontWeight: 700 }}>{p.name}:</span>{' '}
-          {currencyKeys.includes(p.dataKey)
-            ? formatCurrency(p.value)
-            : formatNumber(p.value)}
+          {currencyKeys.includes(p.dataKey) ? formatCurrency(p.value) : formatNumber(p.value)}
         </p>
       ))}
     </div>
   );
 }
 
-/* ── Pie legend ────────────────────────────────────────────────────────── */
+/* ── Donut legend ──────────────────────────────────────────────────────── */
 function PieLegend({ data, colors }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', justifyContent: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', justifyContent: 'center' }}>
       {data.map((d, i) => (
         <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem' }}>
           <span style={{ width: 10, height: 10, borderRadius: 3, background: colors[i % colors.length], flexShrink: 0 }} />
@@ -85,67 +82,111 @@ function PieLegend({ data, colors }) {
   );
 }
 
-/* ── Main Component ────────────────────────────────────────────────────── */
+/* ── Loading shimmer placeholder ───────────────────────────────────────── */
+function ChartSkeleton({ height = 220 }) {
+  return <div className="loading-shimmer" style={{ height, borderRadius: 12 }} />;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Main component
+   ══════════════════════════════════════════════════════════════════════════ */
 export default function Dashboard({ onBadgeCounts }) {
-  const [summary, setSummary] = useState(null);
-  const [trend, setTrend] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [trendLoading, setTrendLoading] = useState(true);
+  const [summary,        setSummary]        = useState(null);
+  const [overdueBuckets, setOverdueBuckets] = useState([]);
+  const [trend,          setTrend]          = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [bucketsLoading, setBucketsLoading] = useState(true);
+  const [trendLoading,   setTrendLoading]   = useState(true);
 
-  /* Fetch KPI + bucket data */
+  /* Fetch 1: KPI summary. Keep old dashboard charts independent. */
   useEffect(() => {
-    Promise.all([
-      dashboardApi.summary().then(mapDashboardSummary),
-      dashboardApi.capitalAdequacy(),
-      dashboardApi.approvalsPending().catch(() => ({ items: [], totalCount: 0 })),
-    ])
-    .then(([dashData, capData, approvalData]) => {
-      const merged = { ...dashData, ...capData };
-      setSummary(merged);
-      const approvalsCount =
-        approvalData?.totalCount ??
-        (Array.isArray(approvalData?.items)
-          ? approvalData.items.length
-          : Array.isArray(approvalData?.Items)
-            ? approvalData.Items.length
+    let cancelled = false;
+
+    dashboardApi.summary()
+      .then(mapDashboardSummary)
+      .then(dashData => {
+        if (cancelled) return;
+        setSummary(prev => ({ ...(prev || {}), ...dashData }));
+        onBadgeCounts?.(prev => ({ ...(prev || {}), applications: dashData?.pendingApprovals || 0 }));
+      })
+      .catch(console.error)
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [onBadgeCounts]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    dashboardApi.capitalAdequacy()
+      .then(capData => {
+        if (!cancelled) setSummary(prev => ({ ...(prev || {}), ...capData }));
+      })
+      .catch(console.error);
+
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    dashboardApi.approvalsPending()
+      .catch(() => ({ items: [], totalCount: 0 }))
+      .then(approvalData => {
+        if (cancelled) return;
+        const approvalsCount =
+          approvalData?.totalCount ??
+          (Array.isArray(approvalData?.items) ? approvalData.items.length
+            : Array.isArray(approvalData?.Items) ? approvalData.Items.length
             : 0);
-      onBadgeCounts?.({ applications: merged?.pendingApprovals || 0, approvals: approvalsCount });
-    })
-    .catch(console.error)
-    .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+        onBadgeCounts?.(prev => ({ ...(prev || {}), approvals: approvalsCount }));
+      });
 
-  /* Fetch monthly trend separately so charts load independently */
+    return () => { cancelled = true; };
+  }, [onBadgeCounts]);
+
+  /* ── Fetch 2: Overdue bucket breakdown ─────────────────────────────── */
   useEffect(() => {
-    dashboardApi.monthlyTrend(6)
-      .then(res => setTrend(res?.points || res?.Points || []))
-      .catch(() => setTrend([]))
-      .finally(() => setTrendLoading(false));
+    dashboardApi.overdueBuckets()
+      .then(res => {
+        // Backend returns { buckets: [...] } or { Buckets: [...] }
+        const arr = res?.buckets || res?.Buckets || [];
+        setOverdueBuckets(arr);
+      })
+      .catch(() => setOverdueBuckets([]))
+      .finally(() => setBucketsLoading(false));
   }, []);
 
-  /* Derived values */
-  const overdueBuckets   = summary?.overdueBuckets || [];
-  const loanBreakdown    = summary?.loanStatusBreakdown || [];
-  const coverageRate     = summary?.totalOutstanding
+  /* Fetch 3: keep trend as a placeholder until the target API exposes it. */
+  useEffect(() => {
+    setTrend([]);
+    setTrendLoading(false);
+  }, []);
+
+  /* ── Derived ────────────────────────────────────────────────────────── */
+  // loanStatusBreakdown from backend is camelCase
+  const loanBreakdown = summary?.loanStatusBreakdown || [];
+  const coverageRate  = summary?.totalOutstanding
     ? Math.round(((summary?.collectedThisMonth || 0) / summary.totalOutstanding) * 100)
     : 0;
 
-  const pieData = loanBreakdown.map(d => ({
-    name: STATUS_LABELS[d.status] || d.status,
-    value: d.count,
-  }));
+  // Pie chart — loan status donut
+  const pieData   = loanBreakdown.map(d => ({ name: STATUS_LABELS[d.status] || d.status, value: d.count }));
   const pieColors = loanBreakdown.map(d => STATUS_COLORS[d.status] || PALETTE.blue);
 
+  // Horizontal bar — overdue buckets
+  // Backend fields (camelCase): bucket, label, count, totalAmount
   const bucketBarData = overdueBuckets.map(b => ({
-    name: b.bucket === 'DPD31Plus' ? '31+ DPD'
-        : b.bucket === 'DPD8_30'  ? '8-30 DPD'
-        : b.bucket === 'DPD1_7'   ? '1-7 DPD'
-        : b.bucket,
-    'Accounts':    b.count,
-    'Amount (VND)': Number(b.totalAmount),
-    _color: BUCKET_COLORS[b.bucket] || PALETTE.blue,
+    name:      b.label || b.bucket,
+    accounts:  b.count,
+    amount:    Number(b.totalAmount),
+    _color:    BUCKET_COLORS[b.bucket] || PALETTE.blue,
   }));
+
+  // Trend dataKeys are camelCase from backend: disbursed, collected, newLoans, label
+  const hasTrend = trend.length > 0;
 
   const dateStr = new Date().toLocaleDateString('en-GB', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -154,13 +195,13 @@ export default function Dashboard({ onBadgeCounts }) {
   return (
     <div className="page">
 
-      {/* ── Hero ─────────────────────────────────────────────────── */}
+      {/* ── Hero ─────────────────────────────────────────────────────── */}
       <section className="dashboard-hero">
         <div>
           <p className="dashboard-eyebrow">Portfolio command view</p>
           <h2>Daily lending snapshot</h2>
           <p className="dashboard-lead">
-            Track approvals, disbursement movement, collection coverage and early overdue pressure from one screen.
+            Track approvals, disbursement movement, collection coverage and overdue pressure from one screen.
           </p>
         </div>
         <div className="dashboard-hero-meta">
@@ -172,7 +213,7 @@ export default function Dashboard({ onBadgeCounts }) {
         </div>
       </section>
 
-      {/* ── Brief cards ──────────────────────────────────────────── */}
+      {/* ── Brief cards ──────────────────────────────────────────────── */}
       <section className="dashboard-brief-grid">
         <div className="dashboard-brief-card">
           <span className="dashboard-brief-label">Due today</span>
@@ -187,11 +228,11 @@ export default function Dashboard({ onBadgeCounts }) {
         <div className="dashboard-brief-card">
           <span className="dashboard-brief-label">Approvals queue</span>
           <strong>{loading ? '—' : formatNumber(summary?.pendingApprovals || 0)}</strong>
-          <p>Use this count to prioritize officer and approver daily workload.</p>
+          <p>Prioritize officer and approver workload from this count.</p>
         </div>
       </section>
 
-      {/* ── KPI grid ─────────────────────────────────────────────── */}
+      {/* ── KPI grid ─────────────────────────────────────────────────── */}
       <div className="kpi-grid">
         {KPI_CARDS.map(card => (
           <div key={card.key} className={`kpi-card ${card.cls}`}>
@@ -204,17 +245,87 @@ export default function Dashboard({ onBadgeCounts }) {
         ))}
       </div>
 
-      {/* ── Row 1: Monthly trend (full width) ────────────────────── */}
-      <Card hoverable style={{ marginBottom: '1rem' }}>
+      {/* ── Chart row 1: Overdue bar + Status donut ──────────────────── */}
+      <div className="dashboard-grid">
+
+        {/* Horizontal bar — overdue DPD */}
+        <Card hoverable>
+          <CardHeader
+            title="Overdue pressure by DPD bucket"
+            subtitle="Number of accounts per delinquency bucket."
+          />
+          <CardBody>
+            {bucketsLoading ? <ChartSkeleton height={220} /> : bucketBarData.length === 0 ? (
+              <div className="empty-state" style={{ padding: '3rem 0' }}>
+                <span className="empty-icon">✅</span>
+                <p>No overdue loans — portfolio is healthy.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={bucketBarData} layout="vertical" margin={{ top: 0, right: 24, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(16,35,63,0.06)" />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#7a8da5' }} axisLine={false} tickLine={false}
+                    tickFormatter={v => formatNumber(v)} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#7a8da5' }}
+                    axisLine={false} tickLine={false} width={70} />
+                  <Tooltip content={<ChartTooltip currencyKeys={['amount']} />} />
+                  <Bar dataKey="accounts" name="Accounts" radius={[0, 6, 6, 0]}>
+                    {bucketBarData.map((entry, idx) => (
+                      <Cell key={idx} fill={entry._color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardBody>
+        </Card>
+
+        {/* Donut — loan status */}
+        <Card hoverable>
+          <CardHeader
+            title="Loan book distribution"
+            subtitle="Portfolio split across lifecycle stages."
+          />
+          <CardBody>
+            {loading ? <ChartSkeleton height={220} /> : pieData.length === 0 ? (
+              <p className="no-data">No loan status data available.</p>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', height: 220 }}>
+                <ResponsiveContainer width="55%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%" cy="50%"
+                      innerRadius={58} outerRadius={88}
+                      paddingAngle={3}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {pieData.map((_, i) => <Cell key={i} fill={pieColors[i]} />)}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ flex: 1 }}>
+                  <PieLegend data={pieData} colors={pieColors} />
+                </div>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      </div>
+
+      {/* ── Chart row 2: Area trend (full width) ─────────────────────── */}
+      <Card hoverable style={{ marginTop: '1rem' }}>
         <CardHeader
           title="Disbursement vs Collection — Last 6 months"
           subtitle="Monthly comparison of new loan disbursements against principal and interest collected."
         />
         <CardBody>
-          {trendLoading ? (
-            <div className="loading-shimmer" style={{ height: 220 }} />
-          ) : trend.length === 0 ? (
-            <p className="no-data">No trend data available.</p>
+          {trendLoading ? <ChartSkeleton height={240} /> : !hasTrend ? (
+            <p className="no-data" style={{ padding: '3rem 0', textAlign: 'center' }}>
+              Trend data will appear after the backend deployment is complete.
+            </p>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={trend} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
@@ -230,112 +341,48 @@ export default function Dashboard({ onBadgeCounts }) {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(16,35,63,0.06)" />
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#7a8da5' }} axisLine={false} tickLine={false} />
-                <YAxis tickFormatter={v => v === 0 ? '0' : `${(v/1e9).toFixed(1)}B`} tick={{ fontSize: 11, fill: '#7a8da5' }} axisLine={false} tickLine={false} width={52} />
-                <Tooltip content={<ChartTooltip currencyKeys={['Disbursed','Collected']} />} />
+                <YAxis
+                  tickFormatter={v => v === 0 ? '0' : `${(v / 1e9).toFixed(1)}B`}
+                  tick={{ fontSize: 11, fill: '#7a8da5' }}
+                  axisLine={false} tickLine={false} width={52}
+                />
+                <Tooltip content={<ChartTooltip currencyKeys={['disbursed', 'collected']} />} />
                 <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                <Area type="monotone" dataKey="Disbursed"  name="Disbursed"  stroke={PALETTE.blue}  strokeWidth={2} fill="url(#gradDis)" dot={{ r: 3, fill: PALETTE.blue }} />
-                <Area type="monotone" dataKey="Collected"  name="Collected"  stroke={PALETTE.green} strokeWidth={2} fill="url(#gradCol)" dot={{ r: 3, fill: PALETTE.green }} />
+                <Area type="monotone" dataKey="disbursed" name="Disbursed"
+                  stroke={PALETTE.blue}  strokeWidth={2} fill="url(#gradDis)"
+                  dot={{ r: 3, fill: PALETTE.blue }} />
+                <Area type="monotone" dataKey="collected" name="Collected"
+                  stroke={PALETTE.green} strokeWidth={2} fill="url(#gradCol)"
+                  dot={{ r: 3, fill: PALETTE.green }} />
               </AreaChart>
             </ResponsiveContainer>
           )}
         </CardBody>
       </Card>
 
-      {/* ── Row 2: Overdue bar + Status pie ──────────────────────── */}
-      <div className="dashboard-grid">
-
-        {/* Overdue pressure — horizontal bar */}
-        <Card hoverable>
+      {/* ── Chart row 3: New loan volume bar ─────────────────────────── */}
+      {hasTrend && (
+        <Card hoverable style={{ marginTop: '1rem' }}>
           <CardHeader
-            title="Overdue pressure by DPD bucket"
-            subtitle="Number of accounts and outstanding balance per delinquency bucket."
+            title="New loan volume — Last 6 months"
+            subtitle="Number of new loans disbursed each month. Highlights origination trend."
           />
           <CardBody>
-            {loading ? (
-              <div className="loading-shimmer" style={{ height: 200 }} />
-            ) : overdueBuckets.length === 0 ? (
-              <p className="no-data">No overdue data available.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={bucketBarData} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(16,35,63,0.06)" />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#7a8da5' }} axisLine={false} tickLine={false} tickFormatter={v => formatNumber(v)} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#7a8da5' }} axisLine={false} tickLine={false} width={58} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="Accounts" radius={[0, 6, 6, 0]}>
-                    {bucketBarData.map((entry, idx) => (
-                      <Cell key={idx} fill={entry._color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardBody>
-        </Card>
-
-        {/* Loan status — donut */}
-        <Card hoverable>
-          <CardHeader
-            title="Loan book distribution"
-            subtitle="How the portfolio is currently split across lifecycle stages."
-          />
-          <CardBody>
-            {loading ? (
-              <div className="loading-shimmer" style={{ height: 200 }} />
-            ) : pieData.length === 0 ? (
-              <p className="no-data">No loan status data available.</p>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', height: 220 }}>
-                <ResponsiveContainer width="55%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%" cy="50%"
-                      innerRadius={58} outerRadius={88}
-                      paddingAngle={3}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {pieData.map((_, i) => (
-                        <Cell key={i} fill={pieColors[i]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ flex: 1 }}>
-                  <PieLegend data={pieData} colors={pieColors} />
-                </div>
-              </div>
-            )}
-          </CardBody>
-        </Card>
-      </div>
-
-      {/* ── Row 3: New loans per month bar ───────────────────────── */}
-      <Card hoverable style={{ marginTop: '1rem' }}>
-        <CardHeader
-          title="New loan volume — Last 6 months"
-          subtitle="Number of new loans disbursed each month. Highlights origination trend."
-        />
-        <CardBody>
-          {trendLoading ? (
-            <div className="loading-shimmer" style={{ height: 160 }} />
-          ) : trend.length === 0 ? (
-            <p className="no-data">No trend data available.</p>
-          ) : (
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={trend} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(16,35,63,0.06)" />
+                {/* dataKey="label" matches camelCase backend field */}
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#7a8da5' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#7a8da5' }} axisLine={false} tickLine={false} allowDecimals={false} width={32} />
+                <YAxis tick={{ fontSize: 11, fill: '#7a8da5' }} axisLine={false} tickLine={false}
+                  allowDecimals={false} width={32} />
                 <Tooltip content={<ChartTooltip />} />
-                <Bar dataKey="NewLoans" name="New Loans" fill={PALETTE.teal} radius={[6, 6, 0, 0]} maxBarSize={48} />
+                {/* dataKey="newLoans" matches camelCase backend field NewLoans → newLoans */}
+                <Bar dataKey="newLoans" name="New Loans" fill={PALETTE.teal} radius={[6, 6, 0, 0]} maxBarSize={48} />
               </BarChart>
             </ResponsiveContainer>
-          )}
-        </CardBody>
-      </Card>
+          </CardBody>
+        </Card>
+      )}
 
     </div>
   );
