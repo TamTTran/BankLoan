@@ -22,7 +22,7 @@ public class CollateralLifecycleController : ControllerBase
     [HttpPost("{collateralId}/revalue")]
     public async Task<IActionResult> Revalue(int collateralId, [FromBody] RevalueRequest req)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _service.RevalueAsync(collateralId, req, userId);
         return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
     }
@@ -35,7 +35,7 @@ public class CollateralLifecycleController : ControllerBase
     [Authorize(Roles = "Admin,Manager")]
     public async Task<IActionResult> Release(int collateralId)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
         {
             ActionType = "CollateralRelease",
@@ -51,7 +51,7 @@ public class CollateralLifecycleController : ControllerBase
     [Authorize(Roles = "Admin,Manager")]
     public async Task<IActionResult> Seize(int collateralId)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
         {
             ActionType = "CollateralSeize",

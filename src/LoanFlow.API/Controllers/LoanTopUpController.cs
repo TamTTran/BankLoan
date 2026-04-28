@@ -15,7 +15,7 @@ public class LoanTopUpController : ControllerBase
     [HttpPost("{loanId}")]
     public async Task<IActionResult> RequestTopUp(int loanId, [FromBody] TopUpRequest req)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _service.RequestTopUpAsync(loanId, req, userId);
         return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
     }
@@ -24,7 +24,7 @@ public class LoanTopUpController : ControllerBase
     [Authorize(Roles = "Admin,Manager,Approver")]
     public async Task<IActionResult> Approve(int topUpId)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _service.ApproveTopUpAsync(topUpId, userId);
         return result.IsSuccess ? Ok(new { message = "Top-up approved and disbursed." }) : BadRequest(result.Error);
     }
@@ -33,7 +33,7 @@ public class LoanTopUpController : ControllerBase
     [Authorize(Roles = "Admin,Manager,Approver")]
     public async Task<IActionResult> Reject(int topUpId)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _service.RejectTopUpAsync(topUpId, userId);
         return result.IsSuccess ? Ok(new { message = "Top-up rejected." }) : BadRequest(result.Error);
     }

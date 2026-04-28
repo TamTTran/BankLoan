@@ -159,10 +159,29 @@ export default function Dashboard({ onBadgeCounts }) {
       .finally(() => setBucketsLoading(false));
   }, []);
 
-  /* Fetch 3: keep trend as a placeholder until the target API exposes it. */
+  /* Fetch 3: monthly trend. Fallback stays as placeholder if API has no data. */
   useEffect(() => {
-    setTrend([]);
-    setTrendLoading(false);
+    let cancelled = false;
+
+    dashboardApi.monthlyTrend(6)
+      .then(res => {
+        if (cancelled) return;
+        const points = res?.points || res?.Points || [];
+        setTrend(points.map(p => ({
+          label: p.label || p.Label || p.month || p.Month,
+          disbursed: Number(p.disbursed ?? p.Disbursed ?? 0),
+          collected: Number(p.collected ?? p.Collected ?? 0),
+          newLoans: Number(p.newLoans ?? p.NewLoans ?? 0),
+        })));
+      })
+      .catch(() => {
+        if (!cancelled) setTrend([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTrendLoading(false);
+      });
+
+    return () => { cancelled = true; };
   }, []);
 
   /* ── Derived ────────────────────────────────────────────────────────── */

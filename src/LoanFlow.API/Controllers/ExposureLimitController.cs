@@ -30,7 +30,7 @@ public class ExposureLimitController : ControllerBase
     [Authorize(Roles = "Admin,Manager,Approver")]
     public async Task<IActionResult> Set(int customerId, [FromBody] SetExposureLimitRequest req)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _service.SetLimitAsync(customerId, req.MaxExposure, userId);
         return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
     }
@@ -39,7 +39,7 @@ public class ExposureLimitController : ControllerBase
     [Authorize(Roles = "Admin,Manager")]
     public async Task<IActionResult> Override(int customerId, [FromBody] OverrideRequest req)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
         {
             ActionType = "ExposureOverride",

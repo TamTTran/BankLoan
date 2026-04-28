@@ -32,9 +32,19 @@ services:
       ExternalServices__UseMockCertificateAuthority: "true"
       Cors__AllowedOrigins__0: "http://localhost"
       Cors__AllowedOrigins__1: "https://localhost"
-      AllowedHosts: "localhost"
+      AllowedHosts: "localhost;127.0.0.1;api;loanflow-api"
 
   # Frontend runs via: cd frontend && npm run dev
   frontend:
+    profiles:
+      - full
+
+  # Prometheus scrapes the containerized API, so keep it with the full stack.
+  prometheus:
+    profiles:
+      - full
+
+  # Grafana reads Prometheus, so keep it with the full stack.
+  grafana:
     profiles:
       - full

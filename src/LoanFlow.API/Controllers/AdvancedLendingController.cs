@@ -59,14 +59,14 @@ public class AdvancedLendingController : ControllerBase
     [HttpPost("{id}/recovery")]
     public async Task<IActionResult> Recovery(int id, [FromBody] RecordRecoveryRequest req)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _service.RecordRecoveryAsync(id, req, userId);
         return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
     }
 
     private async Task<IActionResult> SubmitApprovalAsync(string actionType, object payload)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
         {
             ActionType = actionType,

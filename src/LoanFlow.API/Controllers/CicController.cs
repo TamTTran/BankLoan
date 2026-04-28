@@ -17,7 +17,7 @@ public class CicController : ControllerBase
     [HttpPost("inquire/{customerId}")]
     public async Task<IActionResult> Inquire(int customerId)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _cicService.InquireCicAsync(customerId, userId);
         return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
     }

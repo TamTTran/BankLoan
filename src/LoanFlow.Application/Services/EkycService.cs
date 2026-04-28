@@ -70,8 +70,11 @@ public class EkycService : IEkycService
             IdNumber = customer.IdNumber,
             RequestedByUserId = requestedByUserId,
             Provider = _provider.ProviderName,
+            VerificationDate = DateTime.UtcNow,
             Status = "Pending"
         };
+
+        string? failureReason = null;
 
         try
         {
@@ -107,13 +110,15 @@ public class EkycService : IEkycService
                 {
                     verification.Status = "Rejected";
                     customer.EkycStatus = "Rejected";
+                    failureReason = $"Scores below threshold — Face: {result.FaceMatchScore}%, OCR: {result.OcrConfidence}%, Liveness: {result.LivenessScore}%";
                 }
             }
             else
             {
                 verification.Status = "Rejected";
                 customer.EkycStatus = "Rejected";
-                verification.RawResponse = JsonSerializer.Serialize(new { error = result.ErrorMessage });
+                failureReason = result.ErrorMessage ?? result.RawJson ?? "Provider returned failure.";
+                verification.RawResponse = JsonSerializer.Serialize(new { error = failureReason });
             }
             _db.Customers.Update(customer);
         }
@@ -121,6 +126,8 @@ public class EkycService : IEkycService
         {
             verification.Status = "Rejected";
             verification.RawResponse = JsonSerializer.Serialize(new { error = ex.Message });
+            // Surface the actual exception message to the caller so the UI can display it
+            failureReason = $"eKYC provider error: {ex.Message}";
         }
 
         _db.Set<EkycVerification>().Add(verification);
@@ -135,6 +142,16 @@ public class EkycService : IEkycService
         });
 
         await _db.SaveChangesAsync();
+
+        // Hard failures (provider exception / no connectivity) → propagate as Result.Failure
+        // so controller returns 400 with a message the UI can display.
+        // Business outcomes (Rejected / ManualReview) are still Result.Success — the UI
+        // reads verification.Status to decide what to show.
+        if (failureReason != null && verification.Status == "Rejected" &&
+            (verification.FaceMatchScore == 0 || verification.OcrConfidence == 0))
+        {
+            return Result.Failure<EkycVerificationDto>(failureReason);
+        }
 
         return Result.Success(new EkycVerificationDto
         {

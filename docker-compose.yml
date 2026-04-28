@@ -142,11 +142,31 @@ services:
     container_name: loanflow-prometheus
     restart: unless-stopped
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    expose:
-      - "9090"
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./certs:/certs:ro
+    ports:
+      - "9090:9090"   # Prometheus UI: http://localhost:9090
     depends_on:
       - api
+
+  # Grafana Dashboards
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: loanflow-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"   # Grafana UI: http://localhost:3000
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
 
   # ────────────────────────────────────────────────────
   # Ofelia — DB Backup Scheduler (H7)
@@ -180,3 +200,5 @@ volumes:
     name: loanflow-mysqldata
   loanflow-backups:
     name: loanflow-backups    # H7: Named volume for persistent DB backups
+  grafana-data:
+    name: loanflow-grafana-data

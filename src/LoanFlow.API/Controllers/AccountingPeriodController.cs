@@ -34,7 +34,7 @@ public class AccountingPeriodController : ControllerBase
     [HttpPost("{year}/{month}/close")]
     public async Task<IActionResult> Close(int year, int month, [FromBody] CloseRequest? req = null)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
         {
             ActionType = "AccountingPeriodClose",
@@ -52,7 +52,7 @@ public class AccountingPeriodController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Reopen(int year, int month)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _approvalFlowService.SubmitRequestAsync(new SubmitApprovalRequest
         {
             ActionType = "AccountingPeriodReopen",

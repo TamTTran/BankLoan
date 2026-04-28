@@ -20,7 +20,7 @@ public class LoanAdjustmentsController : ControllerBase
     [HttpPost("manual-adjustment")]
     public async Task<IActionResult> RequestManualAdjustment([FromBody] LoanAdjustmentPayloadDto payload)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         
         var request = new LoanFlow.Application.DTOs.ApprovalFlow.SubmitApprovalRequest
         {
@@ -36,7 +36,7 @@ public class LoanAdjustmentsController : ControllerBase
     [HttpPost("disbursement-correction")]
     public async Task<IActionResult> RequestDisbursementCorrection([FromBody] object payload)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         
         var request = new LoanFlow.Application.DTOs.ApprovalFlow.SubmitApprovalRequest
         {

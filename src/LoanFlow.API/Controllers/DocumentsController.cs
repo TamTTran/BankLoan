@@ -16,7 +16,7 @@ public class DocumentsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Upload([FromBody] UploadRequest req)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _service.UploadAsync(req.LoanId, req.CustomerId, req.DocumentType,
             req.FileName, req.FilePath, req.FileSize, req.MimeType, userId);
         return result.IsSuccess ? Ok(result.Value) : BadRequest(result.Error);
@@ -26,7 +26,7 @@ public class DocumentsController : ControllerBase
     [Authorize(Roles = "Admin,Manager,Approver")]
     public async Task<IActionResult> Verify(int id, [FromBody] VerifyDocRequest req)
     {
-        var userId = int.Parse(User.FindFirst("UserId")!.Value);
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
         var result = await _service.VerifyAsync(id, req.Status, req.Notes, userId);
         return result.IsSuccess ? Ok(new { message = "Document verified." }) : BadRequest(result.Error);
     }
