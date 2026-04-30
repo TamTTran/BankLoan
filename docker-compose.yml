@@ -148,6 +148,18 @@ services:
       - "9090:9090"   # Prometheus UI: http://localhost:9090
     depends_on:
       - api
+      - nginx-exporter
+
+  # Nginx Gateway Metrics
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.4.2
+    container_name: loanflow-nginx-exporter
+    restart: unless-stopped
+    command:
+      - --nginx.scrape-uri=http://frontend:8081/stub_status
+    depends_on:
+      frontend:
+        condition: service_healthy
 
   # Grafana Dashboards
   grafana:

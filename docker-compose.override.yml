@@ -33,6 +33,11 @@ services:
       Cors__AllowedOrigins__0: "http://localhost"
       Cors__AllowedOrigins__1: "https://localhost"
       AllowedHosts: "localhost;127.0.0.1;api;loanflow-api"
+      ForwardedHeaders__KnownNetworks__0: "172.16.0.0/12"
+      RateLimiting__Global__PermitLimit: "100"
+      RateLimiting__Global__WindowSeconds: "1"
+      RateLimiting__Ping__PermitLimit: "100"
+      RateLimiting__Ping__WindowSeconds: "1"
 
   # Frontend runs via: cd frontend && npm run dev
   frontend:
@@ -41,6 +46,11 @@ services:
 
   # Prometheus scrapes the containerized API, so keep it with the full stack.
   prometheus:
+    profiles:
+      - full
+
+  # Nginx exporter scrapes the frontend gateway stub_status endpoint.
+  nginx-exporter:
     profiles:
       - full
 

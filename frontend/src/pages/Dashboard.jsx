@@ -34,10 +34,22 @@ const STATUS_COLORS = {
   Closed:               '#8a9bae',
 };
 
+const APPLICATION_STATUS_ORDER = ['Draft', 'Submitted', 'Approved', 'Rejected'];
+
+const APPLICATION_STATUS_COLORS = {
+  Draft:     '#8a9bae',
+  Submitted: PALETTE.amber,
+  Approved:  PALETTE.green,
+  Rejected:  PALETTE.red,
+};
+
 const KPI_CARDS = [
   { key: 'totalOutstanding',   icon: 'VND', label: 'Total outstanding',    cls: 'kpi-blue',   fmt: formatCurrency },
   { key: 'totalActiveLoans',   icon: 'LN',  label: 'Active loans',         cls: 'kpi-green',  fmt: formatNumber },
+  { key: 'totalApplicationsToday', icon: 'NEW', label: 'New applications today', cls: 'kpi-purple', fmt: formatNumber },
   { key: 'pendingApprovals',   icon: 'AP',  label: 'Pending approvals',    cls: 'kpi-amber',  fmt: formatNumber },
+  { key: 'totalDisbursedThisMonth', icon: 'DIS', label: 'Disbursed this month', cls: 'kpi-blue', fmt: formatCurrency },
+  { key: 'disbursedLoansThisMonth', icon: 'VOL', label: 'Disbursed loans this month', cls: 'kpi-green', fmt: formatNumber },
   { key: 'carRatio',           icon: 'CAR', label: 'CAR',                  cls: 'kpi-purple', fmt: v => `${Number(v || 0).toFixed(2)}%` },
   { key: 'nplRatio',           icon: 'NPL', label: 'NPL ratio',            cls: 'kpi-red',    fmt: v => `${Number(v || 0).toFixed(2)}%` },
   { key: 'collectedThisMonth', icon: 'COL', label: 'Collected this month', cls: 'kpi-teal',   fmt: formatCurrency },
@@ -187,6 +199,7 @@ export default function Dashboard({ onBadgeCounts }) {
   /* ── Derived ────────────────────────────────────────────────────────── */
   // loanStatusBreakdown from backend is camelCase
   const loanBreakdown = summary?.loanStatusBreakdown || [];
+  const applicationBreakdown = summary?.applicationStatusBreakdown || [];
   const coverageRate  = summary?.totalOutstanding
     ? Math.round(((summary?.collectedThisMonth || 0) / summary.totalOutstanding) * 100)
     : 0;
@@ -194,6 +207,19 @@ export default function Dashboard({ onBadgeCounts }) {
   // Pie chart — loan status donut
   const pieData   = loanBreakdown.map(d => ({ name: STATUS_LABELS[d.status] || d.status, value: d.count }));
   const pieColors = loanBreakdown.map(d => STATUS_COLORS[d.status] || PALETTE.blue);
+
+  const pipelineData = APPLICATION_STATUS_ORDER
+    .map(status => {
+      const item = applicationBreakdown.find(d => d.status === status);
+      return {
+        status,
+        name: STATUS_LABELS[status] || status,
+        count: Number(item?.count || 0),
+        amount: Number(item?.totalRequestedAmount || 0),
+        _color: APPLICATION_STATUS_COLORS[status] || PALETTE.blue,
+      };
+    })
+    .filter(d => d.count > 0 || applicationBreakdown.length > 0);
 
   // Horizontal bar — overdue buckets
   // Backend fields (camelCase): bucket, label, count, totalAmount
@@ -262,6 +288,68 @@ export default function Dashboard({ onBadgeCounts }) {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="dashboard-grid">
+        <Card hoverable>
+          <CardHeader
+            title="Application pipeline"
+            subtitle="Current application volume by workflow status."
+          />
+          <CardBody>
+            {loading ? <ChartSkeleton height={220} /> : pipelineData.length === 0 ? (
+              <p className="no-data">No application data available.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={pipelineData} margin={{ top: 8, right: 20, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(16,35,63,0.06)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#7a8da5' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#7a8da5' }} axisLine={false} tickLine={false} allowDecimals={false} width={36} />
+                  <Tooltip content={<ChartTooltip currencyKeys={['amount']} />} />
+                  <Bar dataKey="count" name="Applications" radius={[6, 6, 0, 0]} maxBarSize={54}>
+                    {pipelineData.map((entry, idx) => (
+                      <Cell key={idx} fill={entry._color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardBody>
+        </Card>
+
+        <Card hoverable>
+          <CardHeader
+            title="Monthly decision mix"
+            subtitle="Approval and disbursement movement for the current month."
+          />
+          <CardBody>
+            {loading ? <ChartSkeleton height={220} /> : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
+                <div>
+                  <span className="dashboard-brief-label">Approved</span>
+                  <strong style={{ display: 'block', fontSize: '1.6rem', color: 'var(--navy)', marginTop: '0.35rem' }}>
+                    {formatNumber(summary?.approvedApplicationsThisMonth || 0)}
+                  </strong>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.4rem' }}>Applications approved this month.</p>
+                </div>
+                <div>
+                  <span className="dashboard-brief-label">Rejected</span>
+                  <strong style={{ display: 'block', fontSize: '1.6rem', color: 'var(--navy)', marginTop: '0.35rem' }}>
+                    {formatNumber(summary?.rejectedApplicationsThisMonth || 0)}
+                  </strong>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.4rem' }}>Applications rejected this month.</p>
+                </div>
+                <div>
+                  <span className="dashboard-brief-label">Disbursed</span>
+                  <strong style={{ display: 'block', fontSize: '1.6rem', color: 'var(--navy)', marginTop: '0.35rem' }}>
+                    {formatNumber(summary?.disbursedLoansThisMonth || 0)}
+                  </strong>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.4rem' }}>Loans disbursed this month.</p>
+                </div>
+              </div>
+            )}
+          </CardBody>
+        </Card>
       </div>
 
       {/* ── Chart row 1: Overdue bar + Status donut ──────────────────── */}

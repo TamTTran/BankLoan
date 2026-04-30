@@ -253,24 +253,74 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    var globalPermitLimit = builder.Configuration.GetValue<int>("RateLimiting:Global:PermitLimit", 100);
+    var globalWindowSeconds = builder.Configuration.GetValue<int>("RateLimiting:Global:WindowSeconds", 1);
+    var pingPermitLimit = builder.Configuration.GetValue<int>("RateLimiting:Ping:PermitLimit", 100);
+    var pingWindowSeconds = builder.Configuration.GetValue<int>("RateLimiting:Ping:WindowSeconds", 1);
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+            context.HttpContext.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString();
+
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { success = false, error = new { code = "RATE_LIMITED", message = "Too many requests." } },
+            cancellationToken);
+    };
+
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+    {
+        var path = httpContext.Request.Path;
+        if (path.StartsWithSegments("/health")
+            || path.StartsWithSegments("/metrics")
+            || path.StartsWithSegments("/api/live"))
+        {
+            return RateLimitPartition.GetNoLimiter("probe");
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: GetClientPartitionKey(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = globalPermitLimit,
+                Window = TimeSpan.FromSeconds(globalWindowSeconds),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
+
+    options.AddPolicy("PingRateLimit", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: GetClientPartitionKey(httpContext),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = pingPermitLimit,
+                Window = TimeSpan.FromSeconds(pingWindowSeconds),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+
     options.AddPolicy("LoginRateLimit", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            partitionKey: GetClientPartitionKey(httpContext),
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 5,
                 Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 0
+                QueueLimit = 0,
+                AutoReplenishment = true
             }));
 
     options.AddPolicy("RefreshRateLimit", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            partitionKey: GetClientPartitionKey(httpContext),
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 10,
                 Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 0
+                QueueLimit = 0,
+                AutoReplenishment = true
             }));
 });
 
@@ -344,6 +394,10 @@ app.UseAuthorization();
 app.UseMiddleware<LoanFlow.API.Middleware.DataMaskingMiddleware>();
 app.MapControllers();
 app.MapHub<LoanFlow.API.Hubs.NotificationHub>("/api/hubs/notification");
+app.MapGet("/api/live", () => Results.Ok(new { success = true, status = "alive" }))
+    .DisableRateLimiting();
+app.MapGet("/api/ping", () => Results.Ok(new { success = true, data = "pong" }))
+    .RequireRateLimiting("PingRateLimit");
 
 // Health endpoint for Docker / load-balancer probes (no auth required)
 app.MapHealthChecks("/health");
@@ -468,6 +522,11 @@ static bool IsLocalhostOrigin(string origin)
     return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
         || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
         || uri.Host.Equals("::1", StringComparison.OrdinalIgnoreCase);
+}
+
+static string GetClientPartitionKey(HttpContext httpContext)
+{
+    return httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 }
 
 static async Task MigrateWithRetryAsync(WebApplication app)

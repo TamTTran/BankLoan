@@ -42,16 +42,52 @@ public class DashboardService : IDashboardService
             .SumAsync(l => l.OutstandingAmount);
 
         // Due today: installments whose DueDate is today and not yet fully paid
-        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(
-            DateTime.UtcNow,
-            TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time")));
+        var tz = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
+        var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+        var today = DateOnly.FromDateTime(now);
+        var monthStart = new DateOnly(now.Year, now.Month, 1);
+        var nextMonthStart = monthStart.AddMonths(1);
+
+        var localTodayStart = today.ToDateTime(TimeOnly.MinValue);
+        var utcTodayStart = TimeZoneInfo.ConvertTimeToUtc(localTodayStart, tz);
+        var utcTomorrowStart = TimeZoneInfo.ConvertTimeToUtc(localTodayStart.AddDays(1), tz);
+        var utcMonthStart = TimeZoneInfo.ConvertTimeToUtc(monthStart.ToDateTime(TimeOnly.MinValue), tz);
+        var utcNextMonthStart = TimeZoneInfo.ConvertTimeToUtc(nextMonthStart.ToDateTime(TimeOnly.MinValue), tz);
 
         var dueTodayAmount = await _db.RepaymentSchedules
             .Where(s => s.DueDate == today && s.Status != InstallmentStatus.Paid)
             .SumAsync(s => s.RemainingDueAmount);
 
+        var totalApplicationsToday = await _db.LoanApplications
+            .CountAsync(a => a.CreatedAt >= utcTodayStart && a.CreatedAt < utcTomorrowStart);
+
         var pendingApprovals = await _db.LoanApplications
             .CountAsync(a => a.Status == ApplicationStatus.Submitted);
+
+        var approvedApplicationsThisMonth = await _db.LoanApplications
+            .CountAsync(a => a.Status == ApplicationStatus.Approved &&
+                             a.UpdatedAt >= utcMonthStart &&
+                             a.UpdatedAt < utcNextMonthStart);
+
+        var rejectedApplicationsThisMonth = await _db.LoanApplications
+            .CountAsync(a => a.Status == ApplicationStatus.Rejected &&
+                             a.UpdatedAt >= utcMonthStart &&
+                             a.UpdatedAt < utcNextMonthStart);
+
+        var disbursedLoansThisMonth = await _db.Loans
+            .CountAsync(l => l.DisbursementDate.HasValue &&
+                             l.DisbursementDate.Value >= monthStart &&
+                             l.DisbursementDate.Value < nextMonthStart);
+
+        var totalDisbursedThisMonth = await _db.Loans
+            .Where(l => l.DisbursementDate.HasValue &&
+                        l.DisbursementDate.Value >= monthStart &&
+                        l.DisbursementDate.Value < nextMonthStart)
+            .SumAsync(l => l.ApprovedAmount);
+
+        var collectedThisMonth = await _db.Payments
+            .Where(p => p.PaymentDate >= monthStart && p.PaymentDate < nextMonthStart)
+            .SumAsync(p => p.Amount);
 
         var statusBreakdown = await _db.Loans
             .GroupBy(l => l.Status)
@@ -63,14 +99,31 @@ public class DashboardService : IDashboardService
             })
             .ToListAsync();
 
+        var applicationStatusBreakdown = await _db.LoanApplications
+            .GroupBy(a => a.Status)
+            .Select(g => new ApplicationStatusSummaryDto
+            {
+                Status = g.Key,
+                Count = g.Count(),
+                TotalRequestedAmount = g.Sum(a => a.RequestedAmount)
+            })
+            .ToListAsync();
+
         return new DashboardSummaryDto
         {
             TotalActiveLoans = totalActiveLoans,
             TotalOverdueLoans = totalOverdueLoans,
+            TotalApplicationsToday = totalApplicationsToday,
+            ApprovedApplicationsThisMonth = approvedApplicationsThisMonth,
+            RejectedApplicationsThisMonth = rejectedApplicationsThisMonth,
+            DisbursedLoansThisMonth = disbursedLoansThisMonth,
             DueTodayAmount = dueTodayAmount,
             TotalOutstandingAmount = totalOutstanding,
+            TotalDisbursedThisMonth = totalDisbursedThisMonth,
+            CollectedThisMonth = collectedThisMonth,
             PendingApprovals = pendingApprovals,
-            LoanStatusBreakdown = statusBreakdown
+            LoanStatusBreakdown = statusBreakdown,
+            ApplicationStatusBreakdown = applicationStatusBreakdown
         };
     }
 

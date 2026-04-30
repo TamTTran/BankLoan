@@ -5,10 +5,17 @@ public class DashboardSummaryDto
 {
     public int TotalActiveLoans { get; set; }
     public int TotalOverdueLoans { get; set; }
+    public int TotalApplicationsToday { get; set; }
+    public int ApprovedApplicationsThisMonth { get; set; }
+    public int RejectedApplicationsThisMonth { get; set; }
+    public int DisbursedLoansThisMonth { get; set; }
     public decimal DueTodayAmount { get; set; }
     public decimal TotalOutstandingAmount { get; set; }
+    public decimal TotalDisbursedThisMonth { get; set; }
+    public decimal CollectedThisMonth { get; set; }
     public int PendingApprovals { get; set; }
     public List<LoanStatusSummaryDto> LoanStatusBreakdown { get; set; } = [];
+    public List<ApplicationStatusSummaryDto> ApplicationStatusBreakdown { get; set; } = [];
 }
 
 // GET /reports/overdue-buckets (§17.10 / RPT-002)
@@ -30,6 +37,13 @@ public class LoanStatusSummaryDto
     public string Status { get; set; } = default!;
     public int Count { get; set; }
     public decimal TotalAmount { get; set; }
+}
+
+public class ApplicationStatusSummaryDto
+{
+    public string Status { get; set; } = default!;
+    public int Count { get; set; }
+    public decimal TotalRequestedAmount { get; set; }
 }
 
 // GET /dashboard/monthly-trend — RPT-003
