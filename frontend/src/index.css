@@ -2,6 +2,9 @@
   color-scheme: light;
 
   --font-sans: 'Segoe UI Variable', 'Segoe UI', 'Noto Sans', 'Helvetica Neue', sans-serif;
+  --font-sans-vi: 'Segoe UI Variable', 'Segoe UI', 'Noto Sans', 'Arial', sans-serif;
+  --font-sans-en: 'Inter', 'Segoe UI Variable', 'Segoe UI', 'Helvetica Neue', 'Arial', sans-serif;
+  --locale-font-sans: var(--font-sans-vi);
   --font-mono: 'JetBrains Mono', 'Cascadia Mono', 'SFMono-Regular', Consolas, monospace;
 
   --bg-base: #f8fafd;
@@ -66,9 +69,11 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 15px; text-size-adjust: 100%; }
+html[data-locale="vi-VN"] { --locale-font-sans: var(--font-sans-vi); }
+html[data-locale="en-US"] { --locale-font-sans: var(--font-sans-en); }
 body {
   min-height: 100vh;
-  font-family: var(--font-sans);
+  font-family: var(--locale-font-sans), var(--font-sans);
   font-size: 1rem;
   font-weight: 450;
   color: var(--text-primary);
@@ -1547,8 +1552,11 @@ input, select, textarea { font: inherit; outline: none; }
 .lang-switcher {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
   padding: 0.38rem 0.65rem;
+  min-width: 2.75rem;
+  min-height: 2.2rem;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.07);
@@ -1559,6 +1567,7 @@ input, select, textarea { font: inherit; outline: none; }
   cursor: pointer;
   transition: background 0.18s var(--ease), color 0.18s var(--ease);
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .lang-switcher:hover,
@@ -1567,9 +1576,9 @@ input, select, textarea { font: inherit; outline: none; }
   color: #fff;
 }
 
-.lang-switcher-flag {
-  font-size: 1rem;
+.lang-switcher-code {
   line-height: 1;
+  font-weight: 800;
 }
 
 .notification-bell {

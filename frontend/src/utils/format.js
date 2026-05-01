@@ -1,20 +1,22 @@
+import { getCurrentLocale } from '../i18n/locales';
+
 export function formatCurrency(n) {
   if (n == null || n === '') return '—';
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat(getCurrentLocale(), { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
 }
 export function formatNumber(n) {
   if (n == null) return '—';
-  return new Intl.NumberFormat('vi-VN').format(n);
+  return new Intl.NumberFormat(getCurrentLocale()).format(n);
 }
 export function formatDate(s) {
   if (!s) return '—';
   const d = new Date(s);
   if (isNaN(d)) return s;
-  return d.toLocaleDateString('vi-VN');
+  return d.toLocaleDateString(getCurrentLocale());
 }
 export function formatDateTime(s) {
   if (!s) return '—';
-  return new Date(s).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
+  return new Date(s).toLocaleString(getCurrentLocale(), { dateStyle: 'short', timeStyle: 'short' });
 }
 export function formatPercent(n) {
   if (n == null) return '—';

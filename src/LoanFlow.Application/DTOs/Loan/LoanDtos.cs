@@ -19,6 +19,12 @@ public class LoanDto
     public string Status { get; set; } = default!;
     public decimal OutstandingAmount { get; set; }
     public string? VirtualAccountNo { get; set; }
+    public string? DisbursementMethod { get; set; }
+    public string? DisbursementStatus { get; set; }
+    public string? NapasReferenceId { get; set; }
+    public string? NapasTransactionId { get; set; }
+    public DateTime? GatewayConfirmedAt { get; set; }
+    public string? GatewayErrorMessage { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<ScheduleItemDto> Schedule { get; set; } = [];
     public List<PaymentDto> Payments { get; set; } = [];

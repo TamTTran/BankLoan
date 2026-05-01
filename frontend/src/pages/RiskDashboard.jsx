@@ -4,6 +4,13 @@ import { useToast } from '../context/ToastContext';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
 const pct = (n) => `${Number(n || 0).toFixed(2)}%`;
+const pctRatio = (n) => `${(Number(n || 0) * 100).toFixed(2)}%`;
+
+function sumDetails(details, accountType) {
+  return (details || [])
+    .filter(item => item.accountType === accountType)
+    .reduce((sum, item) => sum + Math.abs(Number(item.balance || 0)), 0);
+}
 
 function Gauge({ value, max = 100, thresholds = { warning: 60, danger: 80 }, label, unit = '%' }) {
   const pctValue = Math.min((value / max) * 100, 100);
@@ -67,6 +74,11 @@ export default function RiskDashboard() {
 
   useEffect(() => { load(); }, [load]);
 
+  const carRwa = data?.riskWeightedAssets ?? data?.totalRiskWeightedAssets ?? 0;
+  const tier1Ratio = data?.tier1CapitalRatio ?? (carRwa > 0 ? (Number(data?.tier1Capital || 0) / Number(carRwa)) * 100 : 0);
+  const totalRevenue = data?.totalRevenue ?? sumDetails(data?.details, 'Revenue');
+  const totalExpense = data?.totalExpense ?? sumDetails(data?.details, 'Expense');
+
   return (
     <div className="page">
       <div className="page-header">
@@ -124,13 +136,13 @@ export default function RiskDashboard() {
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
             <Gauge label="CAR (Hệ số an toàn vốn)" value={Number(data.carRatio || 0).toFixed(2)} unit="%" max={20} thresholds={{ warning: 10, danger: 8 }} />
-            <Gauge label="Tier 1 Capital Ratio" value={Number(data.tier1CapitalRatio || 0).toFixed(2)} unit="%" max={20} thresholds={{ warning: 8, danger: 6 }} />
+            <Gauge label="Tier 1 Capital Ratio" value={Number(tier1Ratio || 0).toFixed(2)} unit="%" max={20} thresholds={{ warning: 8, danger: 6 }} />
             <Gauge label="NPL Ratio" value={Number(data.nplRatio || 0).toFixed(2)} unit="%" max={10} thresholds={{ warning: 2, danger: 3 }} />
             <Gauge label="Provision Coverage" value={Number(data.provisionCoverageRatio || 0).toFixed(2)} unit="%" max={200} thresholds={{ warning: 60, danger: 30 }} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
             <div className="kpi-card kpi-blue"><div><p className="kpi-value">{fmt(data.totalCapital)}</p><p className="kpi-label">Vốn tự có</p></div></div>
-            <div className="kpi-card kpi-amber"><div><p className="kpi-value">{fmt(data.riskWeightedAssets)}</p><p className="kpi-label">Tài sản tính theo rủi ro (RWA)</p></div></div>
+            <div className="kpi-card kpi-amber"><div><p className="kpi-value">{fmt(carRwa)}</p><p className="kpi-label">Tài sản tính theo rủi ro (RWA)</p></div></div>
             <div className="kpi-card kpi-teal"><div><p className="kpi-value">{fmt(data.totalProvision)}</p><p className="kpi-label">Tổng dự phòng</p></div></div>
           </div>
         </div>
@@ -212,8 +224,8 @@ export default function RiskDashboard() {
       {tab === 'pnl' && data && (
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-            <div className="kpi-card kpi-green"><div><p className="kpi-value">{fmt(data.totalAssets)}</p><p className="kpi-label">Tổng doanh thu</p></div></div>
-            <div className="kpi-card kpi-red"><div><p className="kpi-value">{fmt(data.totalLiabilities)}</p><p className="kpi-label">Tổng chi phí</p></div></div>
+            <div className="kpi-card kpi-green"><div><p className="kpi-value">{fmt(totalRevenue)}</p><p className="kpi-label">Tổng doanh thu</p></div></div>
+            <div className="kpi-card kpi-red"><div><p className="kpi-value">{fmt(totalExpense)}</p><p className="kpi-label">Tổng chi phí</p></div></div>
             <div className="kpi-card kpi-blue"><div><p className="kpi-value">{fmt(data.netIncome)}</p><p className="kpi-label">Lợi nhuận trước thuế</p></div></div>
           </div>
           <div className="table-shell">
@@ -237,8 +249,53 @@ export default function RiskDashboard() {
         </div>
       )}
 
+      {tab === 'ifrs9' && data && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+            <div className="kpi-card kpi-blue"><div><p className="kpi-value">{fmt(data.totalExposure)}</p><p className="kpi-label">Total EAD</p></div></div>
+            <div className="kpi-card kpi-red"><div><p className="kpi-value">{fmt(data.totalExpectedLoss)}</p><p className="kpi-label">Expected loss</p></div></div>
+            <div className="kpi-card kpi-amber"><div><p className="kpi-value">{pctRatio(data.portfolioExpectedLossRate)}</p><p className="kpi-label">Portfolio ECL rate</p></div></div>
+            <div className="kpi-card kpi-teal"><div><p className="kpi-value">{fmt(data.loanDetails?.length)}</p><p className="kpi-label">Loans modelled</p></div></div>
+          </div>
+          <SectionTitle>IFRS 9 Expected Credit Loss</SectionTitle>
+          <div className="table-shell">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Loan ID</th>
+                  <th className="text-right">EAD</th>
+                  <th className="text-right">PD</th>
+                  <th className="text-right">LGD</th>
+                  <th className="text-right">ECL</th>
+                  <th className="text-right">DPD</th>
+                  <th>Stage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!data.loanDetails?.length ? (
+                  <tr><td colSpan={7} className="empty-row"><div className="empty-state">Không có khoản vay để tính ECL</div></td></tr>
+                ) : data.loanDetails.map(item => {
+                  const stage = item.currentDpd > 90 ? 'Stage 3' : item.currentDpd > 30 ? 'Stage 2' : 'Stage 1';
+                  return (
+                    <tr key={item.loanId}>
+                      <td><span className="code-badge">#{item.loanId}</span></td>
+                      <td className="text-right">{fmt(item.exposureAtDefault)}</td>
+                      <td className="text-right">{pctRatio(item.probabilityOfDefault)}</td>
+                      <td className="text-right">{pctRatio(item.lossGivenDefault)}</td>
+                      <td className="text-right" style={{ fontWeight: 700 }}>{fmt(item.expectedLoss)}</td>
+                      <td className="text-right">{fmt(item.currentDpd)}</td>
+                      <td><span className="code-badge">{stage}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* ── IFRS 9 placeholder ── */}
-      {tab === 'ifrs9' && (
+      {tab === 'ifrs9' && !data && (
         <div style={{ padding: '3rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
           <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔬</div>
           <h3 style={{ marginBottom: '0.5rem', color: 'var(--navy)' }}>IFRS 9 ECL Drill-down</h3>

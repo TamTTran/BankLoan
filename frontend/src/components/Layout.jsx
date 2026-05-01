@@ -23,9 +23,9 @@ export function Layout({ children, badgeCounts = {} }) {
     { to: '/reports',      icon: 'BC', label: t('nav.reports'),      id: 'nav-reports',      gated: !can.viewReports },
     { to: '/napas',        icon: 'NP', label: 'NAPAS',               id: 'nav-napas',        gated: !can.viewNapasNav },
     { to: '/aml',          icon: '🛡️', label: 'AML/KYC',            id: 'nav-aml' },
-    { to: '/risk',         icon: '⚖️', label: 'Risk & Capital',     id: 'nav-risk' },
-    { to: '/regulatory',   icon: '📜', label: 'Regulatory',         id: 'nav-reg' },
-    { to: '/interbank-sync', icon: '🏦', label: 'Interbank Sync',     id: 'nav-interbank' },
+    { to: '/risk',         icon: '⚖️', label: 'Risk & Capital',     id: 'nav-risk',         gated: !can.viewRiskNav },
+    { to: '/regulatory',   icon: '📜', label: 'Regulatory',         id: 'nav-reg',          gated: !can.viewRegulatoryNav },
+    { to: '/interbank-sync', icon: '🏦', label: 'Interbank Sync',     id: 'nav-interbank',    gated: !can.viewInterbankNav },
     { to: '/approvals',    icon: '✅', label: t('nav.approvals'),    id: 'nav-approvals',    badge: true, badgeKey: 'approvals', gated: !can.viewApprovalsNav },
     { to: '/system-ops',   icon: '⚙️', label: t('nav.system'),      id: 'nav-ops',          gated: !can.viewSystemOpsNav },
   ], [t, can]);

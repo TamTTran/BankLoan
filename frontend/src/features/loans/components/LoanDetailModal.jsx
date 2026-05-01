@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { loanApi } from '../api/loanApi';
+import { napasApi } from '../../napas/api/napasApi';
 import { mapLoan } from '../mappers/loanMapper';
-import { formatCurrency, formatDate, formatPercent } from '../../../utils/format';
+import { formatCurrency, formatDate, formatDateTime, formatPercent } from '../../../utils/format';
 import { StatusBadge } from '../../../components/Badge';
 import Modal from '../../../components/Modal';
 import { Modal as UIModal } from '../../../components/ui/Modal';
@@ -115,6 +116,7 @@ export function LoanDetailModal({ loanId, onClose }) {
   const [payments, setPayments] = useState([]);
   const [tab, setTab]           = useState('schedule');
   const [loading, setLoading]   = useState(true);
+  const [queryingNapas, setQueryingNapas] = useState(false);
 
   // Active sub-modal: null | 'restructure' | 'reschedule' | 'adjust' | 'writeoff' | 'earlysettle' | 'reversal'
   const [subModal, setSubModal] = useState(null);
@@ -158,6 +160,26 @@ export function LoanDetailModal({ loanId, onClose }) {
       toast('Lỗi: ' + (e.message || 'Có lỗi xảy ra'), 'error');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const queryNapasStatus = async () => {
+    if (!loan?.napasReferenceId) return;
+    setQueryingNapas(true);
+    try {
+      const result = await napasApi.getDisbursementStatus(loan.napasReferenceId);
+      setLoan(prev => ({
+        ...prev,
+        disbursementStatus: result.disbursementStatus ?? prev.disbursementStatus,
+        napasTransactionId: result.napasTransactionId ?? prev.napasTransactionId,
+        gatewayConfirmedAt: result.confirmedAt ?? prev.gatewayConfirmedAt,
+        gatewayErrorMessage: result.errorMessage ?? prev.gatewayErrorMessage,
+      }));
+      toast('Đã cập nhật trạng thái NAPAS.', 'success');
+    } catch (e) {
+      toast('Lỗi tra cứu NAPAS: ' + (e.message || 'Có lỗi xảy ra'), 'error');
+    } finally {
+      setQueryingNapas(false);
     }
   };
 
@@ -324,6 +346,11 @@ export function LoanDetailModal({ loanId, onClose }) {
               [t('loans.tenor'),             loan?.tenorMonths + ' tháng'],
               [t('loans.disbursedOn'),       formatDate(loan?.disbursementDate)],
               [t('loans.maturityDate'),      formatDate(loan?.maturityDate)],
+              ['Disbursement method',         loan?.disbursementMethod],
+              ['NAPAS status',                loan?.disbursementStatus ? <StatusBadge key="napas" status={loan.disbursementStatus} /> : null],
+              ['NAPAS reference',             loan?.napasReferenceId],
+              ['NAPAS transaction',           loan?.napasTransactionId],
+              ['Gateway confirmed',           formatDateTime(loan?.gatewayConfirmedAt)],
             ].map(([label, val]) => (
               <div key={label} className="detail-item">
                 <div className="detail-label">{label}</div>
@@ -331,6 +358,16 @@ export function LoanDetailModal({ loanId, onClose }) {
               </div>
             ))}
           </div>
+          {loan?.napasReferenceId && (
+            <div style={{ margin: '-0.5rem 0 1.25rem', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <Button size="sm" variant="outline" onClick={queryNapasStatus} loading={queryingNapas}>
+                Query NAPAS status
+              </Button>
+              {loan.gatewayErrorMessage && (
+                <span style={{ color: 'var(--red)', fontSize: '0.82rem', fontWeight: 650 }}>{loan.gatewayErrorMessage}</span>
+              )}
+            </div>
+          )}
           <div style={{ marginBottom: '1.5rem' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>{t('loans.detail.repaymentProgress')}: {progress}%</div>
             <div className="progress-bar" style={{ height: 8 }}><div className="progress-fill" style={{ width: `${progress}%` }} /></div>

@@ -49,6 +49,7 @@ public class LoanService : ILoanService
             .Include(l => l.Customer)
             .Include(l => l.Product)
             .Include(l => l.Application)
+            .Include(l => l.Disbursement)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
@@ -90,6 +91,7 @@ public class LoanService : ILoanService
             .Include(l => l.Customer)
             .Include(l => l.Product)
             .Include(l => l.Application)
+            .Include(l => l.Disbursement)
             .Include(l => l.RepaymentSchedules)
             .Include(l => l.Payments).ThenInclude(p => p.CreatedBy)
             .Include(l => l.LateFees)
@@ -1259,6 +1261,12 @@ public class LoanService : ILoanService
         Status = l.Status,
         OutstandingAmount = l.OutstandingAmount,
         VirtualAccountNo = l.VirtualAccountNo,
+        DisbursementMethod = l.Disbursement?.DisbursementMethod,
+        DisbursementStatus = l.Disbursement?.DisbursementStatus,
+        NapasReferenceId = l.Disbursement?.NapasReferenceId,
+        NapasTransactionId = l.Disbursement?.NapasTransactionId,
+        GatewayConfirmedAt = l.Disbursement?.GatewayConfirmedAt,
+        GatewayErrorMessage = l.Disbursement?.GatewayErrorMessage,
         CreatedAt = l.CreatedAt
     };
 

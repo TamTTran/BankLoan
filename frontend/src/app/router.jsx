@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Layout } from '../components/Layout';
@@ -10,46 +10,54 @@ import Applications from '../pages/Applications';
 import Loans        from '../pages/Loans';
 import Overdue      from '../pages/Overdue';
 import Collections  from '../pages/Collections';
-import Reports      from '../pages/Reports';
 import Notifications from '../pages/Notifications';
 import Approvals    from '../pages/Approvals';
-import SystemOps    from '../pages/SystemOps';
-import AmlDashboard from '../pages/AmlDashboard';
-import RiskDashboard from '../pages/RiskDashboard';
-import RegulatoryReports from '../pages/RegulatoryReports';
 import Profile from '../pages/Profile';
-import InterbankSync from '../pages/InterbankSync';
-import Napas from '../pages/Napas';
+
+const SystemOps = lazy(() => import('../pages/SystemOps'));
+const AmlDashboard = lazy(() => import('../pages/AmlDashboard'));
+const RiskDashboard = lazy(() => import('../pages/RiskDashboard'));
+const RegulatoryReports = lazy(() => import('../pages/RegulatoryReports'));
+const InterbankSync = lazy(() => import('../pages/InterbankSync'));
+const Napas = lazy(() => import('../pages/Napas'));
+const Reports = lazy(() => import('../pages/Reports'));
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
   return user ? children : <Navigate to="/" replace />;
 }
 
+function PermissionRoute({ allowed, children }) {
+  return allowed ? children : <Navigate to="/dashboard" replace />;
+}
+
 function AppShell() {
+  const { can } = useAuth();
   const [badgeCounts, setBadgeCounts] = useState({ applications: 0, approvals: 0 });
   return (
     <Layout badgeCounts={badgeCounts}>
-      <Routes>
-        <Route path="/dashboard"    element={<Dashboard onBadgeCounts={setBadgeCounts} />} />
-        <Route path="/customers"    element={<Customers />} />
-        <Route path="/products"     element={<LoanProducts />} />
-        <Route path="/applications" element={<Applications />} />
-        <Route path="/loans"        element={<Loans />} />
-        <Route path="/overdue"      element={<Overdue />} />
-        <Route path="/collections"  element={<Collections />} />
-        <Route path="/reports"      element={<Reports />} />
-        <Route path="/notifications" element={<Notifications />} />
-        <Route path="/approvals"    element={<Approvals />} />
-        <Route path="/system-ops"   element={<SystemOps />} />
-        <Route path="/aml"          element={<AmlDashboard />} />
-        <Route path="/risk"         element={<RiskDashboard />} />
-        <Route path="/regulatory"   element={<RegulatoryReports />} />
-        <Route path="/napas"        element={<Napas />} />
-        <Route path="/interbank-sync" element={<InterbankSync />} />
-        <Route path="/profile"      element={<Profile />} />
-        <Route path="*"             element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+      <Suspense fallback={<div className="page"><p style={{ color: 'var(--text-muted)' }}>Loading module...</p></div>}>
+        <Routes>
+          <Route path="/dashboard"    element={<Dashboard onBadgeCounts={setBadgeCounts} />} />
+          <Route path="/customers"    element={<Customers />} />
+          <Route path="/products"     element={<PermissionRoute allowed={can.viewProductsNav}><LoanProducts /></PermissionRoute>} />
+          <Route path="/applications" element={<Applications />} />
+          <Route path="/loans"        element={<Loans />} />
+          <Route path="/overdue"      element={<Overdue />} />
+          <Route path="/collections"  element={<PermissionRoute allowed={can.viewCollectionQueue}><Collections /></PermissionRoute>} />
+          <Route path="/reports"      element={<PermissionRoute allowed={can.viewReports}><Reports /></PermissionRoute>} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/approvals"    element={<PermissionRoute allowed={can.viewApprovalsNav}><Approvals /></PermissionRoute>} />
+          <Route path="/system-ops"   element={<PermissionRoute allowed={can.viewSystemOpsNav}><SystemOps /></PermissionRoute>} />
+          <Route path="/aml"          element={<AmlDashboard />} />
+          <Route path="/risk"         element={<PermissionRoute allowed={can.viewRiskNav}><RiskDashboard /></PermissionRoute>} />
+          <Route path="/regulatory"   element={<PermissionRoute allowed={can.viewRegulatoryNav}><RegulatoryReports /></PermissionRoute>} />
+          <Route path="/napas"        element={<PermissionRoute allowed={can.viewNapasNav}><Napas /></PermissionRoute>} />
+          <Route path="/interbank-sync" element={<PermissionRoute allowed={can.viewInterbankNav}><InterbankSync /></PermissionRoute>} />
+          <Route path="/profile"      element={<Profile />} />
+          <Route path="*"             element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Suspense>
     </Layout>
   );
 }
