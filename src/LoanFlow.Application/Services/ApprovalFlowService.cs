@@ -184,19 +184,19 @@ public class ApprovalFlowService : IApprovalFlowService
                 async payload =>
                 {
                     var result = await scope.ServiceProvider
-                        .GetRequiredService<ILoanService>()
+                        .GetRequiredService<ILoanDisbursementService>()
                         .DisburseAsync(payload.LoanId, payload.Request, checkerUserId);
                     return result.IsSuccess ? Result.Success() : Result.Failure(result.Error ?? "Loan disbursement failed.");
                 }),
             "LoanEarlySettle" => await ExecuteLifecycleActionAsync<EarlySettleApprovalPayload>(
                 req.Payload,
                 payload => scope.ServiceProvider
-                    .GetRequiredService<ILoanService>()
+                    .GetRequiredService<ILoanPaymentService>()
                     .EarlySettleAsync(payload.LoanId, payload.Request, checkerUserId)),
             "SuspenseApply" => await ExecuteLifecycleActionAsync<ApplySuspenseApprovalPayload>(
                 req.Payload,
                 payload => scope.ServiceProvider
-                    .GetRequiredService<ILoanService>()
+                    .GetRequiredService<ILoanPaymentService>()
                     .ApplySuspenseAsync(payload.SuspenseId, checkerUserId)),
             "ExposureOverride" => await ExecuteLifecycleActionAsync<ExposureOverrideApprovalPayload>(
                 req.Payload,

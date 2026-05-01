@@ -16,13 +16,13 @@ public interface IVirtualAccountMatchingService
 public class VirtualAccountMatchingService : IVirtualAccountMatchingService
 {
     private readonly LoanFlowDbContext _db;
-    private readonly ILoanService _loanService;
+    private readonly ILoanPaymentService _loanPaymentService;
     private readonly ILogger<VirtualAccountMatchingService> _logger;
 
-    public VirtualAccountMatchingService(LoanFlowDbContext db, ILoanService loanService, ILogger<VirtualAccountMatchingService> logger)
+    public VirtualAccountMatchingService(LoanFlowDbContext db, ILoanPaymentService loanPaymentService, ILogger<VirtualAccountMatchingService> logger)
     {
         _db = db;
-        _loanService = loanService;
+        _loanPaymentService = loanPaymentService;
         _logger = logger;
     }
 
@@ -61,7 +61,7 @@ public class VirtualAccountMatchingService : IVirtualAccountMatchingService
             ExternalReferenceId = transactionId
         };
 
-        var allocationResult = await _loanService.RecordPaymentAsync(loan.Id, request, 1); // 1 = System user
+        var allocationResult = await _loanPaymentService.RecordPaymentAsync(loan.Id, request, 1); // 1 = System user
 
         return allocationResult;
     }

@@ -15,12 +15,12 @@ public interface IDashboardService
 public class DashboardService : IDashboardService
 {
     private readonly LoanFlowDbContext _db;
-    private readonly ILoanService _loanService;
+    private readonly ILoanQueryService _loanQueryService;
 
-    public DashboardService(LoanFlowDbContext db, ILoanService loanService)
+    public DashboardService(LoanFlowDbContext db, ILoanQueryService loanQueryService)
     {
         _db = db;
-        _loanService = loanService;
+        _loanQueryService = loanQueryService;
     }
 
     /// <summary>
@@ -30,7 +30,7 @@ public class DashboardService : IDashboardService
     public async Task<DashboardSummaryDto> GetSummaryAsync()
     {
         // Use query-time overdue list to get accurate counts (§12.8)
-        var overdueList = (await _loanService.GetOverdueListAsync()).ToList();
+        var overdueList = (await _loanQueryService.GetOverdueListAsync()).ToList();
 
         var totalActiveLoans = await _db.Loans.CountAsync(l =>
             l.Status == LoanStatus.Active || l.Status == LoanStatus.Overdue);
@@ -133,7 +133,7 @@ public class DashboardService : IDashboardService
     /// </summary>
     public async Task<OverdueBucketReportDto> GetOverdueBucketReportAsync()
     {
-        var overdueList = (await _loanService.GetOverdueListAsync()).ToList();
+        var overdueList = (await _loanQueryService.GetOverdueListAsync()).ToList();
 
         var bucketOrder = new[] { DpdBucket.Current, DpdBucket.Dpd1To7, DpdBucket.Dpd8To30, DpdBucket.Dpd31Plus };
 

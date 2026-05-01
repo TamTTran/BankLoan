@@ -15,15 +15,29 @@ namespace LoanFlow.API.Controllers;
 [Authorize]
 public class LoansController : ControllerBase
 {
-    private readonly ILoanService _service;
+    private readonly ILoanQueryService _queryService;
+    private readonly ILoanDisbursementService _disbursementService;
+    private readonly ILoanPaymentService _paymentService;
+    private readonly ICollectionService _collectionService;
     private readonly ICollateralService _collateralService;
     private readonly IApprovalFlowService _approvalFlowService;
     private readonly IEContractService _eContractService;
     private readonly INotificationService _notifications;
 
-    public LoansController(ILoanService service, ICollateralService collateralService, IApprovalFlowService approvalFlowService, IEContractService eContractService, INotificationService notifications)
+    public LoansController(
+        ILoanQueryService queryService,
+        ILoanDisbursementService disbursementService,
+        ILoanPaymentService paymentService,
+        ICollectionService collectionService,
+        ICollateralService collateralService, 
+        IApprovalFlowService approvalFlowService, 
+        IEContractService eContractService, 
+        INotificationService notifications)
     {
-        _service = service;
+        _queryService = queryService;
+        _disbursementService = disbursementService;
+        _paymentService = paymentService;
+        _collectionService = collectionService;
         _collateralService = collateralService;
         _approvalFlowService = approvalFlowService;
         _eContractService = eContractService;
@@ -38,14 +52,14 @@ public class LoansController : ControllerBase
     [HttpGet("loans")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Approver},{Roles.Collector},{Roles.Manager}")]
     public async Task<IActionResult> GetList([FromQuery] LoanFilterRequest filter)
-        => Ok(new { success = true, data = await _service.GetListAsync(filter) });
+        => Ok(new { success = true, data = await _queryService.GetListAsync(filter) });
 
     /// <summary>GET /loans/{id} — LOAN-003</summary>
     [HttpGet("loans/{id:int}")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Approver},{Roles.Collector},{Roles.Manager}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var result = await _service.GetByIdAsync(id);
+        var result = await _queryService.GetByIdAsync(id);
         if (!result.IsSuccess) return NotFound(new { success = false, error = new { message = result.Error } });
         return Ok(new { success = true, data = result.Value });
     }
@@ -57,7 +71,7 @@ public class LoansController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer}")]
     public async Task<IActionResult> CreateLoan(int applicationId)
     {
-        var result = await _service.CreateLoanAsync(applicationId, CurrentUserId);
+        var result = await _disbursementService.CreateLoanAsync(applicationId, CurrentUserId);
         if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
         return CreatedAtAction(nameof(GetById), new { id = result.Value!.Id }, new { success = true, data = result.Value });
     }
@@ -108,7 +122,7 @@ public class LoansController : ControllerBase
     [HttpGet("loans/{id:int}/schedule")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Approver},{Roles.Collector},{Roles.Manager}")]
     public async Task<IActionResult> GetSchedule(int id)
-        => Ok(new { success = true, data = await _service.GetScheduleAsync(id) });
+        => Ok(new { success = true, data = await _queryService.GetScheduleAsync(id) });
 
     // ── Payments ─────────────────────────────────────────────────────────────
 
@@ -118,7 +132,7 @@ public class LoansController : ControllerBase
     [IdempotencyFilter]
     public async Task<IActionResult> RecordPayment(int id, [FromBody] RecordPaymentRequest request)
     {
-        var result = await _service.RecordPaymentAsync(id, request, CurrentUserId);
+        var result = await _paymentService.RecordPaymentAsync(id, request, CurrentUserId);
         if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
 
         // Notify the recording officer
@@ -137,7 +151,7 @@ public class LoansController : ControllerBase
     [HttpGet("loans/{id:int}/payments")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Collector},{Roles.Manager}")]
     public async Task<IActionResult> GetPayments(int id)
-        => Ok(new { success = true, data = await _service.GetPaymentsAsync(id) });
+        => Ok(new { success = true, data = await _queryService.GetPaymentsAsync(id) });
 
     // ── Collection notes ─────────────────────────────────────────────────────
 
@@ -146,7 +160,7 @@ public class LoansController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.Collector}")]
     public async Task<IActionResult> AddCollectionNote(int id, [FromBody] AddCollectionNoteRequest request)
     {
-        var result = await _service.AddCollectionNoteAsync(id, request, CurrentUserId);
+        var result = await _collectionService.AddCollectionNoteAsync(id, request, CurrentUserId);
         if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
         return Ok(new { success = true, data = new { message = "Collection note added." } });
     }
@@ -158,7 +172,7 @@ public class LoansController : ControllerBase
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer}")]
     public async Task<IActionResult> PreviewEarlySettle(int id, [FromQuery] DateOnly settlementDate)
     {
-        var result = await _service.PreviewEarlySettleAsync(id, settlementDate);
+        var result = await _paymentService.PreviewEarlySettleAsync(id, settlementDate);
         if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
         return Ok(new { success = true, data = result.Value });
     }
@@ -233,7 +247,7 @@ public class LoansController : ControllerBase
     [HttpGet("overdue")]
     [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Collector},{Roles.Manager}")]
     public async Task<IActionResult> GetOverdueList()
-        => Ok(new { success = true, data = await _service.GetOverdueListAsync() });
+        => Ok(new { success = true, data = await _queryService.GetOverdueListAsync() });
 
     // ── Wave 4: Overpayment Suspense ─────────────────────────────────────────
 

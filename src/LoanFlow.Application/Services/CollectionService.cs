@@ -82,6 +82,7 @@ public interface ICollectionService
     Task<int> CheckBrokenPromisesAsync(DateOnly businessDate);
     Task<int> ApplyEscalationRulesAsync(DateOnly businessDate);
     Task<CollectionSummaryDto> GetCollectionSummaryAsync();
+    Task<Result> AddCollectionNoteAsync(int loanId, LoanFlow.Application.DTOs.Loan.AddCollectionNoteRequest req, int userId);
 }
 
 // ── Implementation ──────────────────────────────────────────────────────────
@@ -307,6 +308,34 @@ public class CollectionService : ICollectionService
                 CreatedAt = a.CreatedAt
             })
             .ToListAsync();
+    }
+
+    public async Task<Result> AddCollectionNoteAsync(int loanId, LoanFlow.Application.DTOs.Loan.AddCollectionNoteRequest req, int userId)
+    {
+        var loan = await _db.Loans.FindAsync(loanId);
+        if (loan is null) return Result.Failure("Loan not found.");
+
+        if (string.IsNullOrWhiteSpace(req.NoteText))
+            return Result.Failure("COL-VAL-001: Collection note cannot be empty.");
+
+        _db.CollectionNotes.Add(new CollectionNote
+        {
+            LoanId = loanId,
+            NoteDate = req.NoteDate,
+            NoteText = req.NoteText,
+            CreatedByUserId = userId
+        });
+
+        _db.AuditLogs.Add(new AuditLog
+        {
+            ActorUserId = userId,
+            ActionCode = AuditActions.CollectionNoteAdded,
+            EntityType = "Loan",
+            EntityId = loanId
+        });
+
+        await _db.SaveChangesAsync();
+        return Result.Success();
     }
 
     public async Task<int> CheckBrokenPromisesAsync(DateOnly businessDate)

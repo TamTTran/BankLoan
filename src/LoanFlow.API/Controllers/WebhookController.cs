@@ -16,18 +16,18 @@ namespace LoanFlow.API.Controllers;
 public class WebhookController : ControllerBase
 {
     private readonly LoanFlowDbContext _db;
-    private readonly ILoanService _loanService;
+    private readonly ILoanPaymentService _loanPaymentService;
     private readonly IConfiguration _config;
     private readonly ILogger<WebhookController> _logger;
 
     public WebhookController(
         LoanFlowDbContext db,
-        ILoanService loanService,
+        ILoanPaymentService loanPaymentService,
         IConfiguration config,
         ILogger<WebhookController> logger)
     {
         _db = db;
-        _loanService = loanService;
+        _loanPaymentService = loanPaymentService;
         _config = config;
         _logger = logger;
     }
@@ -108,7 +108,7 @@ public class WebhookController : ControllerBase
                 ExternalReferenceId = payload.TransactionId
             };
 
-            var result = await _loanService.RecordPaymentAsync(loan.Id, req, systemActorId.Value);
+            var result = await _loanPaymentService.RecordPaymentAsync(loan.Id, req, systemActorId.Value);
 
             if (!result.IsSuccess)
             {

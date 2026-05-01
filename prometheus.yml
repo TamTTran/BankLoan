@@ -20,5 +20,20 @@ scrape_configs:
       - targets: ['node-exporter:9100']
 
   - job_name: 'loanflow-windows'
+    metrics_path: /metrics
+    scrape_timeout: 10s
+    params:
+      collect[]:
+        - cpu
+        - logical_disk
+        - memory
+        - net
+        - os
+        - physical_disk
+        - service
+        - system
     static_configs:
       - targets: ['host.docker.internal:9182']
+        labels:
+          host: 'windows-host'
+          exporter: 'windows_exporter'
