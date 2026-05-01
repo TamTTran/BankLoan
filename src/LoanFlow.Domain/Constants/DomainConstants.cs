@@ -41,6 +41,82 @@ public static class PaymentMethod
 {
     public const string Cash = "Cash";
     public const string BankTransfer = "BankTransfer";
+    public const string SuspenseAccount = "SuspenseAccount";
+}
+
+// ── NAPAS Disbursement Gateway Status ───────────────────────────────────────
+/// <summary>
+/// Trạng thái giải ngân qua NAPAS. Chỉ áp dụng khi DisbursementMethod = BankTransfer.
+/// </summary>
+public static class DisbursementStatus
+{
+    /// <summary>Không áp dụng (giải ngân tiền mặt)</summary>
+    public const string NotApplicable = "NotApplicable";
+    /// <summary>Lệnh đã gửi NAPAS, chờ xác nhận async</summary>
+    public const string Pending = "Pending";
+    /// <summary>NAPAS đã xác nhận chuyển tiền thành công</summary>
+    public const string Completed = "Completed";
+    /// <summary>NAPAS báo lỗi hoặc hết thời gian chờ</summary>
+    public const string Failed = "Failed";
+}
+
+// ── Mã ngân hàng chuẩn NAPAS (SWIFT/BIC nội địa) ───────────────────────────
+/// <summary>
+/// Mã ngân hàng chuẩn theo danh mục NAPAS Interbank.
+/// Tham chiếu: https://www.napas.com.vn
+/// </summary>
+public static class NapasBankCode
+{
+    // Big 4 State-owned
+    public const string VCB  = "VCB";   // Vietcombank
+    public const string VTB  = "VTB";   // VietinBank
+    public const string BID  = "BID";   // BIDV
+    public const string AGR  = "AGR";   // Agribank
+
+    // Joint-stock commercial banks
+    public const string ACB  = "ACB";   // Asia Commercial Bank
+    public const string TCB  = "TCB";   // Techcombank
+    public const string MBB  = "MBB";   // MB Bank
+    public const string VPB  = "VPB";   // VPBank
+    public const string STB  = "STB";   // Sacombank
+    public const string TPB  = "TPB";   // TPBank
+    public const string HDB  = "HDB";   // HDBank
+    public const string OCB  = "OCB";   // Orient Commercial Bank
+    public const string MSB  = "MSB";   // Maritime Bank
+    public const string SHB  = "SHB";   // SHBank
+    public const string VIB  = "VIB";   // Vietnam International Bank
+    public const string EIB  = "EIB";   // Eximbank
+    public const string NAB  = "NAB";   // Nam A Bank
+    public const string SCB  = "SCB";   // Saigon Commercial Bank
+    public const string BAB  = "BAB";   // Bac A Bank
+    public const string LPB  = "LPB";   // LienVietPostBank
+    public const string KLB  = "KLB";   // Kien Long Bank
+    public const string BVB  = "BVB";   // BaoViet Bank
+    public const string PVB  = "PVB";   // PVcomBank
+    public const string IVB  = "IVB";   // IndoVina Bank
+    public const string SEAB = "SEAB";  // SeABank
+    public const string ABB  = "ABB";   // AnBinhBank
+
+    // Digital / Neo banks
+    public const string TIMO = "TIMO";  // Timo (backed by VPBank)
+    public const string CAKE = "CAKE";  // Cake (backed by VPBank)
+    public const string TNEX = "TNEX";  // TNEX (backed by MSB)
+
+    // Foreign banks (branches in VN)
+    public const string HSBC = "HSBC";  // HSBC Vietnam
+    public const string SCB_STANDARD = "SCBL"; // Standard Chartered VN
+    public const string CITI = "CITI";  // Citibank VN
+
+    public static readonly IReadOnlySet<string> ValidCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        VCB, VTB, BID, AGR,
+        ACB, TCB, MBB, VPB, STB, TPB, HDB, OCB, MSB, SHB, VIB, EIB, NAB, SCB, BAB, LPB, KLB, BVB, PVB, IVB, SEAB, ABB,
+        TIMO, CAKE, TNEX,
+        HSBC, SCB_STANDARD, CITI
+    };
+
+    public static bool IsValid(string bankCode) =>
+        !string.IsNullOrWhiteSpace(bankCode) && ValidCodes.Contains(bankCode);
 }
 
 public static class RepaymentFrequency
@@ -186,11 +262,17 @@ public static class AuditActions
     public const string SuspenseRefunded = "SUSPENSE_REFUNDED";
     public const string NotificationSent = "NOTIFICATION_SENT";
 
-    // ── Phase 2: Loan Lifecycle ──────────────────────────────
+    // ── Phase 2: Loan Lifecycle ────────────────────────────────
     public const string LoanRestructured = "LOAN_RESTRUCTURED";
     public const string LoanRescheduled = "LOAN_RESCHEDULED";
     public const string LoanWrittenOff = "LOAN_WRITTEN_OFF";
     public const string LoanRecoveryRecorded = "LOAN_RECOVERY_RECORDED";
+
+    // ── NAPAS Gateway ───────────────────────────────────────────────
+    public const string AutoDisbursementSuccess = "AUTO_DISBURSEMENT_SUCCESS";
+    public const string AutoDisbursementFailed  = "AUTO_DISBURSEMENT_FAILED";
+    public const string AutoDisbursementPending = "AUTO_DISBURSEMENT_PENDING"; // Awaiting NAPAS async callback
+    public const string NapasCallbackReceived   = "NAPAS_CALLBACK_RECEIVED";
 }
 
 // ── Reversal Type ───────────────────────────────────────────────────────────

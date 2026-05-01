@@ -54,7 +54,9 @@ export default function RiskDashboard() {
         case 'pnl':
           setData(await riskApi.getPnl(pnlFrom, pnlTo)); break;
         case 'ifrs9':
-          setData(await riskApi.getConcentrationRisk()); break; // placeholder
+          setData(await riskApi.getExpectedLossSummary()); break;
+        default:
+          setData(null);
       }
     } catch (e) {
       toast('Lỗi tải dữ liệu: ' + (e.message || ''), 'error');
@@ -154,8 +156,8 @@ export default function RiskDashboard() {
                 {(!data.limits || data.limits?.length === 0) ? (
                   <tr><td colSpan={6} className="empty-row"><div className="empty-state">✅ Không có vi phạm giới hạn tín dụng</div></td></tr>
                 ) : data.limits?.map((l, i) => {
-                  const ratio = l.limitAmount > 0 ? (l.currentExposure / l.limitAmount) * 100 : 0;
-                  const exceeded = ratio > 100;
+                  const ratio = Number(l.utilizationRatio ?? (l.limitAmount > 0 ? (l.currentExposure / l.limitAmount) * 100 : 0));
+                  const exceeded = l.isBreached ?? ratio > 100;
                   return (
                     <tr key={i}>
                       <td><strong>{l.customerName || l.groupName || `#${l.id}`}</strong></td>

@@ -1806,8 +1806,24 @@ namespace LoanFlow.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<string>("DisbursementStatus")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime?>("GatewayConfirmedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("GatewayErrorMessage")
+                        .HasColumnType("longtext");
+
                     b.Property<int>("LoanId")
                         .HasColumnType("int");
+
+                    b.Property<string>("NapasReferenceId")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("NapasTransactionId")
+                        .HasColumnType("longtext");
 
                     b.Property<int>("RecordedByUserId")
                         .HasColumnType("int");

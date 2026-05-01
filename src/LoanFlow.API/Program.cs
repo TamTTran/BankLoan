@@ -128,10 +128,38 @@ builder.Services.AddScoped<ICollectionService, CollectionService>();
 // H10: Feature-flagged external service registrations (flip flags in appsettings / KeyVault for prod)
 var extSvc = builder.Configuration.GetSection("ExternalServices");
 
+// ── NAPAS Options (strongly-typed) ───────────────────────────────────────────────
+builder.Services.Configure<NapasOptions>(builder.Configuration.GetSection(NapasOptions.SectionName));
+
+// ── Payment Gateway: Mock (dev) │ Real NAPAS + Polly (prod) ─────────────────
 if (extSvc.GetValue<bool>("UseMockPaymentGateway", defaultValue: true))
-    builder.Services.AddScoped<IPaymentGatewayService, MockPaymentGatewayService>();
+{
+    // MockNapasPaymentGatewayService: giả lập đầy đủ sync + async callback
+    // Test scenarios: BankCode="FAIL" (lỗi ngay), BankCode="ASYNC" (chờ callback)
+    builder.Services.AddScoped<IPaymentGatewayService, MockNapasPaymentGatewayService>();
+}
 else
-    builder.Services.AddHttpClient<IPaymentGatewayService, NapasPaymentGatewayService>();
+{
+    var napasOpts = builder.Configuration.GetSection(NapasOptions.SectionName).Get<NapasOptions>()
+        ?? new NapasOptions();
+
+    builder.Services
+        .AddHttpClient<IPaymentGatewayService, NapasPaymentGatewayService>(client =>
+        {
+            if (!string.IsNullOrWhiteSpace(napasOpts.ApiUrl))
+                client.BaseAddress = new Uri(napasOpts.ApiUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(napasOpts.TimeoutSeconds * (napasOpts.MaxRetryAttempts + 1));
+        })
+        .AddStandardResilienceHandler(options =>
+        {
+            // Polly: Retry + timeout pipeline
+            options.Retry.MaxRetryAttempts  = napasOpts.MaxRetryAttempts;
+            options.Retry.Delay             = TimeSpan.FromMilliseconds(napasOpts.RetryBaseDelayMs);
+            options.Retry.BackoffType        = Polly.DelayBackoffType.Exponential;
+            options.TotalRequestTimeout.Timeout =
+                TimeSpan.FromSeconds(napasOpts.TimeoutSeconds * (napasOpts.MaxRetryAttempts + 1));
+        });
+}
 
 if (extSvc.GetValue<bool>("UseMockSms", defaultValue: true))
     builder.Services.AddScoped<ISmsService, NullSmsService>();

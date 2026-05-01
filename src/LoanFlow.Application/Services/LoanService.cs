@@ -341,66 +341,108 @@ public class LoanService : ILoanService
                 NewValuesJson = AuditHelper.ToJson(new { disbursedAmount = req.DisbursedAmount, disbursementDate = req.DisbursementDate })
             });
 
-            var isAutoDisburse = !string.IsNullOrWhiteSpace(loan.Customer.BankAccountNumber) && !string.IsNullOrWhiteSpace(loan.Customer.BankCode);
+            var isAutoDisburse = !string.IsNullOrWhiteSpace(loan.Customer.BankAccountNumber)
+                              && !string.IsNullOrWhiteSpace(loan.Customer.BankCode);
             if (isAutoDisburse)
             {
-                loanDisbursement.DisbursementMethod = "BankTransfer";
+                loanDisbursement.DisbursementMethod  = "BankTransfer";
+                loanDisbursement.DisbursementStatus  = DisbursementStatus.Pending;  // chờ NAPAS xác nhận
             }
 
             await SaveChangesWithConcurrencyHandlingAsync("Loan was modified while disbursing. Reload the loan and retry.");
             await tx.CommitAsync();
 
-            // Phase 4: Auto-Disbursement (Sync via NAPAS Gateway) AFTER TX Commit
+            // ── NAPAS Auto-Disbursement (Sync path) AFTER TX Commit ───────────────────
+            // Gọi AFTER commit để đảm bảo loan đã Active trong DB trước khi tiền ra ngoài.
+            // Nếu gateway call lỗi, loan đã Active nhưng DisbursementStatus=Pending/Failed
+            // → Approver có thể xử lý manual hoặc chờ NAPAS callback.
             if (isAutoDisburse)
             {
                 var gatewayResult = await _paymentGatewayService.TransferToCustomerAsync(
-                    loan.Customer.BankCode,
-                    loan.Customer.BankAccountNumber,
+                    loan.Customer.BankCode!,
+                    loan.Customer.BankAccountNumber!,
                     req.DisbursedAmount,
                     $"Disbursement for Loan {loan.LoanAccountNo}"
                 );
 
                 if (!gatewayResult.IsSuccess)
                 {
-                    // Compensating action
-                    loanDisbursement.DisbursementMethod = "Failed";
-                    var reversal = new TransactionReversal
+                    // Gateway rejected ngay → Failed, tạo reversal để Approver xử lý
+                    loanDisbursement.DisbursementStatus  = DisbursementStatus.Failed;
+                    loanDisbursement.GatewayErrorMessage = gatewayResult.Error;
+                    loanDisbursement.GatewayConfirmedAt  = _businessClock.UtcNow;
+
+                    _db.TransactionReversals.Add(new TransactionReversal
                     {
-                        LoanId = loanId,
+                        LoanId                = loanId,
                         OriginalTransactionId = loanTx.Id,
-                        ReversalType = "DisbursementCorrection",
-                        OriginalAmount = req.DisbursedAmount,
-                        ReversedAmount = 0,
-                        Reason = "Auto-Disbursement Gateway Failed: " + gatewayResult.Error,
-                        Status = "Pending",
-                        RequestedByUserId = userId
-                    };
-                    _db.TransactionReversals.Add(reversal);
+                        ReversalType          = "DisbursementCorrection",
+                        OriginalAmount        = req.DisbursedAmount,
+                        ReversedAmount        = 0,
+                        Reason                = $"NAPAS Auto-Disbursement Failed: {gatewayResult.Error}",
+                        Status                = "Pending",
+                        RequestedByUserId     = userId
+                    });
 
                     _db.AuditLogs.Add(new AuditLog
                     {
-                        ActorUserId = userId,
-                        ActionCode = "AutoDisbursementFailed",
-                        EntityType = "Loan",
-                        EntityId = loanId,
+                        ActorUserId   = userId,
+                        ActionCode    = AuditActions.AutoDisbursementFailed,
+                        EntityType    = "LoanDisbursement",
+                        EntityId      = loanDisbursement.Id,
                         NewValuesJson = AuditHelper.ToJson(new { error = gatewayResult.Error })
                     });
 
                     await _db.SaveChangesAsync();
-                    return Result.Failure<LoanDto>($"Auto-Disbursement Gateway Failed: {gatewayResult.Error}. Disburse record marked as failed. Reversal requested.");
+                    return Result.Failure<LoanDto>(
+                        $"NAPAS Auto-Disbursement Failed: {gatewayResult.Error}. " +
+                        "Disbursement marked Failed. Pending reversal created for Approver.");
+                }
+
+                // Gateway chấp nhận lệnh
+                var gw = gatewayResult.Value;
+                loanDisbursement.NapasReferenceId = gw.ReferenceId;
+                loanDisbursement.NapasTransactionId = gw.IsConfirmedImmediately ? gw.TransactionId : null;
+
+                if (gw.IsConfirmedImmediately)
+                {
+                    // SYNC path: NAPAS xác nhận ngay → Completed
+                    loanDisbursement.DisbursementStatus = DisbursementStatus.Completed;
+                    loanDisbursement.GatewayConfirmedAt = gw.ProcessedAt;
+
+                    _db.AuditLogs.Add(new AuditLog
+                    {
+                        ActorUserId   = userId,
+                        ActionCode    = AuditActions.AutoDisbursementSuccess,
+                        EntityType    = "LoanDisbursement",
+                        EntityId      = loanDisbursement.Id,
+                        NewValuesJson = AuditHelper.ToJson(new
+                        {
+                            napasTransactionId = gw.TransactionId,
+                            napasReferenceId   = gw.ReferenceId,
+                            confirmedAt        = gw.ProcessedAt
+                        })
+                    });
                 }
                 else
                 {
+                    // ASYNC path: NAPAS xử lý batch → DisbursementStatus giữ Pending
+                    // Kết quả sẽ đến qua POST /api/napas/callback
                     _db.AuditLogs.Add(new AuditLog
                     {
-                        ActorUserId = userId,
-                        ActionCode = "AutoDisbursementSuccess",
-                        EntityType = "Loan",
-                        EntityId = loanId,
-                        NewValuesJson = AuditHelper.ToJson(new { transactionId = gatewayResult.Value.TransactionId })
+                        ActorUserId   = userId,
+                        ActionCode    = AuditActions.AutoDisbursementPending,
+                        EntityType    = "LoanDisbursement",
+                        EntityId      = loanDisbursement.Id,
+                        NewValuesJson = AuditHelper.ToJson(new
+                        {
+                            napasReferenceId = gw.ReferenceId,
+                            note             = "Awaiting NAPAS async callback"
+                        })
                     });
-                    await _db.SaveChangesAsync();
                 }
+
+                await _db.SaveChangesAsync();
             }
 
             return await GetByIdAsync(loanId);
