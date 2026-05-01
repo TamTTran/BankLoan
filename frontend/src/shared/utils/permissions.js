@@ -24,6 +24,7 @@ export function buildPermissions(role) {
     // Wave 3 — Reports
     viewReports:        isRole('Admin', 'Manager'),
     viewApprovalReport: isRole('Admin', 'Manager', 'Approver'),
+    viewNapasNav:       isRole('Admin', 'Manager', 'LoanOfficer', 'Collector'),
 
     // Wave 4 & 5 — Ops, Approvals & Advanced Lending
     viewApprovalsNav:      isRole('Admin', 'Approver', 'Manager'),

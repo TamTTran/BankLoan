@@ -161,6 +161,19 @@ else
         });
 }
 
+// ── NAPAS Core Service (Transaction Query / Merchant / Reconciliation / QR) ──
+if (extSvc.GetValue<bool>("UseMockPaymentGateway", defaultValue: true))
+    builder.Services.AddScoped<INapasCoreService, MockNapasCoreService>();
+else
+    builder.Services
+        .AddHttpClient<INapasCoreService, NapasCoreService>(client =>
+        {
+            var napasOpts = builder.Configuration.GetSection(NapasOptions.SectionName).Get<NapasOptions>() ?? new NapasOptions();
+            if (!string.IsNullOrWhiteSpace(napasOpts.ApiUrl))
+                client.BaseAddress = new Uri(napasOpts.ApiUrl.TrimEnd('/') + "/");
+        })
+        .AddStandardResilienceHandler();
+
 if (extSvc.GetValue<bool>("UseMockSms", defaultValue: true))
     builder.Services.AddScoped<ISmsService, NullSmsService>();
 else

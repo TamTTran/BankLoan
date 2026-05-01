@@ -21,6 +21,7 @@ export function Layout({ children, badgeCounts = {} }) {
     { to: '/overdue',      icon: 'QH', label: t('nav.overdue'),      id: 'nav-overdue' },
     { to: '/collections',  icon: 'TH', label: t('nav.collections'),  id: 'nav-collections',  gated: !can.viewCollectionQueue },
     { to: '/reports',      icon: 'BC', label: t('nav.reports'),      id: 'nav-reports',      gated: !can.viewReports },
+    { to: '/napas',        icon: 'NP', label: 'NAPAS',               id: 'nav-napas',        gated: !can.viewNapasNav },
     { to: '/aml',          icon: '🛡️', label: 'AML/KYC',            id: 'nav-aml' },
     { to: '/risk',         icon: '⚖️', label: 'Risk & Capital',     id: 'nav-risk' },
     { to: '/regulatory',   icon: '📜', label: 'Regulatory',         id: 'nav-reg' },
