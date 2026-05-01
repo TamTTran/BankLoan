@@ -1,288 +1,165 @@
 # LoanFlow Lite 💳
 
-> **Hệ thống quản lý vòng đời khoản vay End-to-End** — từ tiếp nhận hồ sơ, thẩm định, giải ngân, thu nợ, xử lý nợ xấu, cho đến đối soát & tất toán.
+> **Hệ thống quản lý vòng đời khoản vay End-to-End** — Số hóa toàn bộ quy trình từ tiếp nhận hồ sơ, thẩm định, giải ngân qua NAPAS, thu nợ, xử lý nợ xấu đến đối soát & tất toán.
 
 ---
 
 ## 📋 Mục lục
 
-- [Tổng quan](#tổng-quan)
-- [Tech Stack](#tech-stack)
-- [Luồng nghiệp vụ (Business Flow)](#luồng-nghiệp-vụ-business-flow)
-  - [Phase 1 — Tiếp nhận khách hàng (Origination)](#phase-1--tiếp-nhận-khách-hàng-origination)
-  - [Phase 2 — Thẩm định & Phê duyệt (Underwriting)](#phase-2--thẩm-định--phê-duyệt-underwriting)
-  - [Phase 3 — Giải ngân & Quản lý khoản vay (Disbursement)](#phase-3--giải-ngân--quản-lý-khoản-vay-disbursement)
-  - [Phase 4 — Thu nợ & Phân bổ dòng tiền (Repayment)](#phase-4--thu-nợ--phân-bổ-dòng-tiền-repayment)
-  - [Phase 5 — Quản lý nợ xấu & Thu hồi (Collection)](#phase-5--quản-lý-nợ-xấu--thu-hồi-collection)
-  - [Phase 6 — Vòng đời nâng cao (Lifecycle)](#phase-6--vòng-đời-nâng-cao-lifecycle)
-  - [Phase 7 — Sổ cái, Đối soát & Báo cáo (Ledger & Reconciliation)](#phase-7--sổ-cái-đối-soát--báo-cáo-ledger--reconciliation)
-- [Kiến trúc hệ thống](#kiến-trúc-hệ-thống)
-- [Phân quyền (RBAC)](#phân-quyền-rbac)
+- [Hệ thống dùng để làm gì?](#hệ-thống-dùng-để-làm-gì)
+- [Ai sử dụng hệ thống?](#ai-sử-dụng-hệ-thống)
+- [Các tính năng chính](#các-tính-năng-chính)
+- [Luồng nghiệp vụ](#luồng-nghiệp-vụ)
 - [Cài đặt & Chạy](#cài-đặt--chạy)
-- [API Endpoints tổng hợp](#api-endpoints-tổng-hợp)
+- [Tài khoản mặc định](#tài-khoản-mặc-định)
+- [Tích hợp NAPAS](#tích-hợp-napas)
+- [Phân quyền](#phân-quyền)
+- [API Reference](#api-reference)
 
 ---
 
-## Tổng quan
+## Hệ thống dùng để làm gì?
 
-LoanFlow Lite số hóa toàn bộ vòng đời khoản vay (**Loan Lifecycle**), thay thế quy trình thủ công bằng hệ thống có kiểm soát phê duyệt, truy vết dữ liệu và đối soát tài chính tự động.
+LoanFlow Lite giúp **công ty tài chính, quỹ tín dụng, và chuỗi bán lẻ trả góp** quản lý toàn bộ vòng đời khoản vay trên một nền tảng duy nhất — thay thế Excel, quy trình thủ công và giấy tờ rời rạc.
 
-**Đối tượng sử dụng:**
-- 🏦 Công ty tài chính (SME Lenders)
-- 🏬 Chuỗi bán lẻ trả góp (Điện máy, Xe máy)
-- 🤝 Quỹ tín dụng vi mô
+**Vấn đề giải quyết:**
 
----
-
-## Tech Stack
-
-| Layer | Công nghệ |
-|---|---|
-| **Backend** | ASP.NET Core 9, Entity Framework Core 9, MySQL 8.4 |
-| **Frontend** | React 18, Vite 5, React Router DOM v6 |
-| **Security** | JWT Bearer, BCrypt, Rate Limiting, Idempotency Filter |
-| **DevOps** | Docker Compose, Nginx Reverse Proxy |
+| Bài toán | Giải pháp LoanFlow |
+|----------|-------------------|
+| Hồ sơ vay giấy tờ, mất kiểm soát | Quy trình số hóa, trạng thái rõ ràng từng bước |
+| Giải ngân thủ công, chậm và sai sót | Giải ngân tự động qua NAPAS (chuyển khoản liên ngân hàng) |
+| Không biết ai đang nợ, nợ bao nhiêu | Dashboard thời gian thực, phân loại DPD tự động |
+| Thu nợ không có hệ thống | Phân công Collector, nhắc nợ tự động theo Dunning Strategy |
+| Đối soát cuối ngày mất hàng giờ | Reconciliation Engine 6 điểm chạy tự động |
+| Không có báo cáo pháp quy (NHNN) | Báo cáo NPL, phân loại nhóm nợ 1–5 tự động |
 
 ---
 
-## Luồng nghiệp vụ (Business Flow)
+## Ai sử dụng hệ thống?
 
-Toàn bộ hệ thống được thiết kế theo **7 Phase** tương ứng với vòng đời thực tế của một khoản vay:
-
-```
-┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
-│ Phase 1  │───▶│ Phase 2  │───▶│ Phase 3  │───▶│ Phase 4  │
-│Origination│   │Underwrite│   │Disburse  │    │Repayment │
-└──────────┘    └──────────┘    └──────────┘    └────┬─────┘
-                                                     │
-     ┌──────────┐    ┌──────────┐    ┌──────────┐    │
-     │ Phase 7  │◀───│ Phase 6  │◀───│ Phase 5  │◀───┘
-     │Reconcile │    │Lifecycle │    │Collection│
-     └──────────┘    └──────────┘    └──────────┘
-```
+| Vai trò | Mô tả | Quyền hạn chính |
+|---------|-------|----------------|
+| **Admin** | Quản trị hệ thống | Toàn quyền — quản lý user, cấu hình, xem tất cả |
+| **Manager** | Trưởng phòng / Giám đốc chi nhánh | Xem báo cáo, duyệt write-off, restructure, phân công |
+| **Loan Officer** | Nhân viên tín dụng | Tạo hồ sơ, submit phê duyệt, giải ngân, thu nợ |
+| **Approver** | Người phê duyệt | Duyệt/từ chối hồ sơ vay, reversal, restructure |
+| **Collector** | Nhân viên thu hồi nợ | Xem hàng đợi nợ quá hạn, ghi nhận hành động thu nợ |
 
 ---
 
-### Phase 1 — Tiếp nhận khách hàng (Origination)
+## Các tính năng chính
 
-> **Ai thực hiện:** Loan Officer  
-> **Mục tiêu:** Thu thập thông tin khách hàng, đánh giá sơ bộ, tạo hồ sơ vay.
+### 🧑 Quản lý khách hàng & Hồ sơ
+- Tạo hồ sơ khách hàng (CMND/CCCD, SĐT, địa chỉ, thu nhập)
+- **eKYC** — Xác minh danh tính điện tử (tích hợp FPT.AI)
+- **CIC** — Tra cứu lịch sử tín dụng quốc gia (PCB / mock)
+- Credit Scoring nội bộ (tự động chấm điểm A–E)
+- AML/KYC — Kiểm tra PEP, mức độ rủi ro rửa tiền (TT09/2023)
+- Giới hạn dư nợ khách hàng (Exposure Limit)
 
-| Bước | Hành động | Service / Entity |
-|------|-----------|-----------------|
-| 1.1 | Tạo hồ sơ khách hàng (CMND, địa chỉ, SĐT) | `CustomerService` → `Customer` |
-| 1.2 | Upload giấy tờ (CMND, hộ khẩu, bảng lương) | `DocumentService` → `CustomerDocument` |
-| 1.3 | eKYC — Xác minh danh tính điện tử | `EkycService` → `EkycVerification` |
-| 1.4 | Kiểm tra CIC (lịch sử tín dụng quốc gia) | `CicService` → `CicInquiry` |
-| 1.5 | Credit Scoring (chấm điểm tín dụng nội bộ) | `CreditCheckService` → `CreditCheck` |
-| 1.6 | Kiểm tra giới hạn dư nợ khách hàng (Exposure Limit) | `ExposureLimitService` → `CustomerExposureLimit` |
-| 1.7 | Chọn sản phẩm vay, nhập số tiền & kỳ hạn | `LoanApplicationService` → `LoanApplication` |
-| 1.8 | Xem trước lịch trả góp dự kiến (Preview) | `LoanApplicationService.PreviewAsync()` |
+### 📝 Hồ sơ vay & Phê duyệt
+- Chọn sản phẩm vay (Tín chấp, Thế chấp, Mua nhà, Mua xe, Kinh doanh, Thấu chi)
+- Xem trước lịch trả góp (PMT calculator — Flat / Reducing Balance)
+- **Maker-Checker** — người tạo khác người duyệt, không thể tự duyệt
+- Approval Rules tự động (duyệt điều kiện theo rule engine)
+- E-Contract — hợp đồng điện tử có hash PDF
 
-**Kết quả:** Hồ sơ vay ở trạng thái `Draft`, sẵn sàng nộp lên phê duyệt.
+### 💸 Giải ngân qua NAPAS
+- **Giải ngân tự động** — gửi lệnh chuyển khoản NAPAS ngay sau khi duyệt
+- Hỗ trợ cả **Sync** (kết quả ngay) và **Async** (NAPAS callback sau)
+- Retry tự động 3 lần với exponential backoff (Polly)
+- Tracking trạng thái: `Pending → Completed / Failed`
+- Compensating action tự động khi thất bại (tạo Reversal pending)
+- Idempotency — chống giải ngân trùng lặp
+- **Mã ngân hàng NAPAS** đầy đủ (30+ ngân hàng: VCB, TCB, MBB, VPB...)
 
----
+### 🏦 NAPAS Core
+- **Transaction Query** — tra cứu giao dịch theo Tx ID hoặc Reference ID
+- **Merchant Info** — thông tin & cài đặt Merchant đăng ký NAPAS
+- **Reconciliation** — tải file đối soát NAPAS, khớp lệnh tự động
+- **VietQR** — tạo mã QR chuẩn EMV QRCPS offline (không cần NAPAS API)
+  - Pre-fill amount theo kỳ trả nợ đến hạn
+  - Trả về QR string + Base64 PNG + VietQR URL
 
-### Phase 2 — Thẩm định & Phê duyệt (Underwriting)
+### 💰 Thu nợ & Phân bổ
+- Ghi nhận thanh toán (Tiền mặt / Chuyển khoản)
+- **Waterfall Allocation**: Phí trễ hạn → Lãi → Gốc → Suspense
+- Tài khoản ảo (Virtual Account) — nhận thanh toán tự động qua webhook
+- Tài khoản tạm giữ (Suspense) — xử lý overpayment
+- Tất toán sớm (Early Settlement) — tính lãi thực tế
 
-> **Ai thực hiện:** Loan Officer (Submit) → Approver (Decide)  
-> **Mục tiêu:** Đánh giá rủi ro và ra quyết định cho vay.
+### 📞 Thu hồi nợ (Collection)
+- Phân loại DPD tự động (1–7 / 8–30 / 31+ ngày quá hạn)
+- Phân công Collector theo khoản vay
+- Ghi nhận hành động: Gọi điện, Gặp trực tiếp, Gửi SMS/thư
+- **Dunning tự động**: nhắc nợ theo chiến lược DPD
 
-| Bước | Hành động | Service / Entity |
-|------|-----------|-----------------|
-| 2.1 | Officer nộp hồ sơ (`Draft → Submitted`) | `LoanApplicationService.SubmitAsync()` |
-| 2.2 | Hệ thống kiểm tra Approval Rules tự động | `ApprovalRuleService` → `ApprovalRule` |
-| 2.3 | Đăng ký tài sản đảm bảo (nếu có) | `CollateralService` → `Collateral`, `LoanCollateral` |
-| 2.4 | Approver xem hàng đợi phê duyệt | `GET /approvals/queue` |
-| 2.5 | Approver ra quyết định: **Approve** hoặc **Reject** | `LoanApplicationService` → `ApplicationDecision` |
+### 🔄 Vòng đời khoản vay
+- **Restructure** — cơ cấu lại (đổi lãi suất, kỳ hạn)
+- **Reschedule** — dời ngày trả nợ hàng tháng
+- **Top-Up** — giải ngân thêm trên khoản vay hiện có
+- **Reversal** — hủy giao dịch sai (qua Maker-Checker)
+- **Write-Off** — xóa nợ có khả năng mất vốn
+- **Recovery** — thu hồi tiền sau khi đã xóa nợ
+- Phân loại nợ nhóm 1–5 (theo quy định NHNN)
 
-**Luồng trạng thái:**
-```
-Draft ──submit──▶ Submitted ──approve──▶ Approved ──▶ Giải ngân
-                              │
-                              └──reject──▶ Rejected (Kết thúc)
-```
+### 📊 Sổ cái & Đối soát
+- **Immutable Ledger** — không bao giờ xóa/sửa dữ liệu gốc
+- Bút toán kế toán tự động (Journal Entry) double-entry
+- **EOD Job** — chạy tự động cuối ngày (Overdue detection, FX Revaluation)
+- **Reconciliation Engine 6 điểm**: Payment / Allocation / Disbursement / Reversal / LateFee / Suspense
+- Đối soát file NAPAS — khớp lệnh + tạo exception tự động
+- Đóng/mở kỳ kế toán (Accounting Period)
 
-**Maker-Checker:** Mọi thao tác nhạy cảm đều qua cơ chế **2 tầng** — người tạo (Maker) khác người duyệt (Checker). Lưu Audit Log đầy đủ.
+### 📋 Báo cáo
+- NPL Report (Non-Performing Loan) — nợ xấu theo nhóm
+- Regulatory Report — báo cáo pháp quy (NHNN)
+- Dashboard thời gian thực (Portfolio summary)
+- AML Dashboard — cảnh báo giao dịch đáng ngờ
+- Risk Dashboard — capital adequacy, exposure
 
----
-
-### Phase 3 — Giải ngân & Quản lý khoản vay (Disbursement)
-
-> **Ai thực hiện:** Loan Officer  
-> **Mục tiêu:** Chuyển tiền cho khách hàng, kích hoạt khoản vay.
-
-| Bước | Hành động | Service / Entity |
-|------|-----------|-----------------|
-| 3.1 | Tạo khoản vay từ hồ sơ đã duyệt | `LoanService.DisburseAsync()` → `Loan` |
-| 3.2 | Hệ thống sinh mã khoản vay tự động (`LN-YYYYMMDD-XXXX`) | Auto-generated |
-| 3.3 | Ghi nhận giải ngân & tạo bút toán sổ cái | `LoanDisbursement` + `LoanTransaction` |
-| 3.4 | Tự động sinh lịch trả nợ (công thức PMT) | `RepaymentSchedule` (N kỳ) |
-| 3.5 | Idempotency Filter — chống giải ngân trùng lặp (double-click) | `IdempotencyRecord` |
-
-**Kết quả:** Khoản vay chuyển sang trạng thái `Active`. Khách hàng bắt đầu nghĩa vụ trả nợ.
-
----
-
-### Phase 4 — Thu nợ & Phân bổ dòng tiền (Repayment)
-
-> **Ai thực hiện:** Collector / Loan Officer  
-> **Mục tiêu:** Ghi nhận thanh toán của khách hàng, phân bổ tiền đúng thứ tự ưu tiên.
-
-| Bước | Hành động | Service / Entity |
-|------|-----------|-----------------|
-| 4.1 | Ghi nhận thanh toán (Cash / Transfer / Auto-Debit) | `LoanService.RecordPaymentAsync()` → `Payment` |
-| 4.2 | Hệ thống phân bổ tự động theo Waterfall | `PaymentAllocation` |
-| 4.3 | Cập nhật dư nợ còn lại (Outstanding) | `Loan.OutstandingAmount` |
-| 4.4 | Phần dư (nếu có) → Tạm giữ (Suspense Account) | `SuspenseTransaction` |
-| 4.5 | Tính phí trễ hạn tự động (nếu quá hạn) | `LateFeeService` → `LateFee` |
-
-**Waterfall Allocation (Thứ tự ưu tiên phân bổ tiền):**
-```
-Tiền khách đóng
-    │
-    ├─ 1. Phí trễ hạn (Late Fee)      ──▶ Trừ nợ phí
-    ├─ 2. Lãi (Interest)              ──▶ Trừ nợ lãi
-    ├─ 3. Gốc (Principal)             ──▶ Trừ nợ gốc
-    └─ 4. Dư thừa (Overpayment)       ──▶ Suspense Account (kỳ sau)
-```
-
-**Idempotency:** Mỗi giao dịch thanh toán có `Idempotency Key` riêng, đảm bảo không bao giờ ghi nhận trùng lặp dù client gửi request nhiều lần.
+### 🔔 Thông báo thời gian thực
+- Notification real-time qua SignalR WebSocket
+- Các sự kiện: duyệt hồ sơ, giải ngân, thu nợ, reversal, callback NAPAS
+- Đánh dấu đã đọc / đọc tất cả
 
 ---
 
-### Phase 5 — Quản lý nợ xấu & Thu hồi (Collection)
+## Luồng nghiệp vụ
 
-> **Ai thực hiện:** Collector, Manager  
-> **Mục tiêu:** Theo dõi các khoản vay quá hạn, phân công nhân viên thu hồi, thực hiện hành động nhắc nợ.
-
-| Bước | Hành động | Service / Entity |
-|------|-----------|-----------------|
-| 5.1 | Overdue Job chạy hàng ngày — phát hiện nợ quá hạn | `OverdueJobService` (Background) |
-| 5.2 | Phân loại bucket quá hạn (DPD 1–7, 8–30, 31–60, 61–90, 90+) | `OverdueDailySnapshot`, `ClassificationSnapshot` |
-| 5.3 | Phân công Collector cho từng khoản nợ | `CollectionService` → `CollectorAssignment` |
-| 5.4 | Collector xem hàng đợi cá nhân (`/collections/queue`) | `CollectionService.GetCollectorQueueAsync()` |
-| 5.5 | Ghi nhận hành động thu hồi (gọi điện, gặp trực tiếp, gửi thư) | `CollectionAction` |
-| 5.6 | Ghi chú nhắc nợ | `CollectionNote` |
-| 5.7 | Dunning tự động — gửi thông báo nhắc nợ theo chiến lược | `DunningService` → `DunningStrategy`, `NotificationTemplate` |
-
-**Dunning Automation:**
 ```
-DPD ≥ 1  ──▶ SMS nhắc nhẹ
-DPD ≥ 7  ──▶ Email cảnh báo
-DPD ≥ 30 ──▶ Thư yêu cầu thanh toán
-DPD ≥ 60 ──▶ Gọi điện / Gặp trực tiếp
-DPD ≥ 90 ──▶ Chuyển pháp lý / Xóa nợ
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Phase 1   │───▶│   Phase 2   │───▶│   Phase 3   │───▶│   Phase 4   │
+│ Tiếp nhận   │    │ Thẩm định & │    │ Giải ngân   │    │  Thu nợ &   │
+│ khách hàng  │    │  Phê duyệt  │    │   NAPAS     │    │  Phân bổ   │
+└─────────────┘    └─────────────┘    └─────────────┘    └──────┬──────┘
+                                                                 │
+  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
+  │   Phase 7   │◀───│   Phase 6   │◀───│   Phase 5   │◀────────┘
+  │  Sổ cái &   │    │  Vòng đời   │    │  Thu hồi    │
+  │  Đối soát   │    │  nâng cao   │    │   nợ xấu   │
+  └─────────────┘    └─────────────┘    └─────────────┘
 ```
 
----
+### Trạng thái khoản vay
 
-### Phase 6 — Vòng đời nâng cao (Lifecycle)
-
-> **Ai thực hiện:** Approver, Manager  
-> **Mục tiêu:** Xử lý các tình huống đặc biệt trong vòng đời khoản vay.
-
-| Tình huống | Mô tả | Service |
-|------------|-------|---------|
-| 🔄 **Restructure** | Cơ cấu lại khoản vay (thay đổi lãi suất, kỳ hạn) | `LoanLifecycleService` |
-| 📅 **Reschedule** | Dời ngày trả nợ hàng tháng | `LoanLifecycleService` |
-| 💰 **Top-Up** | Giải ngân thêm trên khoản vay hiện tại | `LoanTopUpService` |
-| ⬆️ **Early Settlement** | Tất toán trước hạn (tính lãi thực tế) | `LoanService.EarlySettleAsync()` |
-| ↩️ **Reversal** | Hủy giao dịch sai (Maker request → Checker approve) | `ReversalService` |
-| 📝 **Manual Adjustment** | Điều chỉnh lãi/phí thủ công (qua Approval Flow) | `LoanAdjustmentService` |
-| ❌ **Write-Off** | Xóa nợ xấu không có khả năng thu hồi | `LoanLifecycleService` |
-| 💵 **Recovery** | Thu hồi tiền sau khi đã xóa nợ | `LoanLifecycleService.RecordRecoveryAsync()` |
-
-**Reversal Chain (Chuỗi hủy giao dịch):**
 ```
-Officer yêu cầu hủy ──▶ TransactionReversal (Pending)
-                              │
-Approver duyệt ──────▶ TransactionReversal (Approved)
-                              │
-Hệ thống tự động:            ├─ Tạo bản ghi Mirror âm (PaymentAllocation)
-                              ├─ Hoàn trả dư nợ (Outstanding)
-                              └─ Ghi Audit Log
+Hồ sơ:   Draft ──submit──▶ Submitted ──approve──▶ Approved ──▶ Giải ngân
+                                        │
+                                        └──reject──▶ Rejected
+
+Khoản vay: Active ──▶ Overdue ──▶ Restructured / WrittenOff / Closed
+
+Giải ngân: Pending ──▶ Completed
+                   └──▶ Failed  ──▶ (Auto reversal pending)
 ```
-> **Nguyên tắc:** Không bao giờ xóa/sửa dữ liệu gốc. Mọi thay đổi đều được ghi nhận bằng bản ghi bổ sung (Immutable Ledger).
-
----
-
-### Phase 7 — Sổ cái, Đối soát, Đa tiền tệ & Báo cáo (Ledger, Multi-currency & Reconciliation)
-
-> **Ai thực hiện:** Hệ thống (tự động, cuối ngày) + Manager (xem báo cáo)  
-> **Mục tiêu:** Đảm bảo tính toàn vẹn tài chính, đồng bộ liên ngân hàng (Interbank) và xuất báo cáo pháp quy.
-
-| Bước | Hành động | Service |
-|------|-----------|---------|
-| 7.1 | End-of-Day Job — chạy tự động cuối ngày | `EndOfDayService` |
-| 7.2 | Đánh giá lại tỷ giá ngoại tệ (FX Revaluation) | `EndOfDayService.ProcessExchangeRateRevaluationAsync()` |
-| 7.3 | Khớp lệnh tài khoản ảo (Virtual Account Matching) | `VirtualAccountMatchingService` |
-| 7.4 | Đồng bộ bút toán liên ngân hàng (Core Banking Sync) | `CoreBankingIntegrationService` |
-| 7.5 | Đối soát 6 điểm (Reconciliation Engine) | `ReconciliationService` |
-| 7.6 | Quản lý kỳ kế toán (Mở / Đóng sổ) | `AccountingPeriodService` |
-| 7.7 | Bút toán kế toán (Journal Entry) | `AccountingService` → `JournalEntry`, `JournalEntryLine` |
-| 7.8 | Báo cáo NPL (Non-Performing Loan) | `NplReportingService` |
-| 7.9 | Báo cáo pháp quy (Regulatory Report) | `RegulatoryReportingService` |
-
-**6 điểm đối soát (Reconciliation Checks):**
-```
-✓ Payment Check     — Tổng thanh toán = Tổng allocation?
-✓ Allocation Check  — Principal + Interest + LateFee + Suspense = Payment Amount?
-✓ Disbursement Check— Tổng giải ngân = Tổng gốc ban đầu?
-✓ Reversal Check    — Reversal có mirror âm đầy đủ?
-✓ LateFee Check     — Phí trễ hạn khớp với ngày quá hạn?
-✓ Suspense Check    — Tài khoản tạm giữ đã được giải quyết?
-```
-
----
-
-## Kiến trúc hệ thống
-
-```mermaid
-flowchart TD
-    Browser([Trình duyệt — React SPA])
-    
-    subgraph Docker["Docker Compose Network"]
-        Nginx["Nginx :80\nStatic Files + Reverse Proxy"]
-        API["LoanFlow.API :8080\n.NET 9 — 33 Controllers"]
-        DB[(MySQL 8.4\nLoanFlowLite)]
-        EOD["Background Jobs\nOverdue · Dunning · EOD"]
-    end
-    
-    Browser -->|HTTP| Nginx
-    Nginx -->|/api/*| API
-    API --> DB
-    API --> EOD
-    EOD --> DB
-```
-
-**Clean Architecture — 4 layers:**
-
-| Layer | Vai trò | Số lượng |
-|-------|---------|----------|
-| `Domain` | Entities, Constants, Enums (không phụ thuộc layer nào) | 50 entities |
-| `Application` | Business logic, DTOs, Interfaces | 39 services |
-| `Infrastructure` | DbContext, EF Configurations, Seeder | Fluent API configs |
-| `API` | Controllers (REST), Middleware, Filters | 33 controllers |
-
----
-
-## Phân quyền (RBAC)
-
-| Vai trò | Phase 1–2 | Phase 3–4 | Phase 5 | Phase 6–7 |
-|---------|-----------|-----------|---------|-----------|
-| **Admin** | ✅ Toàn quyền | ✅ Toàn quyền | ✅ Toàn quyền | ✅ Toàn quyền |
-| **Manager** | ✅ Xem | ❌ | ✅ Phân công + Xem | ✅ Write-Off, Restructure, Báo cáo |
-| **Loan Officer** | ✅ Tạo hồ sơ, Submit | ✅ Giải ngân, Thu nợ | ❌ | ✅ Request Reversal |
-| **Approver** | ✅ Approve/Reject | ❌ | ❌ | ✅ Approve Reversal, Restructure |
-| **Collector** | ❌ | ✅ Ghi nhận thanh toán | ✅ Nhắc nợ, Ghi chú | ❌ |
 
 ---
 
 ## Cài đặt & Chạy
 
-### Yêu cầu
-- **Docker** & **Docker Compose** (Không cần cài .NET hay Node.js)
+### Yêu cầu tối thiểu
+- **Docker** & **Docker Compose** *(không cần cài .NET hay Node.js)*
 
 ### Khởi động toàn hệ thống
 
@@ -290,114 +167,253 @@ flowchart TD
 git clone <repo-url>
 cd BankLoan
 
-# Build & Start toàn bộ (Frontend + Backend + MySQL)
+# Copy file cấu hình
+cp .env.example .env
+
+# Build & Start (Frontend + Backend + MySQL)
 docker compose --profile full up -d --build
 ```
 
 ### Truy cập
 
-| Dịch vụ | URL |
-|---------|-----|
-| 🌐 Web App | `http://localhost` |
-| 📡 Swagger API | `http://localhost:8080/swagger` |
-| 🗄️ MySQL | `localhost:3306` (root / `LoanFlow@2026!`) |
+| Dịch vụ | URL | Ghi chú |
+|---------|-----|---------|
+| 🌐 **Web App** | `http://localhost` | Giao diện người dùng |
+| 📡 **API Docs** | `http://localhost:8080/swagger` | Swagger UI |
+| 🗄️ **MySQL** | `localhost:3306` | root / `LoanFlow@2026!` |
 
-### Tài khoản mặc định
-
-Hệ thống tự động seed dữ liệu demo khi khởi động lần đầu. Password được random và in ra log container `loanflow-api`.
-
-Đặt trước password qua biến môi trường:
-```bash
-export SEED_ADMIN_PASSWORD=LoanFlow@2026!
-export SEED_OFFICER_PASSWORD=LoanFlow@2026!
-```
-
-### Chế độ phát triển (Chỉ chạy Database)
+### Chạy ở môi trường phát triển
 
 ```bash
-# Chạy MySQL trong Docker, còn API & Frontend chạy trên máy host
+# Chỉ chạy database
 docker compose up db -d
 
-# Terminal 1: Backend
-cd src/LoanFlow.API && dotnet watch run
+# Terminal 1: Backend API
+cd src/LoanFlow.API
+dotnet watch run
 
 # Terminal 2: Frontend
-cd frontend && npm run dev
+cd frontend
+npm install && npm run dev
+# → http://localhost:5173
 ```
 
 ---
 
-## API Endpoints tổng hợp
+## Tài khoản mặc định
 
-### 🔐 Auth & Security
+Hệ thống tự động tạo tài khoản demo khi khởi động lần đầu.
+
+| Vai trò | Username | Password mặc định |
+|---------|----------|-------------------|
+| Admin | `admin` | `LoanFlow@2026!` |
+| Manager | `manager` | `LoanFlow@2026!` |
+| Loan Officer | `officer` | `LoanFlow@2026!` |
+| Approver | `approver` | `LoanFlow@2026!` |
+| Collector | `collector` | `LoanFlow@2026!` |
+
+> Đặt password trước qua biến môi trường trong `.env`:
+> ```
+> SEED_ADMIN_PASSWORD=YourPassword@123
+> SEED_OFFICER_PASSWORD=YourPassword@123
+> ```
+
+---
+
+## Tích hợp NAPAS
+
+### Chế độ Mock (mặc định — chạy ngay không cần credentials)
+
+```env
+# .env
+USE_MOCK_PAYMENT_GATEWAY=true
+```
+
+**Test các scenario giải ngân:**
+
+| BankCode khách hàng | Kết quả |
+|---------------------|---------|
+| `VCB`, `TCB`, `MBB`... (mã hợp lệ) | ✅ Giải ngân SUCCESS ngay |
+| `ASYNC` | ⏳ Trả về Pending, cần callback thủ công |
+| `FAIL` | ❌ Giải ngân FAILED, tạo reversal pending |
+
+**Simulate NAPAS callback (async path):**
+```bash
+curl -X POST http://localhost/api/napas/callback \
+  -H "Content-Type: application/json" \
+  -H "X-Napas-Signature: MOCK-VALID" \
+  -d '{
+    "referenceId": "LF-20260501xxxxxx-<guid>",
+    "napasTransactionId": "NAPAS-001",
+    "status": "SUCCESS",
+    "processedAt": "2026-05-01T10:00:00Z"
+  }'
+```
+
+**Query trạng thái giải ngân:**
+```bash
+GET /api/napas/disbursements/{referenceId}/status
+```
+
+### Chế độ Production (NAPAS Sandbox/Live)
+
+```env
+# .env
+USE_MOCK_PAYMENT_GATEWAY=false
+NAPAS_API_URL=https://sandbox.napas.com.vn/api
+NAPAS_API_KEY=<key-từ-NAPAS-merchant-portal>
+NAPAS_CALLBACK_SECRET=<hmac-secret>
+```
+
+> **Lưu ý bảo mật:** Không commit `.env` lên Git. Dùng Azure Key Vault hoặc Docker secrets cho production.
+
+### VietQR — Tạo mã QR thu tiền
+
+```bash
+# Tạo QR cho khoản vay (pre-fill amount từ kỳ trả nợ gần nhất)
+GET /api/napas/qr/loan/{loanId}
+
+# Tạo QR tùy chỉnh
+POST /api/napas/qr/generate
+{
+  "amount": 5000000,
+  "description": "Tra no ky 1 - LN-20260501-0001",
+  "bankCode": "TCB",
+  "accountNumber": "19038888888888"
+}
+```
+
+---
+
+## Phân quyền
+
+| Chức năng | Admin | Manager | Loan Officer | Approver | Collector |
+|-----------|:-----:|:-------:|:------------:|:--------:|:---------:|
+| Quản lý khách hàng | ✅ | 👁️ | ✅ | 👁️ | ❌ |
+| Tạo & submit hồ sơ vay | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Phê duyệt / Từ chối | ✅ | ❌ | ❌ | ✅ | ❌ |
+| Giải ngân | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Ghi nhận thanh toán | ✅ | ❌ | ✅ | ❌ | ✅ |
+| Phân công Collector | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Thu hồi nợ | ✅ | 👁️ | ❌ | ❌ | ✅ |
+| Restructure / Write-off | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Xem Dashboard & Báo cáo | ✅ | ✅ | 👁️ | 👁️ | ❌ |
+| NAPAS Query / Merchant | ✅ | ✅ | ✅ | ❌ | ❌ |
+| NAPAS Reconciliation | ✅ | ✅ | ❌ | ❌ | ❌ |
+| VietQR tạo mã QR | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Quản lý User | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+> 👁️ = Chỉ xem (read-only)
+
+---
+
+## API Reference
+
+### 🔐 Xác thực
 | Method | Endpoint | Mô tả |
 |--------|----------|-------|
-| `POST` | `/api/auth/login` | Đăng nhập, nhận JWT |
-| `POST` | `/api/auth/refresh` | Gia hạn token (HttpOnly Cookie) |
+| `POST` | `/api/auth/login` | Đăng nhập → JWT + Refresh Token |
+| `POST` | `/api/auth/refresh` | Gia hạn token |
 | `POST` | `/api/auth/logout` | Đăng xuất |
-| `GET` | `/api/auth/sessions` | Xem phiên đăng nhập |
+| `POST` | `/api/auth/mfa/enable` | Bật xác thực 2 bước (TOTP) |
 
-### 👤 Customers (Phase 1)
+### 👤 Khách hàng & KYC
 | Method | Endpoint | Mô tả |
 |--------|----------|-------|
 | `GET/POST` | `/api/customers` | Danh sách / Tạo khách hàng |
 | `GET/PUT` | `/api/customers/{id}` | Chi tiết / Cập nhật |
-| `POST` | `/api/ekyc/verify` | Xác minh eKYC |
+| `POST` | `/api/ekyc/verify` | eKYC — xác minh CMND/CCCD |
 | `POST` | `/api/cic/inquire` | Tra cứu CIC |
+| `GET/PUT` | `/api/exposure-limits/{customerId}` | Hạn mức dư nợ |
 
-### 📝 Applications (Phase 2)
+### 📝 Hồ sơ vay
 | Method | Endpoint | Mô tả |
 |--------|----------|-------|
-| `GET/POST` | `/api/applications` | Danh sách / Tạo hồ sơ vay |
+| `GET/POST` | `/api/applications` | Danh sách / Tạo hồ sơ |
+| `POST` | `/api/applications/preview` | Xem trước lịch trả góp |
 | `POST` | `/api/applications/{id}/submit` | Nộp hồ sơ |
 | `POST` | `/api/applications/{id}/approve` | Phê duyệt |
 | `POST` | `/api/applications/{id}/reject` | Từ chối |
-| `POST` | `/api/applications/preview` | Xem trước lịch trả góp |
 
-### 💰 Loans (Phase 3–4)
+### 💰 Khoản vay
 | Method | Endpoint | Mô tả |
 |--------|----------|-------|
 | `GET` | `/api/loans` | Danh sách khoản vay |
-| `POST` | `/api/loans/disburse` | Giải ngân |
+| `GET` | `/api/loans/{id}` | Chi tiết khoản vay |
+| `POST` | `/api/loans/disburse` | Giải ngân (NAPAS auto-transfer) |
 | `POST` | `/api/loans/{id}/payments` | Ghi nhận thanh toán |
-| `GET` | `/api/loans/{id}/schedule` | Xem lịch trả nợ |
-| `POST` | `/api/loans/{id}/early-settle` | Tất toán trước hạn |
+| `GET` | `/api/loans/{id}/schedule` | Lịch trả nợ |
+| `POST` | `/api/loans/{id}/early-settle/preview` | Preview tất toán sớm |
+| `POST` | `/api/loans/{id}/early-settle` | Tất toán sớm |
 
-### 📞 Collections (Phase 5)
+### 🔄 Vòng đời khoản vay
 | Method | Endpoint | Mô tả |
 |--------|----------|-------|
-| `GET` | `/api/collections/queue` | Hàng đợi thu hồi nợ |
-| `POST` | `/api/loans/{id}/assign-collector` | Phân công Collector |
-| `POST` | `/api/loans/{id}/collection-actions` | Ghi nhận hành động thu hồi |
-| `POST` | `/api/dunning/execute` | Chạy nhắc nợ tự động |
-
-### 🔄 Lifecycle (Phase 6)
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| `POST` | `/api/loans/{id}/restructure` | Cơ cấu lại khoản vay |
+| `POST` | `/api/loans/{id}/restructure` | Cơ cấu lại |
 | `POST` | `/api/loans/{id}/reschedule` | Dời lịch trả nợ |
 | `POST` | `/api/loans/{id}/request-reversal` | Yêu cầu hủy giao dịch |
-| `POST` | `/api/reversals/{id}/approve` | Duyệt hủy giao dịch |
+| `POST` | `/api/reversals/{id}/approve` | Duyệt reversal |
 | `POST` | `/api/loans/{id}/write-off` | Xóa nợ |
 | `POST` | `/api/loans/{id}/recovery` | Thu hồi sau xóa nợ |
+| `POST` | `/api/loans/{id}/topup` | Giải ngân thêm (Top-Up) |
 
-### 📊 Reports, Ledger & Interbank (Phase 7)
+### 📞 Thu hồi nợ
 | Method | Endpoint | Mô tả |
 |--------|----------|-------|
-| `GET` | `/api/dashboard/summary` | Tổng quan portfolio |
-| `POST` | `/api/reconciliation/run` | Chạy đối soát |
-| `GET` | `/api/reports/npl` | Báo cáo nợ xấu |
-| `GET` | `/api/reports/regulatory` | Báo cáo pháp quy |
-| `GET` | `/api/data-export/{type}` | Xuất dữ liệu |
-| `POST` | `/api/interbank/sync-journals` | Push bút toán lên Core Banking |
-| `POST` | `/api/interbank/virtual-account-webhook` | Webhook nhận thanh toán từ VA |
+| `GET` | `/api/collections/queue` | Hàng đợi nợ quá hạn |
+| `POST` | `/api/loans/{id}/assign-collector` | Phân công Collector |
+| `POST` | `/api/collections/{id}/actions` | Ghi nhận hành động thu nợ |
+| `POST` | `/api/dunning/execute` | Chạy nhắc nợ tự động |
+
+### 🏦 NAPAS Gateway
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `POST` | `/api/napas/callback` | Nhận callback async từ NAPAS |
+| `GET` | `/api/napas/disbursements/{refId}/status` | Query trạng thái giải ngân |
+| `GET` | `/api/napas/transactions/{napasTransactionId}` | Chi tiết giao dịch NAPAS |
+| `GET` | `/api/napas/transactions/by-reference/{refId}` | Tra cứu theo Reference ID |
+| `POST` | `/api/napas/transactions/search` | Tìm kiếm giao dịch |
+| `GET` | `/api/napas/merchant` | Thông tin Merchant NAPAS |
+| `GET` | `/api/napas/merchant/settings` | Cài đặt hạn mức & kênh |
+| `GET` | `/api/napas/reconciliation/files` | Danh sách file đối soát |
+| `GET` | `/api/napas/reconciliation/files/{date}/download` | Tải file đối soát |
+| `POST` | `/api/napas/reconciliation/files/{date}/match` | Khớp lệnh NAPAS vs nội bộ |
+| `POST` | `/api/napas/qr/generate` | Tạo VietQR code |
+| `POST` | `/api/napas/qr/decode` | Giải mã QR string |
+| `GET` | `/api/napas/qr/loan/{loanId}` | QR code cho khoản vay |
+
+### 📊 Báo cáo & Đối soát
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| `GET` | `/api/dashboard/summary` | Portfolio tổng quan |
+| `POST` | `/api/reconciliation/run` | Chạy đối soát 6 điểm |
+| `GET` | `/api/reconciliation/exceptions` | Danh sách lệch sổ |
+| `POST` | `/api/eod/run` | Chạy End-of-Day thủ công |
+| `GET` | `/api/reports/npl` | Báo cáo nợ xấu NPL |
+| `GET` | `/api/reports/regulatory` | Báo cáo pháp quy NHNN |
+| `POST` | `/api/interbank/sync-journals` | Đồng bộ Core Banking |
+| `POST` | `/api/interbank/virtual-account-webhook` | Webhook nhận thanh toán VA |
+
+---
+
+## Tech Stack
+
+| Layer | Công nghệ | Ghi chú |
+|-------|-----------|---------|
+| **Backend** | ASP.NET Core 8, EF Core 8, MySQL 8.4 | 42 controllers, Clean Architecture |
+| **Frontend** | React 18, Vite 5, React Router v6 | 18 trang, SignalR real-time |
+| **Payment** | NAPAS Pay 24/7 API | Sync + Async, Polly retry |
+| **QR Code** | VietQR EMV QRCPS | Offline generation |
+| **Security** | JWT Bearer, BCrypt, HMAC-SHA256 | Rate limiting, Idempotency |
+| **Observability** | Serilog, OpenTelemetry, Prometheus | Structured logging |
+| **DevOps** | Docker Compose, Nginx | Automated DB backup (Ofelia) |
 
 ---
 
 ## 📄 License
 
-Dự án được phát triển cho mục đích demo và thương mại hóa nội bộ.
+Phát triển cho mục đích demo và thương mại hóa nội bộ.
 
 ---
 
-*Built with ❤️ using ASP.NET Core 9 · React · MySQL · Docker*
+*Built with ❤️ using ASP.NET Core 8 · React 18 · MySQL · Docker · NAPAS*
