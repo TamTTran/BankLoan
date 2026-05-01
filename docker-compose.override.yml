@@ -54,6 +54,11 @@ services:
     profiles:
       - full
 
+  # Node exporter exposes host-level CPU, memory, disk, and network metrics.
+  node-exporter:
+    profiles:
+      - full
+
   # Grafana reads Prometheus, so keep it with the full stack.
   grafana:
     profiles:

@@ -264,17 +264,27 @@ public class LoanDisbursementService : ILoanDisbursementService
 
     private async Task<string> GenerateLoanAccountNoAsync()
     {
-        var year          = _businessClock.LocalNow.Year;
-        var prefix        = $"LN-{year}-";
-        var substringStart = prefix.Length + 1;
-        var likePattern   = $"{prefix}%";
+        var year    = _businessClock.LocalNow.Year;
+        var prefix  = $"LN-{year}-";
 
-        var maxSeq = await _db.Database
-            .SqlQueryRaw<int?>(
-                "SELECT MAX(CAST(SUBSTRING(LoanAccountNo, {0}) AS UNSIGNED)) AS Value FROM Loans WHERE LoanAccountNo LIKE {1} FOR UPDATE",
-                substringStart, likePattern)
-            .FirstOrDefaultAsync();
+        // LINQ-based — compatible with both InMemory (tests) and MySQL (production).
+        // For high-concurrency prod, consider a DB sequence or row-locking stored proc.
+        var existing = await _db.Loans
+            .Where(l => l.LoanAccountNo.StartsWith(prefix))
+            .Select(l => l.LoanAccountNo)
+            .ToListAsync();
 
-        return $"{prefix}{((maxSeq ?? 0) + 1):D4}";
+        var maxSeq = existing.Count == 0
+            ? 0
+            : existing
+                .Select(no =>
+                {
+                    var suffix = no[prefix.Length..];
+                    return int.TryParse(suffix, out var n) ? n : 0;
+                })
+                .DefaultIfEmpty(0)
+                .Max();
+
+        return $"{prefix}{maxSeq + 1:D4}";
     }
 }

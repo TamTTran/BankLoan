@@ -149,6 +149,7 @@ services:
     depends_on:
       - api
       - nginx-exporter
+      - node-exporter
 
   # Nginx Gateway Metrics
   nginx-exporter:
@@ -160,6 +161,24 @@ services:
     depends_on:
       frontend:
         condition: service_healthy
+
+  # Host Metrics
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: loanflow-node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    expose:
+      - "9100"
 
   # Grafana Dashboards
   grafana:
