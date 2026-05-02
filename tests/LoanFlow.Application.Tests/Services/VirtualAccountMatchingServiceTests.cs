@@ -15,7 +15,7 @@ namespace LoanFlow.Application.Tests.Services;
 public class VirtualAccountMatchingServiceTests : IDisposable
 {
     private readonly LoanFlowDbContext _db;
-    private readonly Mock<ILoanService> _loanServiceMock;
+    private readonly Mock<ILoanPaymentService> _loanServiceMock;
     private readonly Mock<ILogger<VirtualAccountMatchingService>> _loggerMock;
     private readonly VirtualAccountMatchingService _service;
 
@@ -26,7 +26,7 @@ public class VirtualAccountMatchingServiceTests : IDisposable
             .Options;
         _db = new LoanFlowDbContext(options);
 
-        _loanServiceMock = new Mock<ILoanService>();
+        _loanServiceMock = new Mock<ILoanPaymentService>();
         _loggerMock = new Mock<ILogger<VirtualAccountMatchingService>>();
 
         _service = new VirtualAccountMatchingService(_db, _loanServiceMock.Object, _loggerMock.Object);

@@ -6,65 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-// ── DTOs ────────────────────────────────────────────────────────────────────
-public class ReversalRequestDto
-{
-    public int Id { get; set; }
-    public int LoanId { get; set; }
-    public string LoanAccountNo { get; set; } = "";
-    public int OriginalTransactionId { get; set; }
-    public string ReversalType { get; set; } = "";
-    public decimal OriginalAmount { get; set; }
-    public decimal ReversedAmount { get; set; }
-    public string Reason { get; set; } = "";
-    public string Status { get; set; } = "";
-    public string RequestedBy { get; set; } = "";
-    public string? ApprovedBy { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? ApprovedAt { get; set; }
-}
-
-public class RequestReversalDto
-{
-    public int PaymentId { get; set; }
-    public string Reason { get; set; } = "";
-}
-
-public class ApproveReversalDto
-{
-    public string? Notes { get; set; }
-}
-
-public class AdjustFeeDto
-{
-    public int LateFeeId { get; set; }
-    public decimal NewAmount { get; set; }
-    public string Reason { get; set; } = "";
-}
-
-// ── Interface ───────────────────────────────────────────────────────────────
-public interface IReversalService
-{
-    /// <summary>Step 1: Request a payment reversal (creates Pending record).</summary>
-    Task<Result<ReversalRequestDto>> RequestPaymentReversalAsync(int loanId, RequestReversalDto request, int userId);
-
-    /// <summary>Step 2: Approve a pending reversal (executes the compensating transaction).</summary>
-    Task<Result<ReversalRequestDto>> ApproveReversalAsync(int reversalId, int approverUserId);
-
-    /// <summary>Step 2 (alt): Reject a pending reversal.</summary>
-    Task<Result> RejectReversalAsync(int reversalId, string reason, int approverUserId);
-
-    /// <summary>Direct fee adjustment (single-step, Admin/Approver only).</summary>
-    Task<Result> AdjustFeeAsync(int loanId, AdjustFeeDto request, int userId);
-
-    /// <summary>List reversal requests for a loan.</summary>
-    Task<IEnumerable<ReversalRequestDto>> GetReversalsForLoanAsync(int loanId);
-
-    /// <summary>List all pending reversal requests.</summary>
-    Task<IEnumerable<ReversalRequestDto>> GetPendingReversalsAsync();
-}
-
-// ── Implementation ──────────────────────────────────────────────────────────
 public class ReversalService : IReversalService
 {
     private readonly LoanFlowDbContext _db;

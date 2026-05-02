@@ -8,11 +8,6 @@ using Microsoft.Extensions.Logging;
 
 namespace LoanFlow.Application.Services;
 
-public interface IVirtualAccountMatchingService
-{
-    Task<Result> ProcessIncomingPaymentAsync(string virtualAccountNo, decimal amount, string transactionId, DateOnly paymentDate, string remarks);
-}
-
 public class VirtualAccountMatchingService : IVirtualAccountMatchingService
 {
     private readonly LoanFlowDbContext _db;

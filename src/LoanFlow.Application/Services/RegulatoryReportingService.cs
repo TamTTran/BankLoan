@@ -9,19 +9,6 @@ using ClosedXML.Excel;
 
 namespace LoanFlow.Application.Services;
 
-// ── NHNN Classification Report DTO ──────────────────────────────────────────
-public class NhnnClassificationReportDto
-{
-    public int Year { get; set; }
-    public int Month { get; set; }
-    public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
-    public List<NhnnClassificationRow> Rows { get; set; } = [];
-    public decimal TotalOutstanding { get; set; }
-    public decimal TotalProvision { get; set; }
-    // Biểu 1A: Chi tiết
-    public List<NhnnClassificationDetailRow> Details { get; set; } = [];
-}
-
 public class NhnnClassificationDetailRow
 {
     public string LoanAccountNo { get; set; } = "";
@@ -45,19 +32,6 @@ public class NhnnClassificationRow
     public decimal ProvisionGap { get; set; }           // Required - Actual
 }
 
-// ── NHNN Provision Report DTO ───────────────────────────────────────────────
-public class NhnnProvisionReportDto
-{
-    public int Year { get; set; }
-    public int Month { get; set; }
-    public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
-    public decimal OpeningProvision { get; set; }
-    public decimal NewProvision { get; set; }
-    public decimal ReversedProvision { get; set; }
-    public decimal ClosingProvision { get; set; }
-    public List<NhnnProvisionGroupRow> GroupDetails { get; set; } = [];
-}
-
 public class NhnnProvisionGroupRow
 {
     public int Group { get; set; }
@@ -66,16 +40,6 @@ public class NhnnProvisionGroupRow
     public decimal Additions { get; set; }
     public decimal Reversals { get; set; }
     public decimal ClosingBalance { get; set; }
-}
-
-// ── CIC Periodic Report DTO ─────────────────────────────────────────────────
-public class CicPeriodicReportDto
-{
-    public int Year { get; set; }
-    public int Month { get; set; }
-    public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
-    public int TotalRecords { get; set; }
-    public List<CicLoanRecord> Records { get; set; } = [];
 }
 
 public class CicLoanRecord
@@ -94,18 +58,6 @@ public class CicLoanRecord
     public string? PurposeCode { get; set; }
 }
 
-// ── Interface ───────────────────────────────────────────────────────────────
-public interface IRegulatoryReportingService
-{
-    Task<NhnnClassificationReportDto> GenerateNhnnClassificationReportAsync(int year, int month);
-    Task<NhnnProvisionReportDto> GenerateNhnnProvisionReportAsync(int year, int month);
-    Task<CicPeriodicReportDto> GenerateCicPeriodicReportAsync(int year, int month);
-    string ToCsv<T>(IEnumerable<T> items);
-    byte[] ToExcel<T>(IEnumerable<T> items, string sheetName = "Data");
-    string ToXml<T>(IEnumerable<T> items, string rootName = "Data");
-}
-
-// ── Implementation ──────────────────────────────────────────────────────────
 public class RegulatoryReportingService : IRegulatoryReportingService
 {
     private readonly LoanFlowDbContext _db;

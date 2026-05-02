@@ -5,37 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-public class ApprovalRuleDto
-{
-    public int Id { get; set; }
-    public string? ProductType { get; set; }
-    public decimal MinAmount { get; set; }
-    public decimal MaxAmount { get; set; }
-    public int RequiredLevel { get; set; }
-    public string ApproverRole { get; set; } = default!;
-    public int? MinCicScore { get; set; }
-    public bool IsAutoApprove { get; set; }
-}
-
-public class CreateApprovalRuleRequest
-{
-    public string? ProductType { get; set; }
-    public decimal MinAmount { get; set; }
-    public decimal MaxAmount { get; set; }
-    public int RequiredLevel { get; set; }
-    public string ApproverRole { get; set; } = default!;
-    public int? MinCicScore { get; set; }
-    public bool IsAutoApprove { get; set; }
-}
-
-public interface IApprovalRuleService
-{
-    Task<IEnumerable<ApprovalRuleDto>> GetAllAsync();
-    Task<Result<ApprovalRuleDto>> CreateAsync(CreateApprovalRuleRequest request);
-    Task<Result> DeleteAsync(int id);
-    Task<IEnumerable<ApprovalRuleDto>> GetRequiredRulesForApplicationAsync(int applicationId);
-}
-
 public class ApprovalRuleService : IApprovalRuleService
 {
     private readonly LoanFlowDbContext _db;

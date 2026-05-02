@@ -5,30 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-public class StressTestScenario
-{
-    public string ScenarioName { get; set; } = default!;
-    public decimal InterestRateShockParams { get; set; } // e.g. 0.05 for +5%
-    public decimal GdpContractionParams { get; set; }    // e.g. -0.02 for -2% GDP
-    public decimal PdMultiplier { get; set; }            // how much PD increases
-    public decimal LgdMultiplier { get; set; }           // how much LGD increases
-}
-
-public class StressTestResultDto
-{
-    public string ScenarioName { get; set; } = default!;
-    public decimal BaseExpectedLoss { get; set; }
-    public decimal StressedExpectedLoss { get; set; }
-    public decimal ImpactAmount { get; set; }
-    public decimal ImpactPercentage { get; set; }
-    public decimal StressedPortfolioNplRatio { get; set; }
-}
-
-public interface IStressTestService
-{
-    Task<List<StressTestResultDto>> RunStressTestsAsync();
-}
-
 public class StressTestService : IStressTestService
 {
     private readonly LoanFlowDbContext _db;

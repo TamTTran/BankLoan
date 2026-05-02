@@ -64,7 +64,7 @@ public class LoanSettlementServiceTests
         businessClockMock.Setup(c => c.TodayBusinessDate()).Returns(DateOnly.FromDateTime(DateTime.UtcNow));
         var paymentGatewayMock = new Mock<IPaymentGatewayService>();
 
-        var svc = new LoanService(db, lateFeeService.Object, businessClockMock.Object, accountingService.Object, paymentGatewayMock.Object);
+        var svc = new LoanPaymentService(db, lateFeeService.Object, businessClockMock.Object, accountingService.Object);
 
         var result = await svc.EarlySettleAsync(1, new EarlySettleRequest
         {

@@ -2,11 +2,6 @@ using Microsoft.Extensions.Logging;
 
 namespace LoanFlow.Application.Services;
 
-public interface ISmsService
-{
-    Task SendAsync(string phone, string message);
-}
-
 public class NullSmsService : ISmsService
 {
     private readonly ILogger<NullSmsService> _logger;

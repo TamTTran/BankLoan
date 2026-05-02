@@ -6,33 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-// ── DTOs ────────────────────────────────────────────────────────────────────
-public class ExposureLimitDto
-{
-    public int CustomerId { get; set; }
-    public string CustomerName { get; set; } = "";
-    public decimal MaxExposure { get; set; }
-    public decimal CurrentExposure { get; set; }
-    public decimal UtilizationRate { get; set; }
-    public string Status { get; set; } = "";
-}
-
-public class SetExposureLimitRequest
-{
-    public decimal MaxExposure { get; set; }
-}
-
-// ── Interface ───────────────────────────────────────────────────────────────
-public interface IExposureLimitService
-{
-    Task<Result<ExposureLimitDto>> SetLimitAsync(int customerId, decimal maxExposure, int userId);
-    Task<ExposureLimitDto?> GetLimitAsync(int customerId);
-    Task<Result> CheckExposureAsync(int customerId, decimal additionalAmount);
-    Task<Result> OverrideExposureAsync(int customerId, string reason, int userId);
-    Task RefreshExposureAsync(int customerId);
-}
-
-// ── Implementation ──────────────────────────────────────────────────────────
 public class ExposureLimitService : IExposureLimitService
 {
     private readonly LoanFlowDbContext _db;

@@ -5,58 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-// ── DTOs ────────────────────────────────────────────────────────────────────
-public class BranchDto
-{
-    public int Id { get; set; }
-    public string BranchCode { get; set; } = "";
-    public string BranchName { get; set; } = "";
-    public string? Address { get; set; }
-    public string? Phone { get; set; }
-    public int? ManagerUserId { get; set; }
-    public string? ManagerName { get; set; }
-    public string Status { get; set; } = "";
-}
-
-public class CreateBranchRequest
-{
-    public string BranchCode { get; set; } = default!;
-    public string BranchName { get; set; } = default!;
-    public string? Address { get; set; }
-    public string? Phone { get; set; }
-    public int? ManagerUserId { get; set; }
-}
-
-public class UpdateBranchRequest
-{
-    public string? BranchName { get; set; }
-    public string? Address { get; set; }
-    public string? Phone { get; set; }
-    public int? ManagerUserId { get; set; }
-    public string? Status { get; set; }
-}
-
-public class BranchPortfolioDto
-{
-    public int BranchId { get; set; }
-    public string BranchName { get; set; } = "";
-    public int TotalCustomers { get; set; }
-    public int TotalLoans { get; set; }
-    public decimal TotalOutstanding { get; set; }
-    public int OverdueLoans { get; set; }
-    public int TotalUsers { get; set; }
-}
-
-// ── Interface ───────────────────────────────────────────────────────────────
-public interface IBranchService
-{
-    Task<List<BranchDto>> GetAllAsync();
-    Task<Result<BranchDto>> CreateAsync(CreateBranchRequest req);
-    Task<Result> UpdateAsync(int id, UpdateBranchRequest req);
-    Task<BranchPortfolioDto?> GetBranchPortfolioAsync(int branchId);
-}
-
-// ── Implementation ──────────────────────────────────────────────────────────
 public class BranchService : IBranchService
 {
     private readonly LoanFlowDbContext _db;

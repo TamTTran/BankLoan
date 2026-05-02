@@ -9,11 +9,6 @@ using LoanFlow.Domain.Constants;
 
 namespace LoanFlow.Application.Services;
 
-public interface IBodService
-{
-    Task<Result> RunBodAsync(DateOnly newBusinessDate, int? userId = null);
-}
-
 public class BodService : IBodService
 {
     private readonly LoanFlowDbContext _db;

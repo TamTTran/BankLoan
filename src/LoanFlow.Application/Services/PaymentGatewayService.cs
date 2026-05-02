@@ -2,37 +2,6 @@ using LoanFlow.Application.Common;
 
 namespace LoanFlow.Application.Services;
 
-// ────────────────────────────────────────────────────────────────────────────
-// Core interface — implemented by both real NAPAS and Mock providers
-// ────────────────────────────────────────────────────────────────────────────
-
-public interface IPaymentGatewayService
-{
-    /// <summary>
-    /// [SYNC] Gửi lệnh chuyển tiền giải ngân đến tài khoản ngân hàng của khách.
-    /// Với NAPAS thực: kết quả trả về ngay trong ~2–5 giây (Napas Pay 24/7).
-    /// NapasReferenceId trong response dùng để track callback async.
-    /// </summary>
-    Task<Result<PaymentGatewayResponse>> TransferToCustomerAsync(
-        string bankCode, string accountNumber, decimal amount, string remark);
-
-    /// <summary>
-    /// [ASYNC CALLBACK] Xử lý callback từ NAPAS xác nhận kết quả giao dịch.
-    /// NAPAS sẽ POST về endpoint /api/napas/callback sau khi xử lý xong.
-    /// </summary>
-    Task<Result<CallbackHandleResult>> HandleCallbackAsync(NapasCallbackPayload payload);
-
-    /// <summary>
-    /// [QUERY] Chủ động query trạng thái giao dịch từ NAPAS.
-    /// Dùng trong trường hợp callback không đến sau thời gian chờ.
-    /// </summary>
-    Task<Result<PaymentGatewayResponse>> QueryTransactionStatusAsync(string napasReferenceId);
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// DTOs
-// ────────────────────────────────────────────────────────────────────────────
-
 public class PaymentGatewayResponse
 {
     /// <summary>Mã giao dịch từ NAPAS (transactionId)</summary>
@@ -46,9 +15,6 @@ public class PaymentGatewayResponse
     public bool IsConfirmedImmediately { get; set; }
 }
 
-/// <summary>
-/// Payload từ NAPAS khi callback về webhook /api/napas/callback
-/// </summary>
 public class NapasCallbackPayload
 {
     /// <summary>ReferenceId do hệ thống tạo, gửi lên NAPAS khi transfer, NAPAS echo lại</summary>
@@ -74,4 +40,3 @@ public class CallbackHandleResult
     public string NewStatus { get; set; } = default!;
     public bool IsSuccess { get; set; }
 }
-

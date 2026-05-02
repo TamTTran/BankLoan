@@ -10,11 +10,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-public interface ILoanAdjustmentService
-{
-    Task<Result> ApplyApprovedAdjustmentAsync(int approvalRequestId, int checkerUserId);
-}
-
 public class LoanAdjustmentService : ILoanAdjustmentService
 {
     private readonly LoanFlowDbContext _db;

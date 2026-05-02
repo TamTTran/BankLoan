@@ -7,12 +7,6 @@ using System.Security.Cryptography;
 
 namespace LoanFlow.Application.Services;
 
-public interface IEmailService
-{
-    Task<Result<string>> SendOtpAsync(int userId, string email, string purpose, string? deeplinkUrl = null);
-    Task<Result> VerifyOtpAsync(int userId, string otpCode, string? deeplinkToken = null);
-}
-
 public class EmailService : IEmailService
 {
     private readonly LoanFlowDbContext _db;

@@ -5,27 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-public class DocumentDto
-{
-    public int Id { get; set; }
-    public int? LoanId { get; set; }
-    public int? CustomerId { get; set; }
-    public string DocumentType { get; set; } = "";
-    public string FileName { get; set; } = "";
-    public long FileSize { get; set; }
-    public string Status { get; set; } = "";
-    public DateTime UploadedAt { get; set; }
-    public string? VerificationNotes { get; set; }
-}
-
-public interface IDocumentService
-{
-    Task<Result<DocumentDto>> UploadAsync(int? loanId, int? customerId, string documentType,
-        string fileName, string filePath, long fileSize, string? mimeType, int userId);
-    Task<Result> VerifyAsync(int documentId, string status, string? notes, int userId);
-    Task<List<DocumentDto>> GetDocumentsAsync(int? loanId, int? customerId);
-}
-
 public class DocumentService : IDocumentService
 {
     private readonly LoanFlowDbContext _db;

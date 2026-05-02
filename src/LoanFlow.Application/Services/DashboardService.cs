@@ -5,13 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-public interface IDashboardService
-{
-    Task<DashboardSummaryDto> GetSummaryAsync();
-    Task<OverdueBucketReportDto> GetOverdueBucketReportAsync();
-    Task<MonthlyTrendDto> GetMonthlyTrendAsync(int months = 6);
-}
-
 public class DashboardService : IDashboardService
 {
     private readonly LoanFlowDbContext _db;

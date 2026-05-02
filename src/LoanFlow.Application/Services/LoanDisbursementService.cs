@@ -7,20 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-// ── Interface ────────────────────────────────────────────────────────────────
-
-public interface ILoanDisbursementService
-{
-    Task<Result<LoanDto>> CreateLoanAsync(int applicationId, int userId);
-    Task<Result<LoanDto>> DisburseAsync(int loanId, DisburseRequest request, int userId);
-}
-
-// ── Implementation ───────────────────────────────────────────────────────────
-
-/// <summary>
-/// Tất cả operations tạo và giải ngân khoản vay.
-/// Tách ra từ LoanService để giảm god-class 56KB xuống còn ~20KB mỗi service.
-/// </summary>
 public class LoanDisbursementService : ILoanDisbursementService
 {
     private readonly LoanFlowDbContext       _db;

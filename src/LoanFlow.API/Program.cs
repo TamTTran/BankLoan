@@ -115,7 +115,6 @@ builder.Services.AddScoped<ILoanProductService, LoanProductService>();
 builder.Services.AddScoped<ILoanApplicationService, LoanApplicationService>();
 builder.Services.AddScoped<ILateFeeService, LateFeeService>();
 builder.Services.AddScoped<ICollateralService, CollateralService>();
-builder.Services.AddScoped<ILoanService, LoanService>();
 builder.Services.AddScoped<ILoanQueryService, LoanQueryService>();
 builder.Services.AddScoped<ILoanDisbursementService, LoanDisbursementService>();
 builder.Services.AddScoped<ILoanPaymentService, LoanPaymentService>();

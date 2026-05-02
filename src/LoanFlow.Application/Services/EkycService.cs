@@ -6,47 +6,6 @@ using System.Text.Json;
 
 namespace LoanFlow.Application.Services;
 
-// ── eKYC Provider Interface ─────────────────────────────────────────────────
-public class EkycResultDto
-{
-    public string? FullNameExtracted { get; set; }
-    public decimal FaceMatchScore { get; set; }
-    public decimal OcrConfidence { get; set; }
-    public decimal LivenessScore { get; set; }
-    public bool IsSuccess { get; set; }
-    public string? ErrorMessage { get; set; }
-    public string? RawJson { get; set; }
-}
-
-public interface IEkycProvider
-{
-    string ProviderName { get; }
-    Task<EkycResultDto> VerifyAsync(string idNumber, string idType, string fullName);
-}
-
-// ── eKYC Service DTOs ───────────────────────────────────────────────────────
-public class EkycVerificationDto
-{
-    public int Id { get; set; }
-    public int CustomerId { get; set; }
-    public DateTime VerificationDate { get; set; }
-    public string IdType { get; set; } = "";
-    public string? FullNameExtracted { get; set; }
-    public decimal? FaceMatchScore { get; set; }
-    public decimal? OcrConfidence { get; set; }
-    public decimal? LivenessScore { get; set; }
-    public string Status { get; set; } = "";
-    public string Provider { get; set; } = "";
-}
-
-// ── Interface ───────────────────────────────────────────────────────────────
-public interface IEkycService
-{
-    Task<Result<EkycVerificationDto>> VerifyCustomerAsync(int customerId, string idType, int requestedByUserId);
-    Task<List<EkycVerificationDto>> GetHistoryAsync(int customerId);
-}
-
-// ── Implementation ──────────────────────────────────────────────────────────
 public class EkycService : IEkycService
 {
     private readonly LoanFlowDbContext _db;

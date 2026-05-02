@@ -81,7 +81,7 @@ public class LedgerReconciliationEndToEndTests
             utcNow: utcNow,
             localNow: new DateTime(2026, 1, 15, 16, 0, 0, DateTimeKind.Unspecified),
             businessDate: new DateOnly(2026, 1, 15));
-        var loanService = new LoanService(db, lateFeeService.Object, businessClock, accountingService, paymentGatewayService.Object);
+        var loanService = new LoanPaymentService(db, lateFeeService.Object, businessClock, accountingService);
 
         var result = await loanService.RecordPaymentAsync(1, new RecordPaymentRequest
         {

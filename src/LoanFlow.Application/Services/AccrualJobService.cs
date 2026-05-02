@@ -6,11 +6,6 @@ using Microsoft.Extensions.Logging;
 
 namespace LoanFlow.Application.Services;
 
-public interface IAccrualJobService
-{
-    Task RunDailyAccrualAsync(DateOnly businessDate, CancellationToken ct = default);
-}
-
 public class AccrualJobService : IAccrualJobService
 {
     private readonly LoanFlowDbContext _db;

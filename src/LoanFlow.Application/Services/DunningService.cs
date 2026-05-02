@@ -5,37 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-// ── DTOs ────────────────────────────────────────────────────────────────────
-public class DunningStrategyDto
-{
-    public int Id { get; set; }
-    public int DpdThreshold { get; set; }
-    public string ActionType { get; set; } = "";
-    public string? Description { get; set; }
-    public bool IsActive { get; set; }
-}
-
-public class NotificationTemplateDto
-{
-    public int Id { get; set; }
-    public string TemplateCode { get; set; } = "";
-    public string Title { get; set; } = "";
-    public string Body { get; set; } = "";
-    public string Channel { get; set; } = "";
-    public bool IsActive { get; set; }
-}
-
-// ── Interface ───────────────────────────────────────────────────────────────
-public interface IDunningService
-{
-    Task<List<DunningStrategyDto>> GetStrategiesAsync();
-    Task<DunningStrategyDto> UpsertStrategyAsync(int dpdThreshold, string actionType, string? description, int? templateId);
-    Task<List<NotificationTemplateDto>> GetTemplatesAsync();
-    Task<NotificationTemplateDto> UpsertTemplateAsync(string code, string title, string body, string channel);
-    Task<int> ExecuteDunningAsync(DateOnly businessDate);
-}
-
-// ── Implementation ──────────────────────────────────────────────────────────
 public class DunningService : IDunningService
 {
     private readonly LoanFlowDbContext _db;

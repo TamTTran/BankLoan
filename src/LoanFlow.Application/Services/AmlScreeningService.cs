@@ -4,11 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-public interface ISanctionListProvider
-{
-    Task<(bool IsHit, string? Details)> CheckNameAsync(string fullName, string? idNumber);
-}
-
 public class MockSanctionListProvider : ISanctionListProvider
 {
     private readonly List<string> _mockBlacklist = new() { "BIN LADEN", "PABLO ESCOBAR", "EL CHAPO" };
@@ -22,11 +17,6 @@ public class MockSanctionListProvider : ISanctionListProvider
         }
         return Task.FromResult((false, (string?)null));
     }
-}
-
-public interface IAmlScreeningService
-{
-    Task<AmlRiskAssessment> ScreenCustomerAsync(int customerId, int currentUserId);
 }
 
 public class AmlScreeningService : IAmlScreeningService

@@ -8,15 +8,6 @@ using System.Text.Json;
 
 namespace LoanFlow.Application.Services;
 
-public interface ILoanProductService
-{
-    Task<IEnumerable<LoanProductDto>> GetAllAsync();
-    Task<Result<LoanProductDto>> GetByIdAsync(int id);
-    Task<Result<LoanProductDto>> CreateAsync(CreateLoanProductRequest request);
-    Task<Result<LoanProductDto>> UpdateAsync(int id, UpdateLoanProductRequest request);
-    Task<Result<InstallmentPreviewDto>> PreviewInstallmentAsync(InstallmentPreviewRequest request);
-}
-
 public class LoanProductService : ILoanProductService
 {
     private readonly LoanFlowDbContext _db;
@@ -276,4 +267,3 @@ public class LoanProductService : ILoanProductService
         Description = p.Description
     };
 }
-

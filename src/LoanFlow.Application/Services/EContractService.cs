@@ -13,30 +13,6 @@ using QuestPDF.Infrastructure;
 
 namespace LoanFlow.Application.Services;
 
-public class EContractDto
-{
-    public int Id { get; set; }
-    public int LoanId { get; set; }
-    public string ContractNumber { get; set; } = default!;
-    public string PdfContentHash { get; set; } = default!;
-    public string DigitalSignature { get; set; } = default!;
-    public string ClientIpAddress { get; set; } = default!;
-    public string? PdfStoragePath { get; set; }
-    public DateTime SignedAt { get; set; }
-}
-
-public interface IEContractService
-{
-    Task<Result<EContractDto>> SignContractAsync(int loanId, string ipAddress);
-    Task<Result<EContractDto>> GetByLoanIdAsync(int loanId);
-}
-
-public interface ICertificateAuthorityProvider
-{
-    Task<string> SignHashAsync(string hashStr);
-}
-
-// Mock implementation of the CA provider
 public class MockCertificateAuthorityProvider : ICertificateAuthorityProvider
 {
     public Task<string> SignHashAsync(string hashStr)

@@ -5,32 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-public class RevaluationDto
-{
-    public int Id { get; set; }
-    public int CollateralId { get; set; }
-    public decimal OldValue { get; set; }
-    public decimal NewValue { get; set; }
-    public string? RevaluedBy { get; set; }
-    public string? Reason { get; set; }
-    public DateTime RevaluationDate { get; set; }
-}
-
-public class RevalueRequest
-{
-    public decimal NewValue { get; set; }
-    public string? RevaluedBy { get; set; }
-    public string? Reason { get; set; }
-}
-
-public interface ICollateralLifecycleService
-{
-    Task<Result<RevaluationDto>> RevalueAsync(int collateralId, RevalueRequest req, int userId);
-    Task<List<RevaluationDto>> GetRevaluationHistoryAsync(int collateralId);
-    Task<Result> ReleaseCollateralAsync(int collateralId, int userId);
-    Task<Result> SeizeCollateralAsync(int collateralId, int userId);
-}
-
 public class CollateralLifecycleService : ICollateralLifecycleService
 {
     private readonly LoanFlowDbContext _db;

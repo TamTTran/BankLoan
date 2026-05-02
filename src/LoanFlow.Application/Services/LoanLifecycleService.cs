@@ -9,65 +9,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-// ── DTOs ────────────────────────────────────────────────────────────────────
-
-public class RestructureRequest
-{
-    public int NewTenorMonths { get; set; }
-    public decimal NewMonthlyInterestRate { get; set; }
-    public DateOnly RestructureStartDate { get; set; }
-    public string ReasonCode { get; set; } = default!;  // "CustomerHardship" | "BusinessFailure"
-    public string? Note { get; set; }
-}
-
-public class RescheduleRequest
-{
-    public int NewPaymentDayOfMonth { get; set; }       // 1 - 28
-    public DateOnly EffectiveFrom { get; set; }
-    public string ReasonCode { get; set; } = default!;
-    public string? Note { get; set; }
-}
-
-public class WriteOffRequest
-{
-    public string ReasonCode { get; set; } = default!;  // "Uncollectible" | "BankruptCustomer" | "CourtOrder"
-    public DateOnly WriteOffDate { get; set; }
-    public string? Note { get; set; }
-}
-
-public class RecordRecoveryRequest
-{
-    public decimal RecoveredAmount { get; set; }
-    public DateOnly RecoveryDate { get; set; }
-    public string RecoveryMethod { get; set; } = default!; // "CashPayment" | "CollateralLiquidation" | "ThirdPartyCollection"
-    public string? Note { get; set; }
-}
-
-// ── Interface ────────────────────────────────────────────────────────────────
-
-public interface ILoanLifecycleService
-{
-    Task<Result<LoanRestructure>> RestructureAsync(int loanId, RestructureRequest request, int userId);
-    Task<Result<LoanReschedule>> RescheduleAsync(int loanId, RescheduleRequest request, int userId);
-    Task<Result<LoanWriteOff>> WriteOffAsync(int loanId, WriteOffRequest request, int userId);
-    Task<Result<LoanRecovery>> RecordRecoveryAsync(int loanId, RecordRecoveryRequest request, int userId);
-    Task<Result<CustomerExposureDto>> GetCustomerExposureAsync(int customerId);
-}
-
-public class CustomerExposureDto
-{
-    public int CustomerId { get; set; }
-    public string CustomerName { get; set; } = default!;
-    public int ActiveLoans { get; set; }
-    public int RestructuredLoans { get; set; }
-    public decimal TotalOutstanding { get; set; }
-    public decimal TotalApprovedAmount { get; set; }
-    public bool ExceedsLimit { get; set; }
-    public decimal MaxAllowedExposure { get; set; }
-}
-
-// ── Service Implementation ────────────────────────────────────────────────────
-
 public class LoanLifecycleService : ILoanLifecycleService
 {
     private readonly LoanFlowDbContext _db;

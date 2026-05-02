@@ -5,30 +5,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-// ── DTOs ────────────────────────────────────────────────────────────────────
-public class AccountingPeriodDto
-{
-    public int Id { get; set; }
-    public int Year { get; set; }
-    public int Month { get; set; }
-    public string Status { get; set; } = "";
-    public DateTime OpenedAt { get; set; }
-    public DateTime? ClosedAt { get; set; }
-    public string? ClosedByName { get; set; }
-    public string? Notes { get; set; }
-}
-
-// ── Interface ───────────────────────────────────────────────────────────────
-public interface IAccountingPeriodService
-{
-    Task<List<AccountingPeriodDto>> GetAllPeriodsAsync();
-    Task<AccountingPeriodDto?> GetCurrentPeriodAsync();
-    Task<Result> ClosePeriodAsync(int year, int month, int userId, string? notes = null);
-    Task<Result> ReopenPeriodAsync(int year, int month, int userId);
-    Task<bool> IsPeriodOpenAsync(DateOnly businessDate);
-}
-
-// ── Implementation ──────────────────────────────────────────────────────────
 public class AccountingPeriodService : IAccountingPeriodService
 {
     private readonly LoanFlowDbContext _db;

@@ -6,33 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-public class LoanTopUpDto
-{
-    public int Id { get; set; }
-    public int LoanId { get; set; }
-    public string LoanAccountNo { get; set; } = "";
-    public decimal TopUpAmount { get; set; }
-    public decimal PreviousOutstanding { get; set; }
-    public decimal NewOutstanding { get; set; }
-    public string Status { get; set; } = "";
-    public DateTime RequestedAt { get; set; }
-}
-
-public class TopUpRequest
-{
-    public decimal TopUpAmount { get; set; }
-    public int NewTenorMonths { get; set; }
-    public string? Remarks { get; set; }
-}
-
-public interface ILoanTopUpService
-{
-    Task<Result<LoanTopUpDto>> RequestTopUpAsync(int loanId, TopUpRequest req, int userId);
-    Task<Result> ApproveTopUpAsync(int topUpId, int userId);
-    Task<Result> RejectTopUpAsync(int topUpId, int userId);
-    Task<List<LoanTopUpDto>> GetTopUpsAsync(int? loanId);
-}
-
 public class LoanTopUpService : ILoanTopUpService
 {
     private readonly LoanFlowDbContext _db;

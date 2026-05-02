@@ -6,11 +6,6 @@ using System.Text.Json;
 
 namespace LoanFlow.Application.Services;
 
-public interface ITransactionMonitoringService
-{
-    Task MonitorDailyTransactionsAsync(DateOnly date);
-}
-
 public class TransactionMonitoringService : ITransactionMonitoringService
 {
     private readonly LoanFlowDbContext _db;

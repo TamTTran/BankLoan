@@ -7,23 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-// ── Interface ────────────────────────────────────────────────────────────────
-
-public interface ILoanQueryService
-{
-    Task<PagedResult<LoanDto>> GetListAsync(LoanFilterRequest filter);
-    Task<Result<LoanDto>>      GetByIdAsync(int id);
-    Task<IEnumerable<ScheduleItemDto>> GetScheduleAsync(int loanId);
-    Task<IEnumerable<PaymentDto>>      GetPaymentsAsync(int loanId);
-    Task<IEnumerable<OverdueItemDto>>  GetOverdueListAsync();
-}
-
-// ── Implementation ───────────────────────────────────────────────────────────
-
-/// <summary>
-/// Read-only queries cho Loan (không mutate state).
-/// Tách ra từ LoanService để giảm từ 56KB → ~15KB mỗi service.
-/// </summary>
 public class LoanQueryService : ILoanQueryService
 {
     private readonly LoanFlowDbContext _db;

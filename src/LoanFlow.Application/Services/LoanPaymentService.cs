@@ -7,23 +7,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LoanFlow.Application.Services;
 
-// ── Interface ────────────────────────────────────────────────────────────────
-
-public interface ILoanPaymentService
-{
-    Task<Result> RecordPaymentAsync(int loanId, RecordPaymentRequest request, int userId);
-    Task<Result> ApplySuspenseAsync(int suspenseId, int userId);
-    Task<Result<EarlySettlePreviewDto>> PreviewEarlySettleAsync(int loanId, DateOnly settlementDate);
-    Task<Result> EarlySettleAsync(int loanId, EarlySettleRequest request, int userId);
-}
-
-// ── Implementation ───────────────────────────────────────────────────────────
-
-/// <summary>
-/// Tất cả operations liên quan đến thu tiền và tất toán khoản vay.
-/// Tách ra từ LoanService (56KB) để giảm xuống ~20KB mỗi service.
-/// Waterfall allocation: LateFee → Interest → Principal → Suspense.
-/// </summary>
 public class LoanPaymentService : ILoanPaymentService
 {
     private readonly LoanFlowDbContext      _db;

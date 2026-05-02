@@ -58,7 +58,7 @@ public class PaymentAllocationServiceTests
             utcNow: new DateTime(2026, 1, 15, 1, 0, 0, DateTimeKind.Utc),
             localNow: new DateTime(2026, 1, 15, 8, 0, 0, DateTimeKind.Unspecified),
             businessDate: new DateOnly(2026, 1, 15));
-        var svcFees = new LoanService(db, lateFeeService.Object, clock, accountingService.Object, paymentGatewayService.Object);
+        var svcFees = new LoanPaymentService(db, lateFeeService.Object, clock, accountingService.Object);
         
         var paymentResult = await svcFees.RecordPaymentAsync(1, new RecordPaymentRequest
         {
@@ -133,7 +133,7 @@ public class PaymentAllocationServiceTests
             utcNow: new DateTime(2026, 1, 15, 1, 0, 0, DateTimeKind.Utc),
             localNow: new DateTime(2026, 1, 15, 8, 0, 0, DateTimeKind.Unspecified),
             businessDate: new DateOnly(2026, 1, 15));
-        var service = new LoanService(db, lateFeeService.Object, clock, accountingService.Object, paymentGatewayService.Object);
+        var service = new LoanPaymentService(db, lateFeeService.Object, clock, accountingService.Object);
 
         var firstPayment = await service.RecordPaymentAsync(1, new RecordPaymentRequest
         {

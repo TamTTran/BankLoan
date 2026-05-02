@@ -7,52 +7,6 @@ using Microsoft.Extensions.Logging;
 
 namespace LoanFlow.Application.Services;
 
-// ── DTOs for job results ────────────────────────────────────────────────────
-public class OverdueJobResultDto
-{
-    public DateOnly BusinessDate { get; set; }
-    public int TotalLoansProcessed { get; set; }
-    public int LoansMarkedOverdue { get; set; }
-    public int LoansRevertedToActive { get; set; }
-    public int SnapshotsCreated { get; set; }
-    public int SnapshotsUpdated { get; set; }
-    public int LateFeesCalculated { get; set; }
-    public int Errors { get; set; }
-    public TimeSpan Duration { get; set; }
-}
-
-public class SnapshotSummaryDto
-{
-    public DateOnly SnapshotDate { get; set; }
-    public int TotalOverdueLoans { get; set; }
-    public decimal TotalOverdueAmount { get; set; }
-    public decimal TotalLateFeeAccrued { get; set; }
-    public List<BucketSummaryItem> BucketBreakdown { get; set; } = [];
-}
-
-public class BucketSummaryItem
-{
-    public string Bucket { get; set; } = default!;
-    public int Count { get; set; }
-    public decimal Amount { get; set; }
-}
-
-// ── Interface ───────────────────────────────────────────────────────────────
-public interface IOverdueJobService
-{
-    /// <summary>
-    /// Run the daily overdue processing for the given business date.
-    /// Idempotent: safe to call multiple times for the same date.
-    /// </summary>
-    Task<OverdueJobResultDto> RunDailyOverdueProcessingAsync(DateOnly businessDate, int batchSize = 100, CancellationToken ct = default);
-
-    /// <summary>
-    /// Query snapshot history for a date range.
-    /// </summary>
-    Task<List<SnapshotSummaryDto>> GetSnapshotHistoryAsync(DateOnly from, DateOnly to);
-}
-
-// ── Implementation ──────────────────────────────────────────────────────────
 public class OverdueJobService : IOverdueJobService
 {
     private readonly LoanFlowDbContext _db;
