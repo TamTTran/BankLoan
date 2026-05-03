@@ -22,4 +22,7 @@ public interface IEWalletService
 
     /// <summary>Giải ngân vào ví điện tử</summary>
     Task<Result<EWalletDisbursementResultDto>> DisburseToWalletAsync(int loanId, EWalletDisbursementRequest req, int userId);
+
+    /// <summary>Truy vấn trạng thái giao dịch ví điện tử từ provider</summary>
+    Task<Result<EWalletTransactionQueryDto>> QueryTransactionAsync(string provider, string transactionId);
 }

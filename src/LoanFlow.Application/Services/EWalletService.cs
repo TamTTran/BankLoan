@@ -12,24 +12,34 @@ namespace LoanFlow.Application.Services;
 public class EWalletService : IEWalletService
 {
     private readonly LoanFlowDbContext _db;
-    private readonly IEWalletProvider _provider;
+    private readonly IReadOnlyList<IEWalletProvider> _providers;
     private readonly ILoanPaymentService _paymentService;
     private readonly IBusinessClock _businessClock;
     private readonly ILogger<EWalletService> _logger;
 
     public EWalletService(
         LoanFlowDbContext db,
-        IEWalletProvider provider,
+        IEnumerable<IEWalletProvider> providers,
         ILoanPaymentService paymentService,
         IBusinessClock businessClock,
         ILogger<EWalletService> logger)
     {
-        _db = db;
-        _provider = provider;
+        _db             = db;
+        _providers      = providers.ToList();
         _paymentService = paymentService;
-        _businessClock = businessClock;
-        _logger = logger;
+        _businessClock  = businessClock;
+        _logger         = logger;
     }
+
+    // ── Provider Resolution ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resolve đúng provider theo tên (MoMo, VNPay).
+    /// Trả null nếu provider không được đăng ký.
+    /// </summary>
+    private IEWalletProvider? ResolveProvider(string providerName) =>
+        _providers.FirstOrDefault(p =>
+            p.ProviderName.Equals(providerName, StringComparison.OrdinalIgnoreCase));
 
     // ── Link Wallet ─────────────────────────────────────────────────────────
 
@@ -41,6 +51,10 @@ public class EWalletService : IEWalletService
 
         if (string.IsNullOrWhiteSpace(req.WalletAccountId))
             return Result.Failure<CustomerEWalletDto>("Wallet account ID is required.");
+
+        var provider = ResolveProvider(req.WalletProvider);
+        if (provider is null)
+            return Result.Failure<CustomerEWalletDto>($"Provider '{req.WalletProvider}' chưa được cấu hình trong hệ thống.");
 
         var customer = await _db.Customers.FindAsync(customerId);
         if (customer is null)
@@ -66,7 +80,7 @@ public class EWalletService : IEWalletService
         EWalletLinkResult linkResult;
         try
         {
-            linkResult = await _provider.InitiateLinkingAsync(req.WalletAccountId, customer.FullName);
+            linkResult = await provider.InitiateLinkingAsync(req.WalletAccountId, customer.FullName);
         }
         catch (Exception ex)
         {
@@ -79,24 +93,24 @@ public class EWalletService : IEWalletService
 
         var ewallet = new CustomerEWallet
         {
-            CustomerId = customerId,
-            WalletProvider = req.WalletProvider,
+            CustomerId      = customerId,
+            WalletProvider  = req.WalletProvider,
             WalletAccountId = req.WalletAccountId,
-            WalletUserName = linkResult.WalletUserName,
-            OtpNonce = linkResult.OtpNonce,
-            Status = EWalletLinkStatus.PendingVerification,
-            LinkedByUserId = userId
+            WalletUserName  = linkResult.WalletUserName,
+            OtpNonce        = linkResult.OtpNonce,
+            Status          = EWalletLinkStatus.PendingVerification,
+            LinkedByUserId  = userId
         };
 
         _db.CustomerEWallets.Add(ewallet);
 
         _db.AuditLogs.Add(new AuditLog
         {
-            ActorUserId = userId,
-            ActionCode = AuditActions.EWalletLinked,
-            EntityType = "CustomerEWallet",
-            EntityId = 0,
-            NewValuesJson = AuditHelper.ToJson(new { customerId, provider = req.WalletProvider, walletAccountId = req.WalletAccountId, status = "PendingVerification" })
+            ActorUserId    = userId,
+            ActionCode     = AuditActions.EWalletLinked,
+            EntityType     = "CustomerEWallet",
+            EntityId       = 0,
+            NewValuesJson  = AuditHelper.ToJson(new { customerId, provider = req.WalletProvider, walletAccountId = req.WalletAccountId, status = "PendingVerification" })
         });
 
         await _db.SaveChangesAsync();
@@ -123,11 +137,15 @@ public class EWalletService : IEWalletService
         if (string.IsNullOrWhiteSpace(ewallet.OtpNonce))
             return Result.Failure<CustomerEWalletDto>("OTP nonce đã hết hạn. Vui lòng liên kết lại.");
 
+        var provider = ResolveProvider(ewallet.WalletProvider);
+        if (provider is null)
+            return Result.Failure<CustomerEWalletDto>($"Provider '{ewallet.WalletProvider}' chưa được cấu hình trong hệ thống.");
+
         // Verify OTP with provider
         EWalletVerifyResult verifyResult;
         try
         {
-            verifyResult = await _provider.VerifyOtpAsync(ewallet.OtpNonce!, req.OtpCode);
+            verifyResult = await provider.VerifyOtpAsync(ewallet.OtpNonce!, req.OtpCode);
         }
         catch (Exception ex)
         {
@@ -138,18 +156,18 @@ public class EWalletService : IEWalletService
         if (!verifyResult.IsSuccess)
             return Result.Failure<CustomerEWalletDto>($"OTP không hợp lệ: {verifyResult.ErrorMessage}");
 
-        ewallet.Status = EWalletLinkStatus.Active;
-        ewallet.WalletToken = verifyResult.WalletToken;
+        ewallet.Status        = EWalletLinkStatus.Active;
+        ewallet.WalletToken   = verifyResult.WalletToken;
         ewallet.WalletUserName = verifyResult.WalletUserName ?? ewallet.WalletUserName;
-        ewallet.VerifiedAt = DateTime.UtcNow;
-        ewallet.OtpNonce = null; // Clear OTP nonce after verification
+        ewallet.VerifiedAt    = DateTime.UtcNow;
+        ewallet.OtpNonce      = null; // Clear OTP nonce after verification
 
         _db.AuditLogs.Add(new AuditLog
         {
-            ActorUserId = userId,
-            ActionCode = AuditActions.EWalletVerified,
-            EntityType = "CustomerEWallet",
-            EntityId = ewallet.Id,
+            ActorUserId   = userId,
+            ActionCode    = AuditActions.EWalletVerified,
+            EntityType    = "CustomerEWallet",
+            EntityId      = ewallet.Id,
             NewValuesJson = AuditHelper.ToJson(new { customerId, provider = ewallet.WalletProvider, status = "Active" })
         });
 
@@ -174,16 +192,16 @@ public class EWalletService : IEWalletService
         if (ewallet.Status == EWalletLinkStatus.Unlinked)
             return Result.Failure("Ví đã được hủy liên kết trước đó.");
 
-        ewallet.Status = EWalletLinkStatus.Unlinked;
-        ewallet.UnlinkedAt = DateTime.UtcNow;
+        ewallet.Status      = EWalletLinkStatus.Unlinked;
+        ewallet.UnlinkedAt  = DateTime.UtcNow;
         ewallet.WalletToken = null; // Invalidate token
 
         _db.AuditLogs.Add(new AuditLog
         {
-            ActorUserId = userId,
-            ActionCode = AuditActions.EWalletUnlinked,
-            EntityType = "CustomerEWallet",
-            EntityId = ewalletId,
+            ActorUserId   = userId,
+            ActionCode    = AuditActions.EWalletUnlinked,
+            EntityType    = "CustomerEWallet",
+            EntityId      = ewalletId,
             NewValuesJson = AuditHelper.ToJson(new { customerId, provider = ewallet.WalletProvider })
         });
 
@@ -225,6 +243,10 @@ public class EWalletService : IEWalletService
         if (string.IsNullOrWhiteSpace(ewallet.WalletToken))
             return Result.Failure<EWalletPaymentResultDto>("Ví điện tử chưa có token binding. Vui lòng liên kết lại.");
 
+        var provider = ResolveProvider(ewallet.WalletProvider);
+        if (provider is null)
+            return Result.Failure<EWalletPaymentResultDto>($"Provider '{ewallet.WalletProvider}' chưa được cấu hình trong hệ thống.");
+
         // Validate loan belongs to customer
         var loan = await _db.Loans.FindAsync(loanId);
         if (loan is null)
@@ -236,7 +258,7 @@ public class EWalletService : IEWalletService
         EWalletChargeResult chargeResult;
         try
         {
-            chargeResult = await _provider.ChargeAsync(
+            chargeResult = await provider.ChargeAsync(
                 ewallet.WalletToken!,
                 req.Amount,
                 $"Thanh toán khoản vay {loan.LoanAccountNo}");
@@ -253,10 +275,10 @@ public class EWalletService : IEWalletService
         // Record payment using existing payment service
         var paymentReq = new RecordPaymentRequest
         {
-            PaymentDate = _businessClock.TodayBusinessDate(),
-            Amount = req.Amount,
-            PaymentMethod = PaymentMethod.EWallet,
-            Remarks = $"E-Wallet ({ewallet.WalletProvider}) — TxId: {chargeResult.TransactionId}",
+            PaymentDate         = _businessClock.TodayBusinessDate(),
+            Amount              = req.Amount,
+            PaymentMethod       = PaymentMethod.EWallet,
+            Remarks             = $"E-Wallet ({ewallet.WalletProvider}) — TxId: {chargeResult.TransactionId}",
             ExternalReferenceId = chargeResult.TransactionId
         };
 
@@ -273,15 +295,15 @@ public class EWalletService : IEWalletService
 
         _db.AuditLogs.Add(new AuditLog
         {
-            ActorUserId = userId,
-            ActionCode = AuditActions.EWalletPayment,
-            EntityType = "Loan",
-            EntityId = loanId,
+            ActorUserId   = userId,
+            ActionCode    = AuditActions.EWalletPayment,
+            EntityType    = "Loan",
+            EntityId      = loanId,
             NewValuesJson = AuditHelper.ToJson(new
             {
-                ewalletId = ewallet.Id,
-                provider = ewallet.WalletProvider,
-                amount = req.Amount,
+                ewalletId     = ewallet.Id,
+                provider      = ewallet.WalletProvider,
+                amount        = req.Amount,
                 transactionId = chargeResult.TransactionId
             })
         });
@@ -291,10 +313,10 @@ public class EWalletService : IEWalletService
         return Result.Success(new EWalletPaymentResultDto
         {
             TransactionId = chargeResult.TransactionId,
-            Status = chargeResult.Status,
-            Amount = req.Amount,
+            Status        = chargeResult.Status,
+            Amount        = req.Amount,
             WalletProvider = ewallet.WalletProvider,
-            ProcessedAt = chargeResult.ProcessedAt
+            ProcessedAt   = chargeResult.ProcessedAt
         });
     }
 
@@ -310,6 +332,10 @@ public class EWalletService : IEWalletService
             return Result.Failure<EWalletDisbursementResultDto>("Ví điện tử chưa được kích hoạt.");
         if (string.IsNullOrWhiteSpace(ewallet.WalletToken))
             return Result.Failure<EWalletDisbursementResultDto>("Ví chưa có token binding.");
+
+        var provider = ResolveProvider(ewallet.WalletProvider);
+        if (provider is null)
+            return Result.Failure<EWalletDisbursementResultDto>($"Provider '{ewallet.WalletProvider}' chưa được cấu hình trong hệ thống.");
 
         // Validate loan
         var loan = await _db.Loans
@@ -335,7 +361,7 @@ public class EWalletService : IEWalletService
         EWalletChargeResult payoutResult;
         try
         {
-            payoutResult = await _provider.PayoutAsync(
+            payoutResult = await provider.PayoutAsync(
                 ewallet.WalletToken!,
                 loan.ApprovedAmount,
                 $"Giải ngân khoản vay {loan.LoanAccountNo}");
@@ -352,15 +378,15 @@ public class EWalletService : IEWalletService
         // Record disbursement
         var disbursement = new LoanDisbursement
         {
-            LoanId = loanId,
-            DisbursedAmount = loan.ApprovedAmount,
-            DisbursementDate = _businessClock.TodayBusinessDate(),
-            RecordedByUserId = userId,
-            DisbursementMethod = "EWallet",
-            DisbursementStatus = DisbursementStatus.Completed,
-            NapasTransactionId = payoutResult.TransactionId,
-            GatewayConfirmedAt = payoutResult.ProcessedAt,
-            CreatedAt = _businessClock.UtcNow
+            LoanId               = loanId,
+            DisbursedAmount      = loan.ApprovedAmount,
+            DisbursementDate     = _businessClock.TodayBusinessDate(),
+            RecordedByUserId     = userId,
+            DisbursementMethod   = "EWallet",
+            DisbursementStatus   = DisbursementStatus.Completed,
+            NapasTransactionId   = payoutResult.TransactionId,
+            GatewayConfirmedAt   = payoutResult.ProcessedAt,
+            CreatedAt            = _businessClock.UtcNow
         };
         _db.LoanDisbursements.Add(disbursement);
 
@@ -368,16 +394,16 @@ public class EWalletService : IEWalletService
 
         _db.AuditLogs.Add(new AuditLog
         {
-            ActorUserId = userId,
-            ActionCode = AuditActions.EWalletDisbursement,
-            EntityType = "LoanDisbursement",
-            EntityId = 0,
+            ActorUserId   = userId,
+            ActionCode    = AuditActions.EWalletDisbursement,
+            EntityType    = "LoanDisbursement",
+            EntityId      = 0,
             NewValuesJson = AuditHelper.ToJson(new
             {
                 loanId,
-                ewalletId = ewallet.Id,
-                provider = ewallet.WalletProvider,
-                amount = loan.ApprovedAmount,
+                ewalletId     = ewallet.Id,
+                provider      = ewallet.WalletProvider,
+                amount        = loan.ApprovedAmount,
                 transactionId = payoutResult.TransactionId
             })
         });
@@ -389,12 +415,49 @@ public class EWalletService : IEWalletService
 
         return Result.Success(new EWalletDisbursementResultDto
         {
-            TransactionId = payoutResult.TransactionId,
-            Status = payoutResult.Status,
-            Amount = loan.ApprovedAmount,
+            TransactionId  = payoutResult.TransactionId,
+            Status         = payoutResult.Status,
+            Amount         = loan.ApprovedAmount,
             WalletProvider = ewallet.WalletProvider,
-            ProcessedAt = payoutResult.ProcessedAt,
+            ProcessedAt    = payoutResult.ProcessedAt,
             DisbursementId = disbursement.Id
+        });
+    }
+
+    // ── Query Transaction ────────────────────────────────────────────────────
+
+    public async Task<Result<EWalletTransactionQueryDto>> QueryTransactionAsync(string providerName, string transactionId)
+    {
+        if (string.IsNullOrWhiteSpace(transactionId))
+            return Result.Failure<EWalletTransactionQueryDto>("Transaction ID is required.");
+
+        if (!EWalletProvider.IsValid(providerName))
+            return Result.Failure<EWalletTransactionQueryDto>($"Unsupported provider '{providerName}'. Supported: {string.Join(", ", EWalletProvider.All)}");
+
+        var provider = ResolveProvider(providerName);
+        if (provider is null)
+            return Result.Failure<EWalletTransactionQueryDto>($"Provider '{providerName}' chưa được cấu hình trong hệ thống.");
+
+        EWalletChargeResult queryResult;
+        try
+        {
+            queryResult = await provider.QueryTransactionAsync(transactionId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "E-wallet query failed. Provider={Provider} TxId={TxId}", providerName, transactionId);
+            return Result.Failure<EWalletTransactionQueryDto>($"Truy vấn giao dịch thất bại: {ex.Message}");
+        }
+
+        return Result.Success(new EWalletTransactionQueryDto
+        {
+            TransactionId  = queryResult.TransactionId,
+            Status         = queryResult.Status,
+            Amount         = queryResult.Amount,
+            WalletProvider = providerName,
+            ProcessedAt    = queryResult.ProcessedAt,
+            ErrorCode      = queryResult.ErrorCode,
+            ErrorMessage   = queryResult.ErrorMessage
         });
     }
 
@@ -402,14 +465,14 @@ public class EWalletService : IEWalletService
 
     private static CustomerEWalletDto MapToDto(CustomerEWallet w) => new()
     {
-        Id = w.Id,
-        CustomerId = w.CustomerId,
+        Id             = w.Id,
+        CustomerId     = w.CustomerId,
         WalletProvider = w.WalletProvider,
         WalletAccountId = w.WalletAccountId,
         WalletUserName = w.WalletUserName,
-        Status = w.Status,
-        LinkedAt = w.LinkedAt,
-        VerifiedAt = w.VerifiedAt,
-        LastUsedAt = w.LastUsedAt
+        Status         = w.Status,
+        LinkedAt       = w.LinkedAt,
+        VerifiedAt     = w.VerifiedAt,
+        LastUsedAt     = w.LastUsedAt
     };
 }

@@ -22,7 +22,7 @@ export function Layout({ children, badgeCounts = {} }) {
     { to: '/collections',  icon: 'TH', label: t('nav.collections'),  id: 'nav-collections',  gated: !can.viewCollectionQueue },
     { to: '/reports',      icon: 'BC', label: t('nav.reports'),      id: 'nav-reports',      gated: !can.viewReports },
     { to: '/napas',        icon: 'NP', label: 'NAPAS',               id: 'nav-napas',        gated: !can.viewNapasNav },
-    { to: '/aml',          icon: '🛡️', label: 'AML/KYC',            id: 'nav-aml' },
+    { to: '/aml',          icon: '🛡️', label: 'AML/KYC',            id: 'nav-aml',          gated: !can.viewAmlNav },
     { to: '/risk',         icon: '⚖️', label: 'Risk & Capital',     id: 'nav-risk',         gated: !can.viewRiskNav },
     { to: '/regulatory',   icon: '📜', label: 'Regulatory',         id: 'nav-reg',          gated: !can.viewRegulatoryNav },
     { to: '/interbank-sync', icon: '🏦', label: 'Interbank Sync',     id: 'nav-interbank',    gated: !can.viewInterbankNav },

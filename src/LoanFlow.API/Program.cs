@@ -235,10 +235,56 @@ if (extSvc.GetValue<bool>("UseMockCertificateAuthority", defaultValue: true))
 else
     builder.Services.AddHttpClient<ICertificateAuthorityProvider, ExternalCertificateAuthorityProvider>();
 
-// ── E-Wallet Provider: Mock (dev) │ Real MoMo/VNPay (prod) ──────────────────
+// ── E-Wallet Options (strongly-typed) ─────────────────────────────────────
+builder.Services.Configure<MoMoOptions>(builder.Configuration.GetSection(MoMoOptions.SectionName));
+builder.Services.Configure<VNPayOptions>(builder.Configuration.GetSection(VNPayOptions.SectionName));
+
+// ── E-Wallet Providers: Mock (dev) │ Real MoMo+VNPay (prod) ───────────────
 if (extSvc.GetValue<bool>("UseMockEWallet", defaultValue: true))
-    builder.Services.AddScoped<IEWalletProvider, MockEWalletProvider>();
-// else: register real MoMo/VNPay provider via AddHttpClient...
+{
+    // Dev: đăng ký cả 2 mock providers — EWalletService sẽ resolve theo ProviderName
+    builder.Services.AddScoped<IEWalletProvider, MockMoMoEWalletProvider>();
+    builder.Services.AddScoped<IEWalletProvider, MockVNPayEWalletProvider>();
+}
+else
+{
+    // Prod: đăng ký real HTTP providers với Polly resilience
+    var momoOpts = builder.Configuration.GetSection(MoMoOptions.SectionName).Get<MoMoOptions>() ?? new MoMoOptions();
+    builder.Services
+        .AddHttpClient<MoMoEWalletProvider>(client =>
+        {
+            client.BaseAddress = new Uri(momoOpts.ApiUrl.TrimEnd('/') + "/");
+            client.Timeout     = TimeSpan.FromSeconds(momoOpts.TimeoutSeconds * (momoOpts.MaxRetryAttempts + 1));
+        })
+        .AddStandardResilienceHandler(options =>
+        {
+            options.Retry.MaxRetryAttempts = momoOpts.MaxRetryAttempts;
+            options.Retry.BackoffType      = Polly.DelayBackoffType.Exponential;
+        });
+    builder.Services.AddScoped<IEWalletProvider, MoMoEWalletProvider>(sp =>
+        new MoMoEWalletProvider(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(MoMoEWalletProvider)),
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MoMoOptions>>(),
+            sp.GetRequiredService<ILogger<MoMoEWalletProvider>>()));
+
+    var vnpayOpts = builder.Configuration.GetSection(VNPayOptions.SectionName).Get<VNPayOptions>() ?? new VNPayOptions();
+    builder.Services
+        .AddHttpClient<VNPayEWalletProvider>(client =>
+        {
+            client.BaseAddress = new Uri(vnpayOpts.ApiUrl.TrimEnd('/') + "/");
+            client.Timeout     = TimeSpan.FromSeconds(vnpayOpts.TimeoutSeconds * (vnpayOpts.MaxRetryAttempts + 1));
+        })
+        .AddStandardResilienceHandler(options =>
+        {
+            options.Retry.MaxRetryAttempts = vnpayOpts.MaxRetryAttempts;
+            options.Retry.BackoffType      = Polly.DelayBackoffType.Exponential;
+        });
+    builder.Services.AddScoped<IEWalletProvider, VNPayEWalletProvider>(sp =>
+        new VNPayEWalletProvider(
+            sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(VNPayEWalletProvider)),
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<VNPayOptions>>(),
+            sp.GetRequiredService<ILogger<VNPayEWalletProvider>>()));
+}
 
 builder.Services.AddScoped<IEWalletService, EWalletService>();
 
@@ -511,7 +557,8 @@ static void ValidateProductionConfiguration(WebApplicationBuilder builder)
         "UseMockCic",
         "UseMockEkyc",
         "UseMockSms",
-        "UseMockCertificateAuthority"
+        "UseMockCertificateAuthority",
+        "UseMockEWallet"
     };
 
     foreach (var flag in mockFlags)
@@ -528,6 +575,11 @@ static void ValidateProductionConfiguration(WebApplicationBuilder builder)
     RequireConfiguredSecret(config, "ExternalServices:FptEkycApiKey");
     RequireConfiguredSecret(config, "ExternalServices:CertificateAuthorityApiUrl");
     RequireConfiguredSecret(config, "ExternalServices:CertificateAuthorityApiKey");
+    RequireConfiguredSecret(config, "ExternalServices:MoMo:PartnerCode");
+    RequireConfiguredSecret(config, "ExternalServices:MoMo:AccessKey");
+    RequireConfiguredSecret(config, "ExternalServices:MoMo:SecretKey");
+    RequireConfiguredSecret(config, "ExternalServices:VNPay:TmnCode");
+    RequireConfiguredSecret(config, "ExternalServices:VNPay:HashSecret");
     RequireConfiguredSecret(config, "Twilio:AccountSid");
     RequireConfiguredSecret(config, "Twilio:AuthToken");
     RequireConfiguredSecret(config, "Twilio:FromNumber");

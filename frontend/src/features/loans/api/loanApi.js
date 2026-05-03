@@ -8,6 +8,8 @@ export const loanApi = {
   schedule: (id) => httpClient('GET', `/loans/${id}/schedule`),
   payments: (id) => httpClient('GET', `/loans/${id}/payments`),
   pay: (id, body) => httpClient('POST', `/loans/${id}/payments`, body),
+  payFromEWallet: (id, body) => httpClient('POST', `/loans/${id}/pay-from-ewallet`, body),
+  disburseToEWallet: (id, body) => httpClient('POST', `/loans/${id}/disburse-to-ewallet`, body),
   previewEarlySettle: (id, date) => httpClient('GET', `/loans/${id}/early-settle-preview?settlementDate=${date}`),
   earlySettle: (id, body) => httpClient('POST', `/loans/${id}/early-settle`, body),
   addNote: (id, body) => httpClient('POST', `/loans/${id}/collection-notes`, body),
@@ -26,4 +28,3 @@ export const loanApi = {
   requestReversal: (id, body) => httpClient('POST', `/loans/${id}/request-reversal`, body),
   getReversals:    (id)       => httpClient('GET',  `/loans/${id}/reversals`),
 };
-

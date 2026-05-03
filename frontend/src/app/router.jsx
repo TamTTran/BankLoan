@@ -49,7 +49,7 @@ function AppShell() {
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/approvals"    element={<PermissionRoute allowed={can.viewApprovalsNav}><Approvals /></PermissionRoute>} />
           <Route path="/system-ops"   element={<PermissionRoute allowed={can.viewSystemOpsNav}><SystemOps /></PermissionRoute>} />
-          <Route path="/aml"          element={<AmlDashboard />} />
+          <Route path="/aml"          element={<PermissionRoute allowed={can.viewAmlNav}><AmlDashboard /></PermissionRoute>} />
           <Route path="/risk"         element={<PermissionRoute allowed={can.viewRiskNav}><RiskDashboard /></PermissionRoute>} />
           <Route path="/regulatory"   element={<PermissionRoute allowed={can.viewRegulatoryNav}><RegulatoryReports /></PermissionRoute>} />
           <Route path="/napas"        element={<PermissionRoute allowed={can.viewNapasNav}><Napas /></PermissionRoute>} />

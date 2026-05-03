@@ -99,6 +99,149 @@ function EkycModal({ customer, onClose, onVerified }) {
   );
 }
 
+function EWalletModal({ customer, onClose }) {
+  const { toast } = useToast();
+  const [wallets, setWallets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [linkForm, setLinkForm] = useState({ walletProvider: 'MoMo', walletAccountId: customer.phone || '' });
+  const [otpForm, setOtpForm] = useState({ linkingId: '', otpCode: '' });
+  const [error, setError] = useState('');
+
+  const loadWallets = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await customerApi.wallets(customer.id);
+      setWallets(Array.isArray(data) ? data : []);
+      const pending = (Array.isArray(data) ? data : []).find(w => w.status === 'PendingVerification');
+      if (pending) setOtpForm(f => ({ ...f, linkingId: String(pending.id) }));
+    } catch (e) {
+      setError(e.message || 'Cannot load wallets.');
+    } finally {
+      setLoading(false);
+    }
+  }, [customer.id]);
+
+  useEffect(() => { loadWallets(); }, [loadWallets]);
+
+  const linkWallet = async () => {
+    setError('');
+    setSubmitting(true);
+    try {
+      const linked = await customerApi.linkWallet(customer.id, linkForm);
+      toast('Wallet link request sent. Enter OTP from provider.', 'success');
+      setOtpForm({ linkingId: String(linked.id), otpCode: '' });
+      await loadWallets();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    setError('');
+    setSubmitting(true);
+    try {
+      await customerApi.verifyWalletOtp(customer.id, { linkingId: Number(otpForm.linkingId), otpCode: otpForm.otpCode });
+      toast('Wallet verified.', 'success');
+      setOtpForm({ linkingId: '', otpCode: '' });
+      await loadWallets();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const unlinkWallet = async (walletId) => {
+    setError('');
+    setSubmitting(true);
+    try {
+      await customerApi.unlinkWallet(customer.id, walletId);
+      toast('Wallet unlinked.', 'success');
+      await loadWallets();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const activeWallets = wallets.filter(w => w.status === 'Active');
+
+  return (
+    <Modal
+      title={`E-Wallet - ${customer.fullName}`}
+      onClose={onClose}
+      actions={<Button variant="ghost" onClick={onClose}>Close</Button>}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="form-row">
+          <Input type="select" label="Provider" value={linkForm.walletProvider}
+            onChange={e => setLinkForm(f => ({ ...f, walletProvider: e.target.value }))}>
+            <option value="MoMo">MoMo</option>
+            <option value="VNPay">VNPay</option>
+          </Input>
+          <Input label="Wallet phone / ID" value={linkForm.walletAccountId}
+            onChange={e => setLinkForm(f => ({ ...f, walletAccountId: e.target.value }))}
+            placeholder="0901234567" />
+        </div>
+        <Button variant="primary" onClick={linkWallet} disabled={submitting || !linkForm.walletAccountId.trim()}>
+          Link wallet
+        </Button>
+
+        <div className="form-row">
+          <Input type="select" label="Pending link" value={otpForm.linkingId}
+            onChange={e => setOtpForm(f => ({ ...f, linkingId: e.target.value }))}>
+            <option value="">Select pending wallet</option>
+            {wallets.filter(w => w.status === 'PendingVerification').map(w => (
+              <option key={w.id} value={w.id}>{w.walletProvider} - {w.walletAccountId}</option>
+            ))}
+          </Input>
+          <Input label="OTP" value={otpForm.otpCode}
+            onChange={e => setOtpForm(f => ({ ...f, otpCode: e.target.value }))}
+            placeholder="123456" />
+        </div>
+        <Button variant="outline" onClick={verifyOtp} disabled={submitting || !otpForm.linkingId || !otpForm.otpCode.trim()}>
+          Verify OTP
+        </Button>
+
+        <div className="table-shell">
+          <table className="data-table">
+            <thead>
+              <tr><th>Provider</th><th>Wallet</th><th>Name</th><th>Status</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={5} className="empty-row"><div className="loading-shimmer" /></td></tr>
+              ) : wallets.length === 0 ? (
+                <tr><td colSpan={5} className="empty-row"><div className="empty-state">No wallets linked.</div></td></tr>
+              ) : wallets.map(w => (
+                <tr key={w.id}>
+                  <td><span className="code-badge">{w.walletProvider}</span></td>
+                  <td>{w.walletAccountId}</td>
+                  <td>{w.walletUserName || '-'}</td>
+                  <td><StatusBadge status={w.status} /></td>
+                  <td>
+                    <Button size="sm" variant="ghost" onClick={() => unlinkWallet(w.id)} disabled={submitting}>
+                      Unlink
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {activeWallets.length > 0 && (
+          <p className="cell-sub">Active wallets are available for loan payment and e-wallet disbursement.</p>
+        )}
+        {error && <div className="error-msg">{error}</div>}
+      </div>
+    </Modal>
+  );
+}
+
 function CustomerModal({ customer, onClose, onSaved }) {
   const { toast } = useToast();
   const { t } = useT();
@@ -172,7 +315,7 @@ export default function Customers() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [modal, setModal] = useState(null); // null | { type: 'edit'|'ekyc', customer? }
+  const [modal, setModal] = useState(null); // null | { type: 'edit'|'ekyc'|'wallet', customer? }
   const [confirm, setConfirm] = useState(null);
   const { toast } = useToast();
 
@@ -312,6 +455,7 @@ export default function Customers() {
                     <div className="action-btns">
                       <Button size="sm" variant="outline" onClick={() => handleVerifyEkyc(c)}>{t('customers.ekycBtn')}</Button>
                       <Button size="sm" variant="outline" onClick={() => handleCheckCredit(c)}>{t('customers.cicBtn')}</Button>
+                      <Button size="sm" variant="outline" onClick={() => setModal({ type: 'wallet', customer: c })}>Wallet</Button>
                       <Button size="sm" variant="outline" onClick={() => setModal({ type: 'edit', customer: c })}>{t('common.edit')}</Button>
                     </div>
                   )}
@@ -336,6 +480,12 @@ export default function Customers() {
           customer={modal.customer}
           onClose={() => { setModal(null); load(page, search); }}
           onVerified={() => { /* updated on close anyway */ }}
+        />
+      )}
+      {modal && modal.type === 'wallet' && (
+        <EWalletModal
+          customer={modal.customer}
+          onClose={() => setModal(null)}
         />
       )}
       {confirm && <ConfirmDialog message={confirm.msg} onConfirm={runConfirm} onCancel={() => setConfirm(null)} />}

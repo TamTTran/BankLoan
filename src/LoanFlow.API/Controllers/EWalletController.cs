@@ -107,4 +107,22 @@ public class EWalletController : ControllerBase
         if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
         return Ok(new { success = true, data = result.Value });
     }
+
+    // ── Query Transaction ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// GET /api/ewallet/transactions/{transactionId}?provider=MoMo
+    /// Truy vấn trạng thái giao dịch ví điện tử từ provider.
+    /// </summary>
+    [HttpGet("ewallet/transactions/{transactionId}")]
+    [Authorize(Roles = $"{Roles.Admin},{Roles.LoanOfficer},{Roles.Manager}")]
+    public async Task<IActionResult> QueryTransaction(string transactionId, [FromQuery] string provider)
+    {
+        if (string.IsNullOrWhiteSpace(provider))
+            return BadRequest(new { success = false, error = new { message = "Query param 'provider' (MoMo|VNPay) là bắt buộc." } });
+
+        var result = await _ewalletService.QueryTransactionAsync(provider, transactionId);
+        if (!result.IsSuccess) return BadRequest(new { success = false, error = new { message = result.Error } });
+        return Ok(new { success = true, data = result.Value });
+    }
 }

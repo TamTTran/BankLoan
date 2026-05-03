@@ -37,6 +37,17 @@ public class EWalletDisbursementRequest
 
 // ── Responses ───────────────────────────────────────────────────────────────
 
+public class EWalletTransactionQueryDto
+{
+    public string TransactionId { get; set; } = default!;
+    public string Status { get; set; } = default!;
+    public decimal Amount { get; set; }
+    public string WalletProvider { get; set; } = default!;
+    public DateTime ProcessedAt { get; set; }
+    public string? ErrorCode { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
 public class CustomerEWalletDto
 {
     public int Id { get; set; }

@@ -11,6 +11,10 @@ export async function httpClient(method, path, body = null) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(String(method).toUpperCase())) {
+    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
   // ── Log outgoing request ─────────────────────────────────
   logger.apiReq(method, path, body);
   const t0 = Date.now();
