@@ -1,0 +1,132 @@
+groups:
+  - name: loanflow-service-health
+    rules:
+      - alert: LoanFlowApiDown
+        expr: up{job="loanflow-api"} == 0
+        for: 1m
+        labels:
+          severity: Critical
+          service: loanflow-api
+          monitor: api-health
+        annotations:
+          summary: 'LoanFlow API is down'
+          description: 'Prometheus cannot scrape the LoanFlow API metrics endpoint for more than 1 minute.'
+          impact: 'Users may not be able to log in, create loans, approve requests, or load dashboard data.'
+          action: 'Check loanflow-api health, container logs, database connectivity, and the /health endpoint.'
+          dashboard: 'http://localhost:3000/d/loanflow-api-overview'
+
+      - alert: LoanFlowGatewayDown
+        expr: up{job="loanflow-gateway"} == 0
+        for: 1m
+        labels:
+          severity: Critical
+          service: loanflow-gateway
+          monitor: gateway-health
+        annotations:
+          summary: 'LoanFlow gateway metrics are down'
+          description: 'Prometheus cannot scrape the Nginx gateway exporter for more than 1 minute.'
+          impact: 'Frontend gateway visibility is lost and client traffic may be affected.'
+          action: 'Check loanflow-frontend health, nginx exporter logs, and the Nginx stub_status endpoint.'
+          dashboard: 'http://localhost:3000/d/loanflow-soc-gateway'
+
+      - alert: LoanFlowNodeExporterDown
+        expr: up{job="loanflow-node"} == 0
+        for: 2m
+        labels:
+          severity: Warning
+          service: node-exporter
+          monitor: linux-host-metrics
+        annotations:
+          summary: 'Node exporter is down'
+          description: 'Prometheus cannot scrape host/container node exporter metrics for more than 2 minutes.'
+          impact: 'Host CPU, memory, disk, and network metrics from node-exporter are unavailable.'
+          action: 'Check loanflow-node-exporter status, Docker permissions, and host filesystem mounts.'
+          dashboard: 'http://localhost:3000/d/loanflow-windows-host'
+
+      - alert: LoanFlowWindowsExporterDown
+        expr: up{job="loanflow-windows"} == 0
+        for: 2m
+        labels:
+          severity: Warning
+          service: windows-exporter
+          monitor: windows-host-metrics
+        annotations:
+          summary: 'Windows exporter is down'
+          description: 'Prometheus cannot scrape windows_exporter on host.docker.internal:9182 for more than 2 minutes.'
+          impact: 'Windows host CPU, disk, memory, network, and service metrics are unavailable.'
+          action: 'Check windows_exporter service on the host and confirm port 9182 is reachable from Docker.'
+          dashboard: 'http://localhost:3000/d/loanflow-windows-host'
+
+      - alert: LoanFlowDatabaseDown
+        expr: up{job="loanflow-db"} == 0
+        for: 1m
+        labels:
+          severity: Critical
+          service: loanflow-db
+          monitor: db-health
+        annotations:
+          summary: 'LoanFlow database metrics are down'
+          description: 'Prometheus cannot scrape the MySQL exporter for more than 1 minute.'
+          impact: 'Loan creation, repayment posting, login, approval workflows, and reporting may fail if MySQL is unavailable.'
+          action: 'Check loanflow-db health, mysql-exporter logs, DB credentials, and MySQL port 3306 connectivity inside Docker.'
+          dashboard: 'http://localhost:3000/d/loanflow-api-overview'
+
+  - name: loanflow-host-pressure
+    rules:
+      - alert: LoanFlowNodeHighCpu
+        expr: (1 - avg without(cpu, mode) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) * 100 > 85
+        for: 5m
+        labels:
+          severity: Warning
+          service: node-exporter
+          monitor: linux-host-cpu
+        annotations:
+          summary: 'High CPU usage on node exporter target'
+          description: 'Average non-idle CPU usage has been above 85% for more than 5 minutes.'
+          impact: 'Container workloads may slow down and API/frontend response times can degrade.'
+          action: 'Inspect busy containers and host processes, then scale down or restart the noisy workload if needed.'
+          dashboard: 'http://localhost:3000/d/loanflow-windows-host'
+
+      - alert: LoanFlowWindowsHighCpu
+        expr: 100 - (avg by (instance) (rate(windows_cpu_time_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: Warning
+          service: windows-exporter
+          monitor: windows-host-cpu
+        annotations:
+          summary: 'High CPU usage on Windows host'
+          description: 'Average Windows host CPU usage has been above 85% for more than 5 minutes.'
+          impact: 'The Windows host may become slow and Docker Desktop workloads may be affected.'
+          action: 'Open Task Manager or Performance Monitor, find the process causing high CPU, and reduce the load.'
+          dashboard: 'http://localhost:3000/d/loanflow-windows-host'
+
+  - name: loanflow-database
+    rules:
+      - alert: LoanFlowDatabaseHighConnections
+        expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections * 100 > 80
+        for: 5m
+        labels:
+          severity: Warning
+          service: loanflow-db
+          monitor: db-connections
+        annotations:
+          summary: 'LoanFlow database connection usage is high'
+          description: 'MySQL active connections have been above 80% of max_connections for more than 5 minutes.'
+          impact: 'New API requests may fail to open database connections.'
+          action: 'Check application connection pooling, long-running requests, and MySQL processlist.'
+          dashboard: 'http://localhost:3000/d/loanflow-api-overview'
+
+      - alert: LoanFlowDatabaseSlowQueries
+        expr: rate(mysql_global_status_slow_queries[5m]) > 0
+        for: 10m
+        labels:
+          severity: Warning
+          service: loanflow-db
+          monitor: db-slow-queries
+        annotations:
+          summary: 'LoanFlow database slow queries detected'
+          description: 'MySQL slow query counter has increased for more than 10 minutes.'
+          impact: 'LoanFlow screens and background jobs may respond slowly.'
+          action: 'Inspect slow query logs, recent reports, dashboard queries, and missing indexes.'
+          dashboard: 'http://localhost:3000/d/loanflow-api-overview'

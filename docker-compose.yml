@@ -143,13 +143,31 @@ services:
     restart: unless-stopped
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alertmanager/alerts.yml:/etc/prometheus/alerts.yml:ro
       - ./certs:/certs:ro
     ports:
       - "9090:9090"   # Prometheus UI: http://localhost:9090
     depends_on:
+      - alertmanager
       - api
       - nginx-exporter
       - node-exporter
+      - mysql-exporter
+
+  # Alertmanager Notifications
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: loanflow-alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./alertmanager/templates:/etc/alertmanager/templates:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "9093:9093"   # Alertmanager UI: http://localhost:9093
 
   # Nginx Gateway Metrics
   nginx-exporter:
@@ -179,6 +197,26 @@ services:
       - /:/rootfs:ro
     expose:
       - "9100"
+
+  # MySQL Metrics
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.15.1
+    container_name: loanflow-mysql-exporter
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+    command:
+      - -c
+      - |
+        printf "[client]\nuser=root\npassword=%s\nhost=db\nport=3306\n" "$$MYSQLD_EXPORTER_PASSWORD" > /tmp/.my.cnf
+        exec /bin/mysqld_exporter --config.my-cnf=/tmp/.my.cnf --collect.global_status --collect.global_variables --collect.info_schema.processlist --collect.info_schema.tables
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: "${DB_ROOT_PASSWORD}"
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "9104"
 
   # Grafana Dashboards
   grafana:
@@ -233,3 +271,5 @@ volumes:
     name: loanflow-backups    # H7: Named volume for persistent DB backups
   grafana-data:
     name: loanflow-grafana-data
+  alertmanager-data:
+    name: loanflow-alertmanager-data

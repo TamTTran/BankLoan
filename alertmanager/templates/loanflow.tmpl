@@ -1,0 +1,39 @@
+{{ define "loanflow.subject" }}[{{ .Status }}] {{ .CommonLabels.alertname }}{{ if .CommonLabels.service }} - {{ .CommonLabels.service }}{{ end }}{{ end }}
+
+{{ define "loanflow.text" }}
+Status: {{ .Status }}
+Severity: {{ .CommonLabels.severity }}
+Alert: {{ .CommonLabels.alertname }}
+{{ if .CommonLabels.service }}Service: {{ .CommonLabels.service }}{{ end }}
+{{ if .CommonLabels.monitor }}Monitor: {{ .CommonLabels.monitor }}{{ end }}
+{{ range .Alerts }}
+Summary: {{ .Annotations.summary }}
+Description: {{ .Annotations.description }}
+{{ if .Annotations.impact }}Impact: {{ .Annotations.impact }}{{ end }}
+{{ if .Annotations.action }}Action: {{ .Annotations.action }}{{ end }}
+{{ if .Annotations.dashboard }}Dashboard: {{ .Annotations.dashboard }}{{ end }}
+{{ if .Labels.instance }}Target: {{ .Labels.instance }}{{ end }}
+Started: {{ .StartsAt }}
+{{ if .EndsAt }}Ended: {{ .EndsAt }}{{ end }}
+{{ end }}
+{{ end }}
+
+{{ define "loanflow.email.html" }}
+<h2>{{ template "loanflow.subject" . }}</h2>
+<p><b>Status:</b> {{ .Status }}</p>
+<p><b>Severity:</b> {{ .CommonLabels.severity }}</p>
+<p><b>Alert:</b> {{ .CommonLabels.alertname }}</p>
+{{ if .CommonLabels.service }}<p><b>Service:</b> {{ .CommonLabels.service }}</p>{{ end }}
+{{ if .CommonLabels.monitor }}<p><b>Monitor:</b> {{ .CommonLabels.monitor }}</p>{{ end }}
+{{ range .Alerts }}
+<hr>
+<p><b>Summary:</b> {{ .Annotations.summary }}</p>
+<p><b>Description:</b> {{ .Annotations.description }}</p>
+{{ if .Annotations.impact }}<p><b>Impact:</b> {{ .Annotations.impact }}</p>{{ end }}
+{{ if .Annotations.action }}<p><b>Action:</b> {{ .Annotations.action }}</p>{{ end }}
+{{ if .Annotations.dashboard }}<p><b>Dashboard:</b> <a href="{{ .Annotations.dashboard }}">{{ .Annotations.dashboard }}</a></p>{{ end }}
+{{ if .Labels.instance }}<p><b>Target:</b> {{ .Labels.instance }}</p>{{ end }}
+<p><b>Started:</b> {{ .StartsAt }}</p>
+{{ if .EndsAt }}<p><b>Ended:</b> {{ .EndsAt }}</p>{{ end }}
+{{ end }}
+{{ end }}

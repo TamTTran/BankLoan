@@ -234,6 +234,14 @@ if (extSvc.GetValue<bool>("UseMockCertificateAuthority", defaultValue: true))
     builder.Services.AddScoped<ICertificateAuthorityProvider, MockCertificateAuthorityProvider>();
 else
     builder.Services.AddHttpClient<ICertificateAuthorityProvider, ExternalCertificateAuthorityProvider>();
+
+// ── E-Wallet Provider: Mock (dev) │ Real MoMo/VNPay (prod) ──────────────────
+if (extSvc.GetValue<bool>("UseMockEWallet", defaultValue: true))
+    builder.Services.AddScoped<IEWalletProvider, MockEWalletProvider>();
+// else: register real MoMo/VNPay provider via AddHttpClient...
+
+builder.Services.AddScoped<IEWalletService, EWalletService>();
+
 builder.Services.AddScoped<IDataExportService, DataExportService>();
 
 // === EOD Application Services ===

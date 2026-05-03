@@ -44,4 +44,5 @@ public class Customer
     public ICollection<Collateral> Collaterals { get; set; } = new List<Collateral>();
     public ICollection<CreditCheck> CreditChecks { get; set; } = new List<CreditCheck>();
     public ICollection<CustomerCareNote> CareNotes { get; set; } = new List<CustomerCareNote>();
+    public ICollection<CustomerEWallet> EWallets { get; set; } = new List<CustomerEWallet>();
 }

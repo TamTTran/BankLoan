@@ -49,6 +49,11 @@ services:
     profiles:
       - full
 
+  # Alertmanager receives Prometheus alerts, so keep it with the full stack.
+  alertmanager:
+    profiles:
+      - full
+
   # Nginx exporter scrapes the frontend gateway stub_status endpoint.
   nginx-exporter:
     profiles:
@@ -56,6 +61,11 @@ services:
 
   # Node exporter exposes host-level CPU, memory, disk, and network metrics.
   node-exporter:
+    profiles:
+      - full
+
+  # MySQL exporter exposes DB availability and performance metrics.
+  mysql-exporter:
     profiles:
       - full
 

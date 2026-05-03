@@ -839,6 +839,72 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.ToTable("CustomerCareNotes");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.CustomerEWallet", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("LinkedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("LinkedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OtpNonce")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTime?>("UnlinkedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("WalletAccountId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("WalletProvider")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("WalletToken")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("WalletUserName")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("IX_CustomerEWallets_CustomerId");
+
+                    b.HasIndex("LinkedByUserId");
+
+                    b.HasIndex("CustomerId", "WalletProvider", "WalletAccountId")
+                        .HasDatabaseName("IX_CustomerEWallets_Customer_Provider_Account");
+
+                    b.ToTable("CustomerEWallets");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.CustomerExposureLimit", b =>
                 {
                     b.Property<int>("Id")
@@ -3363,6 +3429,25 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.Navigation("Customer");
                 });
 
+            modelBuilder.Entity("LoanFlow.Domain.Entities.CustomerEWallet", b =>
+                {
+                    b.HasOne("LoanFlow.Domain.Entities.Customer", "Customer")
+                        .WithMany("EWallets")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("LoanFlow.Domain.Entities.User", "LinkedBy")
+                        .WithMany()
+                        .HasForeignKey("LinkedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("LinkedBy");
+                });
+
             modelBuilder.Entity("LoanFlow.Domain.Entities.CustomerExposureLimit", b =>
                 {
                     b.HasOne("LoanFlow.Domain.Entities.Customer", "Customer")
@@ -4031,6 +4116,8 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.Navigation("Collaterals");
 
                     b.Navigation("CreditChecks");
+
+                    b.Navigation("EWallets");
 
                     b.Navigation("LoanApplications");
 

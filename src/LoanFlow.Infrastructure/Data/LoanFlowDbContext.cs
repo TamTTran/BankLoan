@@ -90,6 +90,9 @@ public class LoanFlowDbContext : DbContext
     public DbSet<AmlRiskAssessment> AmlRiskAssessments => Set<AmlRiskAssessment>();
     public DbSet<SuspiciousTransactionReport> SuspiciousTransactionReports => Set<SuspiciousTransactionReport>();
 
+    // ── E-Wallet ─────────────────────────────────────────────────────────────
+    public DbSet<CustomerEWallet> CustomerEWallets => Set<CustomerEWallet>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -523,6 +526,24 @@ public class LoanFlowDbContext : DbContext
         {
             b.HasIndex(e => e.BusinessDate).IsUnique();
             b.Property(e => e.Status).HasMaxLength(20);
+        });
+
+        // ── E-Wallet ────────────────────────────────────────────────────────
+        modelBuilder.Entity<CustomerEWallet>(b =>
+        {
+            b.HasIndex(e => e.CustomerId).HasDatabaseName("IX_CustomerEWallets_CustomerId");
+            b.HasIndex(e => new { e.CustomerId, e.WalletProvider, e.WalletAccountId })
+                .HasDatabaseName("IX_CustomerEWallets_Customer_Provider_Account");
+            b.Property(e => e.WalletProvider).HasMaxLength(20);
+            b.Property(e => e.WalletAccountId).HasMaxLength(50);
+            b.Property(e => e.WalletUserName).HasMaxLength(100);
+            b.Property(e => e.WalletToken).HasMaxLength(500);
+            b.Property(e => e.OtpNonce).HasMaxLength(200);
+            b.Property(e => e.Status).HasMaxLength(30);
+            b.HasOne(e => e.Customer).WithMany(c => c.EWallets)
+                .HasForeignKey(e => e.CustomerId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(e => e.LinkedBy).WithMany()
+                .HasForeignKey(e => e.LinkedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(LoanFlowDbContext).Assembly);

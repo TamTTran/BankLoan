@@ -24,7 +24,7 @@ public static class LoanStatus
     public const string Active = "Active";
     public const string Overdue = "Overdue";
     public const string Closed = "Closed";
-    // ── Phase 2 ────────────
+    
     public const string Restructured = "Restructured";  // Đã cơ cấu lại, tiếp tục trả nợ
     public const string WrittenOff = "WrittenOff";       // Đã xóa nợ, không có khả năng thu hồi
 }
@@ -42,6 +42,7 @@ public static class PaymentMethod
     public const string Cash = "Cash";
     public const string BankTransfer = "BankTransfer";
     public const string SuspenseAccount = "SuspenseAccount";
+    public const string EWallet = "EWallet";
 }
 
 // ── NAPAS Disbursement Gateway Status ───────────────────────────────────────
@@ -273,6 +274,13 @@ public static class AuditActions
     public const string AutoDisbursementFailed  = "AUTO_DISBURSEMENT_FAILED";
     public const string AutoDisbursementPending = "AUTO_DISBURSEMENT_PENDING"; // Awaiting NAPAS async callback
     public const string NapasCallbackReceived   = "NAPAS_CALLBACK_RECEIVED";
+
+    // ── E-Wallet ────────────────────────────────────────────────────
+    public const string EWalletLinked       = "EWALLET_LINKED";
+    public const string EWalletVerified     = "EWALLET_VERIFIED";
+    public const string EWalletUnlinked     = "EWALLET_UNLINKED";
+    public const string EWalletPayment      = "EWALLET_PAYMENT";
+    public const string EWalletDisbursement = "EWALLET_DISBURSEMENT";
 }
 
 // ── Reversal Type ───────────────────────────────────────────────────────────
@@ -464,5 +472,33 @@ public static class CollateralHaircutRate
     public const decimal Vehicle = 0.40m;         // Xe ô tô: 40%
     public const decimal SavingsBook = 0.95m;     // Sổ tiết kiệm: 95%
     public const decimal Other = 0.30m;           // Tài sản khác: 30%
+}
+
+// ── E-Wallet Providers ──────────────────────────────────────────────────────
+public static class EWalletProvider
+{
+    public const string MoMo = "MoMo";
+    public const string VNPay = "VNPay";
+
+    public static readonly string[] All = [MoMo, VNPay];
+
+    public static bool IsValid(string provider) =>
+        !string.IsNullOrWhiteSpace(provider) && All.Contains(provider, StringComparer.OrdinalIgnoreCase);
+}
+
+// ── E-Wallet Linking Status ─────────────────────────────────────────────────
+public static class EWalletLinkStatus
+{
+    public const string PendingVerification = "PendingVerification";
+    public const string Active = "Active";
+    public const string Suspended = "Suspended";
+    public const string Unlinked = "Unlinked";
+}
+
+// ── E-Wallet Transaction Limits ─────────────────────────────────────────────
+public static class EWalletLimit
+{
+    /// <summary>Giới hạn tối đa mỗi giao dịch: 100.000.000 VND</summary>
+    public const decimal MaxTransactionAmount = 100_000_000m;
 }
 

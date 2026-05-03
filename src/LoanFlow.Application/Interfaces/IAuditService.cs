@@ -1,4 +1,5 @@
 using LoanFlow.Application.Common;
+using LoanFlow.Domain.Entities;
 
 namespace LoanFlow.Application.Services;
 
