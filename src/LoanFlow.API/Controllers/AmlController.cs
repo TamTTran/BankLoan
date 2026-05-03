@@ -4,6 +4,8 @@ using LoanFlow.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.Text.Json;
 
 namespace LoanFlow.API.Controllers;
 
@@ -21,14 +23,14 @@ public class AmlController : ControllerBase
         _db = db;
     }
 
+    private int CurrentUserId => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 1;
+
     [HttpPost("screen/{customerId}")]
     public async Task<IActionResult> ScreenCustomer(int customerId)
     {
         try
         {
-            // Assuming current user is 1 for now (should be extracted from claims)
-            int currentUserId = 1;
-            var result = await _amlScreeningService.ScreenCustomerAsync(customerId, currentUserId);
+            var result = await _amlScreeningService.ScreenCustomerAsync(customerId, CurrentUserId);
             return Ok(result);
         }
         catch (ArgumentException ex)
@@ -99,5 +101,58 @@ public class AmlController : ControllerBase
             .ToListAsync();
 
         return Ok(new { total, page, pageSize, items });
+    }
+
+    [HttpPost("str")]
+    public async Task<IActionResult> CreateSuspiciousTransactionReport([FromBody] CreateStrRequest request)
+    {
+        if (request.CustomerId <= 0)
+            return BadRequest(new { error = "CustomerId is required." });
+
+        if (string.IsNullOrWhiteSpace(request.NarrativeDescription))
+            return BadRequest(new { error = "NarrativeDescription is required." });
+
+        if (!await _db.Customers.AnyAsync(c => c.Id == request.CustomerId))
+            return NotFound(new { error = "Customer not found." });
+
+        var suspicionType = request.ReportType?.Trim().ToUpperInvariant() switch
+        {
+            "CTR" => "LargeCash",
+            "STR" or "" or null => "UnusualPattern",
+            "STRUCTURING" => "Structuring",
+            "LARGECASH" => "LargeCash",
+            "RAPIDMOVEMENT" => "RapidMovement",
+            "UNUSUALPATTERN" => "UnusualPattern",
+            _ => "UnusualPattern"
+        };
+
+        var relatedIds = request.SuspectedTransactionId.HasValue
+            ? JsonSerializer.Serialize(new[] { request.SuspectedTransactionId.Value })
+            : "[]";
+
+        var str = new SuspiciousTransactionReport
+        {
+            CustomerId = request.CustomerId,
+            StrNumber = $"STR-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..6].ToUpper()}",
+            ReportDate = DateTime.UtcNow,
+            SuspicionType = suspicionType,
+            Description = request.NarrativeDescription.Trim(),
+            RelatedTransactionIdsJson = relatedIds,
+            Status = "PendingApproval",
+            CreatedByUserId = CurrentUserId
+        };
+
+        _db.SuspiciousTransactionReports.Add(str);
+        await _db.SaveChangesAsync();
+
+        return Ok(new { success = true, data = str });
+    }
+
+    public sealed class CreateStrRequest
+    {
+        public int CustomerId { get; set; }
+        public int? SuspectedTransactionId { get; set; }
+        public string ReportType { get; set; } = "STR";
+        public string NarrativeDescription { get; set; } = "";
     }
 }

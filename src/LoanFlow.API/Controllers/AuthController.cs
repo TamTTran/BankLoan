@@ -1,5 +1,6 @@
 using LoanFlow.Application.DTOs.Auth;
 using LoanFlow.Application.Services;
+using LoanFlow.Domain.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -178,10 +179,13 @@ public class AuthController : ControllerBase
     {
         return role switch
         {
-            "Admin" => new List<string> { "all" },
-            "Approver" => new List<string> { "approveApplication", "viewApprovalsNav", "viewProductsNav" },
-            "LoanOfficer" => new List<string> { "createCustomer", "createLoan", "viewProductsNav" },
-            "Manager" => new List<string> { "viewReports", "viewCollectionQueue", "viewApprovalsNav", "viewProductsNav" },
+            Roles.Admin => new List<string> { "all" },
+            Roles.Approver => new List<string> { "approveApplication", "viewApprovalsNav", "viewProductsNav" },
+            Roles.LoanOfficer => new List<string> { "createCustomer", "createLoan", "viewProductsNav" },
+            Roles.Manager => new List<string> { "viewReports", "viewCollectionQueue", "viewApprovalsNav", "viewProductsNav", "viewAmlNav", "viewRiskNav", "viewRegulatoryNav", "viewInterbankNav" },
+            Roles.ComplianceOfficer => new List<string> { "viewAmlNav" },
+            Roles.RiskOfficer => new List<string> { "viewRiskNav" },
+            Roles.FinanceManager => new List<string> { "viewAccountingReports" },
             _ => new List<string>()
         };
     }

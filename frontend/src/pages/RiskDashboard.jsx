@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { riskApi } from '../features/risk/api/riskApi';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');
 const pct = (n) => `${Number(n || 0).toFixed(2)}%`;
@@ -32,6 +33,7 @@ function SectionTitle({ children }) {
 
 export default function RiskDashboard() {
   const { toast } = useToast();
+  const { can } = useAuth();
   const [tab, setTab] = useState('capital');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -42,10 +44,10 @@ export default function RiskDashboard() {
   const TABS = [
     { key: 'capital', label: '🏦 Hệ số an toàn vốn (CAR)' },
     { key: 'concentration', label: '📊 Tập trung tín dụng' },
-    { key: 'balancesheet', label: '📋 Bảng CĐKT' },
-    { key: 'pnl', label: '💹 Kết quả KD' },
+    can.viewAccountingReports && { key: 'balancesheet', label: 'Balance sheet' },
+    can.viewAccountingReports && { key: 'pnl', label: 'P&L' },
     { key: 'ifrs9', label: '🔬 IFRS 9 ECL' },
-  ];
+  ].filter(Boolean);
 
   const load = useCallback(async () => {
     setLoading(true);

@@ -21,8 +21,8 @@ export default function Loans() {
   const { data, page, setPage, search, setSearch, status, setStatus, loading, doSearch, refresh } = useLoans();
 
   const [detailId, setDetailId]   = useState(null);
-  const [disburseId, setDisburseId] = useState(null);
-  const [paymentId, setPaymentId]   = useState(null);
+  const [disburseTarget, setDisburseTarget] = useState(null);
+  const [paymentTarget, setPaymentTarget]   = useState(null);
   const [contractId, setContractId] = useState(null);
   const [earlySettleId, setEarlySettleId] = useState(null);
   // Webhook test: { vaNumber, amount } | null
@@ -100,8 +100,8 @@ export default function Loans() {
                     <div className="action-btns">
                       <Button size="sm" variant="outline" onClick={()=>setDetailId(l.id)}>📋 Chi tiết</Button>
                       {l.status==='PendingDisbursement' && can.disburse     && <Button size="sm" variant="outline" onClick={()=>setContractId(l.id)}>✍️ Ký HĐ</Button>}
-                      {l.status==='PendingDisbursement' && can.disburse     && <Button size="sm" variant="primary" onClick={()=>setDisburseId(l.id)}>💵 Giải ngân</Button>}
-                      {l.status==='Active'              && can.recordPayment && <Button size="sm" variant="success" onClick={()=>setPaymentId(l.id)}>💰 Thu tiền</Button>}
+                      {l.status==='PendingDisbursement' && can.disburse     && <Button size="sm" variant="primary" onClick={()=>setDisburseTarget(l)}>💵 Giải ngân</Button>}
+                      {l.status==='Active'              && can.recordPayment && <Button size="sm" variant="success" onClick={()=>setPaymentTarget(l)}>💰 Thu tiền</Button>}
                       {l.status==='Active'              && can.recordPayment && <Button size="sm" variant="danger" onClick={()=>setEarlySettleId(l.id)}>💳 Tất toán</Button>}
                       {(l.status==='Active' || l.status==='Overdue') && l.virtualAccountNo && (
                         <Button
@@ -123,8 +123,8 @@ export default function Loans() {
 
       {detailId   && <LoanDetailModal  loanId={detailId}   onClose={()=>setDetailId(null)}/>}
       {contractId && <EContractModal   loanId={contractId} onClose={()=>setContractId(null)} onDone={()=>{setContractId(null);refresh();}}/>}
-      {disburseId && <DisburseModal    loanId={disburseId} onClose={()=>setDisburseId(null)} onDone={()=>{setDisburseId(null);refresh();}}/>}
-      {paymentId  && <PaymentModal     loanId={paymentId}  onClose={()=>setPaymentId(null)}  onDone={()=>{setPaymentId(null);refresh();}}/>}
+      {disburseTarget && <DisburseModal    loanId={disburseTarget.id} customerId={disburseTarget.customerId} onClose={()=>setDisburseTarget(null)} onDone={()=>{setDisburseTarget(null);refresh();}}/>}
+      {paymentTarget  && <PaymentModal     loanId={paymentTarget.id} customerId={paymentTarget.customerId}  onClose={()=>setPaymentTarget(null)}  onDone={()=>{setPaymentTarget(null);refresh();}}/>}
       {earlySettleId && <EarlySettleModal loanId={earlySettleId} onClose={()=>setEarlySettleId(null)} onDone={()=>{setEarlySettleId(null);refresh();}}/>}
 
       {/* Webhook Test Modal — replaces window.prompt() */}

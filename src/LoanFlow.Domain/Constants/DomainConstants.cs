@@ -7,7 +7,10 @@ public static class Roles
     public const string Approver = "Approver";
     public const string Collector = "Collector";
     public const string Manager = "Manager";
-    public static readonly string[] All = [Admin, LoanOfficer, Approver, Collector, Manager];
+    public const string ComplianceOfficer = "ComplianceOfficer";
+    public const string RiskOfficer = "RiskOfficer";
+    public const string FinanceManager = "FinanceManager";
+    public static readonly string[] All = [Admin, LoanOfficer, Approver, Collector, Manager, ComplianceOfficer, RiskOfficer, FinanceManager];
 }
 
 public static class ApplicationStatus
@@ -501,4 +504,3 @@ public static class EWalletLimit
     /// <summary>Giới hạn tối đa mỗi giao dịch: 100.000.000 VND</summary>
     public const decimal MaxTransactionAmount = 100_000_000m;
 }
-

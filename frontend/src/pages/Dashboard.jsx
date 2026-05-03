@@ -8,6 +8,7 @@ import { dashboardApi } from '../features/dashboard/api/dashboardApi';
 import { mapDashboardSummary } from '../features/dashboard/mappers/dashboardMapper';
 import { formatCurrency, formatNumber, STATUS_LABELS } from '../utils/format';
 import { Card, CardHeader, CardBody } from '../components/ui/Card';
+import { useAuth } from '../context/AuthContext';
 
 /* ── Design tokens ─────────────────────────────────────────────────────── */
 const PALETTE = {
@@ -103,16 +104,27 @@ function ChartSkeleton({ height = 220 }) {
    Main component
    ══════════════════════════════════════════════════════════════════════════ */
 export default function Dashboard({ onBadgeCounts }) {
+  const { user, can } = useAuth();
   const [summary,        setSummary]        = useState(null);
   const [overdueBuckets, setOverdueBuckets] = useState([]);
   const [trend,          setTrend]          = useState([]);
   const [loading,        setLoading]        = useState(true);
   const [bucketsLoading, setBucketsLoading] = useState(true);
   const [trendLoading,   setTrendLoading]   = useState(true);
+  const role = user?.role;
+  const canReadPortfolioDashboard = ['Admin', 'LoanOfficer', 'Manager'].includes(role);
+  const canReadOverdueBuckets = ['Admin', 'Collector', 'Manager'].includes(role);
+  const canReadCapital = ['Admin', 'Manager', 'RiskOfficer'].includes(role);
+  const canReadApprovals = can.viewApprovalsNav;
 
   /* Fetch 1: KPI summary. Keep old dashboard charts independent. */
   useEffect(() => {
     let cancelled = false;
+
+    if (!canReadPortfolioDashboard) {
+      setLoading(false);
+      return () => { cancelled = true; };
+    }
 
     dashboardApi.summary()
       .then(mapDashboardSummary)
@@ -127,10 +139,12 @@ export default function Dashboard({ onBadgeCounts }) {
       });
 
     return () => { cancelled = true; };
-  }, [onBadgeCounts]);
+  }, [onBadgeCounts, canReadPortfolioDashboard]);
 
   useEffect(() => {
     let cancelled = false;
+
+    if (!canReadCapital) return () => { cancelled = true; };
 
     dashboardApi.capitalAdequacy()
       .then(capData => {
@@ -139,10 +153,15 @@ export default function Dashboard({ onBadgeCounts }) {
       .catch(console.error);
 
     return () => { cancelled = true; };
-  }, []);
+  }, [canReadCapital]);
 
   useEffect(() => {
     let cancelled = false;
+
+    if (!canReadApprovals) {
+      onBadgeCounts?.(prev => ({ ...(prev || {}), approvals: 0 }));
+      return () => { cancelled = true; };
+    }
 
     dashboardApi.approvalsPending()
       .catch(() => ({ items: [], totalCount: 0 }))
@@ -157,10 +176,16 @@ export default function Dashboard({ onBadgeCounts }) {
       });
 
     return () => { cancelled = true; };
-  }, [onBadgeCounts]);
+  }, [onBadgeCounts, canReadApprovals]);
 
   /* ── Fetch 2: Overdue bucket breakdown ─────────────────────────────── */
   useEffect(() => {
+    if (!canReadOverdueBuckets) {
+      setOverdueBuckets([]);
+      setBucketsLoading(false);
+      return;
+    }
+
     dashboardApi.overdueBuckets()
       .then(res => {
         // Backend returns { buckets: [...] } or { Buckets: [...] }
@@ -169,11 +194,17 @@ export default function Dashboard({ onBadgeCounts }) {
       })
       .catch(() => setOverdueBuckets([]))
       .finally(() => setBucketsLoading(false));
-  }, []);
+  }, [canReadOverdueBuckets]);
 
   /* Fetch 3: monthly trend. Fallback stays as placeholder if API has no data. */
   useEffect(() => {
     let cancelled = false;
+
+    if (!canReadPortfolioDashboard) {
+      setTrend([]);
+      setTrendLoading(false);
+      return () => { cancelled = true; };
+    }
 
     dashboardApi.monthlyTrend(6)
       .then(res => {
@@ -194,7 +225,7 @@ export default function Dashboard({ onBadgeCounts }) {
       });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [canReadPortfolioDashboard]);
 
   /* ── Derived ────────────────────────────────────────────────────────── */
   // loanStatusBreakdown from backend is camelCase
