@@ -133,10 +133,10 @@ public static class ProductType
 {
     public const string PersonalUnsecured = "PersonalUnsecured";   // Vay tín chấp
     public const string PersonalSecured = "PersonalSecured";       // Vay thế chấp cá nhân
-    public const string Mortgage = "Mortgage";                      // Vay mua nhà
-    public const string AutoLoan = "AutoLoan";                      // Vay mua xe
-    public const string BusinessLoan = "BusinessLoan";              // Vay kinh doanh
-    public const string Overdraft = "Overdraft";                    // Thấu chi
+    public const string Mortgage = "Mortgage";                     // Vay mua nhà
+    public const string AutoLoan = "AutoLoan";                     // Vay mua xe
+    public const string BusinessLoan = "BusinessLoan";             // Vay kinh doanh
+    public const string Overdraft = "Overdraft";                   // Thấu chi
 
     public static readonly string[] All =
         [PersonalUnsecured, PersonalSecured, Mortgage, AutoLoan, BusinessLoan, Overdraft];
