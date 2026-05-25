@@ -7,4 +7,5 @@ public interface ITotpService
     string GenerateSecretKey();
     string GenerateQrCodeUri(string email, string secretKey);
     bool ValidateTotp(string secretKey, string totpCode);
+    string GenerateCurrentTotp(string secretKey);
 }

@@ -36,4 +36,11 @@ public class TotpService : ITotpService
             return false;
         }
     }
+
+    public string GenerateCurrentTotp(string secretKey)
+    {
+        var base32Bytes = Base32Encoding.ToBytes(secretKey);
+        var totp = new Totp(base32Bytes);
+        return totp.ComputeTotp();
+    }
 }

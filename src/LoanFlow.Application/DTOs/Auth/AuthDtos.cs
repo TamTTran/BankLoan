@@ -62,6 +62,8 @@ public record EnableMfaRequest(
 );
 
 public record MfaSetupResponse(
-    string SecretKey,
-    string QrCodeUri
+    bool IsEnabled,
+    string? SecretKey,
+    string? ManualEntryKey,
+    string? QrCodeUri
 );

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useToast } from '../context/ToastContext';
+import * as signalR from '@microsoft/signalr';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -61,6 +62,27 @@ export default function Login() {
     }
   };
 
+  useEffect(() => {
+    if (step !== 2 || !mfaToken) return;
+
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl('/api/hubs/notification', { accessTokenFactory: () => mfaToken })
+      .withAutomaticReconnect()
+      .build();
+
+    connection.on('ReceiveNotification', (notification) => {
+      if (notification?.title && notification?.message) {
+        toast(`${notification.title}: ${notification.message}`, 'info');
+      }
+    });
+
+    connection.start().catch(console.error);
+
+    return () => {
+      connection.stop();
+    };
+  }, [step, mfaToken, toast]);
+
   return (
     <div className="login-bg">
       <div className="login-shell">
@@ -113,14 +135,19 @@ export default function Login() {
                 />
               </>
             ) : step === 2 ? (
-              <Input
-                label="MFA Code (TOTP)"
-                value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value)}
-                placeholder="123456"
-                autoComplete="one-time-code"
-                autoFocus
-              />
+              <>
+                <div style={{ padding: '1rem', background: 'var(--blue-50)', color: 'var(--navy)', borderRadius: 12, marginBottom: '1rem', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                  Mở Google Authenticator trên điện thoại, chọn tài khoản LoanFlow và nhập mã 6 số đang hiển thị. Mã sẽ đổi sau mỗi 30 giây.
+                </div>
+                <Input
+                  label="Google Authenticator code"
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value)}
+                  placeholder="123456"
+                  autoComplete="one-time-code"
+                  autoFocus
+                />
+              </>
             ) : (
               <>
                 <div style={{ padding: '1rem', background: 'var(--amber-bg)', color: 'var(--amber)', borderRadius: 12, marginBottom: '1rem', fontSize: '0.85rem' }}>

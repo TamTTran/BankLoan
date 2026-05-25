@@ -2008,3 +2008,270 @@ input, select, textarea { font: inherit; outline: none; }
     align-items: flex-start;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   E-Wallet Flow Map
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.flowmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  margin-bottom: 1.5rem;
+  padding: 0.85rem 1.2rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.flowmap-legend-item { display: flex; align-items: center; gap: 0.45rem; }
+.flowmap-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+.flowmap-list { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; }
+
+/* ── Flow Card ─────────────────────────────────────────────────────── */
+.flowmap-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+  transition: box-shadow 0.2s var(--ease);
+}
+.flowmap-card:hover { box-shadow: var(--shadow-sm); }
+.flowmap-card--open { box-shadow: var(--shadow); border-color: var(--border-strong); }
+
+.flowmap-card-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 1.1rem 1.4rem;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.flowmap-card-header:hover { background: var(--state-hover); }
+
+.flowmap-card-icon { font-size: 1.5rem; flex-shrink: 0; }
+.flowmap-card-titles { flex: 1; }
+.flowmap-card-titles h3 {
+  font-size: 1.05rem; font-weight: 750; color: var(--navy);
+  letter-spacing: -0.02em;
+}
+.flowmap-card-titles p { font-size: 0.82rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+.flowmap-card-steps {
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: var(--bg-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.flowmap-chevron {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  transition: transform 0.25s var(--ease);
+}
+.flowmap-chevron--open { transform: rotate(180deg); }
+
+/* ── Card Body ─────────────────────────────────────────────────────── */
+.flowmap-card-body {
+  padding: 0 1.4rem 1.4rem;
+  animation: flowBodyIn 0.3s var(--ease);
+}
+@keyframes flowBodyIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.flowmap-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  min-height: 200px;
+}
+
+/* ── Step Nodes ────────────────────────────────────────────────────── */
+.flowmap-steps { display: flex; flex-direction: column; gap: 0; }
+
+.flow-step {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.flow-step:hover { background: var(--bg-hover); }
+.flow-step--active {
+  background: var(--bg-accent-soft);
+  box-shadow: inset 3px 0 0 var(--fc);
+}
+
+.flow-connector {
+  position: absolute;
+  left: calc(0.85rem + 16px);
+  top: calc(0.75rem + 34px);
+  width: 2px;
+  height: calc(100% - 34px);
+  background: var(--border);
+}
+.flow-step--active .flow-connector { background: var(--fc); }
+
+.flow-circle {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--bg-muted);
+  border: 2px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  transition: all 0.2s var(--ease);
+  z-index: 1;
+}
+.flow-step--active .flow-circle {
+  background: var(--fc);
+  border-color: var(--fc);
+  color: #fff;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--fc) 35%, transparent);
+}
+
+.flow-content { flex: 1; min-width: 0; padding-top: 0.3rem; }
+.flow-label { font-size: 0.9rem; font-weight: 650; color: var(--text-primary); }
+.flow-role {
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* ── Detail Panel ──────────────────────────────────────────────────── */
+.flowmap-detail-panel {
+  display: flex;
+  align-items: stretch;
+}
+.flow-detail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 2rem;
+  border-radius: var(--radius);
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+.flow-detail {
+  width: 100%;
+  padding: 1.3rem;
+  border-radius: var(--radius);
+  background: var(--bg-muted);
+  border-left: 4px solid var(--fc);
+  animation: detailIn 0.25s var(--ease);
+}
+@keyframes detailIn {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: none; }
+}
+.flow-detail h4 {
+  font-size: 1rem;
+  font-weight: 750;
+  color: var(--navy);
+  margin-bottom: 0.5rem;
+}
+.flow-detail-desc {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-bottom: 1rem;
+}
+.flow-detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+}
+.flow-detail-key {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 4.5rem;
+}
+.flow-detail code {
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--blue);
+  word-break: break-all;
+}
+
+/* ── Cheat Sheet ───────────────────────────────────────────────────── */
+.flowmap-cheat h3 {
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: var(--navy);
+}
+.flowmap-cheat-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.flowmap-cheat-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  font-size: 0.82rem;
+}
+.flowmap-cheat-item code {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-primary);
+}
+.flowmap-cheat-item span {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.flowmap-method {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.68rem !important;
+  font-weight: 800;
+  color: #fff !important;
+  min-width: 38px;
+  text-align: center;
+}
+.flowmap-method.get { background: var(--green); }
+.flowmap-method.post { background: var(--blue); }
+.flowmap-method.delete { background: var(--red); }
+
+@media (max-width: 768px) {
+  .flowmap-columns { grid-template-columns: 1fr; }
+  .flowmap-cheat-item { flex-wrap: wrap; }
+  .flowmap-cheat-item span { margin-left: 0; }
+}

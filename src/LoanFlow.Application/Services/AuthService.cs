@@ -4,6 +4,8 @@ using LoanFlow.Domain.Entities;
 using LoanFlow.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -16,15 +18,46 @@ public class AuthService : IAuthService
 {
     private readonly LoanFlowDbContext _db;
     private readonly IConfiguration _config;
+    private readonly ITotpService _totpService;
+    private readonly INotificationService? _notificationService;
+    private readonly ILogger<AuthService> _logger;
 
     private const int MaxFailedAttempts = 5;
     private const int LockoutMinutes = 15;
     private const int MaxConcurrentDevices = 5;
 
     public AuthService(LoanFlowDbContext db, IConfiguration config)
+        : this(db, config, new TotpService(), null, NullLogger<AuthService>.Instance)
+    {
+    }
+
+    public AuthService(LoanFlowDbContext db, IConfiguration config, ITotpService totpService)
+        : this(db, config, totpService, null, NullLogger<AuthService>.Instance)
+    {
+    }
+
+    public AuthService(
+        LoanFlowDbContext db,
+        IConfiguration config,
+        INotificationService notificationService,
+        ITotpService totpService,
+        ILogger<AuthService> logger)
+        : this(db, config, totpService, notificationService, logger)
+    {
+    }
+
+    private AuthService(
+        LoanFlowDbContext db,
+        IConfiguration config,
+        ITotpService totpService,
+        INotificationService? notificationService,
+        ILogger<AuthService> logger)
     {
         _db = db;
         _config = config;
+        _totpService = totpService;
+        _notificationService = notificationService;
+        _logger = logger;
     }
 
     // ── SHA-256 one-way hash for DB storage ─────────────────────────────────
@@ -93,6 +126,26 @@ public class AuthService : IAuthService
         if (user.MfaEnabled)
         {
             var mfaToken = GenerateMfaToken(user.Id);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (_notificationService != null && !string.IsNullOrEmpty(user.MfaSecret))
+                    {
+                        var otpCode = _totpService.GenerateCurrentTotp(user.MfaSecret);
+                        await _notificationService.SendAsync(
+                            userId: user.Id,
+                            type: "MFA_OTP",
+                            title: "Mã xác thực đăng nhập",
+                            message: $"Mã OTP của bạn là: {otpCode}. Mã có hiệu lực trong 30 giây. Không chia sẻ mã này.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to push MFA OTP notification to user {UserId}", user.Id);
+                }
+            });
+
             return Result.Success(new LoginResponse(
                 AccessToken: "",
                 RefreshToken: "",
@@ -125,10 +178,7 @@ public class AuthService : IAuthService
             return Result.Failure<LoginResponse>("Invalid user or MFA not enabled.");
 
         // 2. Verify TOTP code
-        // (Assuming ITotpService is injected. Wait, we need to inject ITotpService!)
-        // I will just instantiate TotpService for simplicity here or add it to constructor.
-        var totpService = new TotpService();
-        if (!totpService.ValidateTotp(user.MfaSecret!, request.TotpCode))
+        if (!_totpService.ValidateTotp(user.MfaSecret!, request.TotpCode))
         {
             return Result.Failure<LoginResponse>("Invalid TOTP code.");
         }
@@ -141,16 +191,23 @@ public class AuthService : IAuthService
         var user = await _db.Users.FindAsync(userId);
         if (user == null) return Result.Failure<MfaSetupResponse>("User not found.");
 
-        if (user.MfaEnabled) return Result.Failure<MfaSetupResponse>("MFA is already enabled.");
+        if (user.MfaEnabled) return Result.Success(new MfaSetupResponse(
+            IsEnabled: true,
+            SecretKey: null,
+            ManualEntryKey: null,
+            QrCodeUri: null));
 
-        var totpService = new TotpService();
-        var secret = totpService.GenerateSecretKey();
+        var secret = _totpService.GenerateSecretKey();
         
         user.MfaSecret = secret; // Save temporarily
         await _db.SaveChangesAsync();
 
-        var qrUri = totpService.GenerateQrCodeUri(user.Username, secret);
-        return Result.Success(new MfaSetupResponse(secret, qrUri));
+        var qrUri = _totpService.GenerateQrCodeUri(user.Username, secret);
+        return Result.Success(new MfaSetupResponse(
+            IsEnabled: false,
+            SecretKey: secret,
+            ManualEntryKey: secret,
+            QrCodeUri: qrUri));
     }
 
     public async Task<Result> EnableMfaAsync(int userId, string totpCode)
@@ -160,8 +217,7 @@ public class AuthService : IAuthService
         if (user.MfaEnabled) return Result.Failure("MFA is already enabled.");
         if (string.IsNullOrEmpty(user.MfaSecret)) return Result.Failure("MFA setup not initiated.");
 
-        var totpService = new TotpService();
-        if (!totpService.ValidateTotp(user.MfaSecret, totpCode))
+        if (!_totpService.ValidateTotp(user.MfaSecret, totpCode))
         {
             return Result.Failure("Invalid TOTP code.");
         }

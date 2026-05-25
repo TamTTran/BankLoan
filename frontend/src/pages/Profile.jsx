@@ -96,11 +96,11 @@ export default function Profile() {
           ) : mfaSetup?.isEnabled ? (
             <div>
               <p style={{ color: 'var(--green)', fontWeight: 800, fontSize: '1.2rem', marginBottom: '0.5rem' }}>✅ Đã bật MFA</p>
-              <p style={{ color: 'var(--text-secondary)' }}>Tài khoản của bạn đang được bảo vệ bởi xác thực hai bước (TOTP).</p>
+              <p style={{ color: 'var(--text-secondary)' }}>Tài khoản của bạn đang được bảo vệ bởi Google Authenticator. Khi đăng nhập, mở app để lấy mã 6 số.</p>
             </div>
           ) : mfaSetup?.qrCodeUri ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <p style={{ color: 'var(--text-secondary)' }}>Quét mã QR sau bằng ứng dụng Authenticator (Google Auth, Authy...):</p>
+              <p style={{ color: 'var(--text-secondary)' }}>Mở Google Authenticator, chọn thêm tài khoản mới, rồi quét mã QR bên dưới.</p>
               {/* QR generated locally — secret URI never leaves the browser */}
               <QrCanvas uri={mfaSetup.qrCodeUri} />
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -108,7 +108,7 @@ export default function Profile() {
               </p>
               <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end' }}>
                 <Input
-                  label="Nhập mã 6 số từ app"
+                  label="Nhập mã 6 số từ Google Authenticator"
                   value={totpCode}
                   onChange={(e) => setTotpCode(e.target.value)}
                   placeholder="123456"

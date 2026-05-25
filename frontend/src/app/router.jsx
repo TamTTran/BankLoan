@@ -21,6 +21,7 @@ const RegulatoryReports = lazy(() => import('../pages/RegulatoryReports'));
 const InterbankSync = lazy(() => import('../pages/InterbankSync'));
 const Napas = lazy(() => import('../pages/Napas'));
 const Reports = lazy(() => import('../pages/Reports'));
+const EWalletFlowMap = lazy(() => import('../pages/EWalletFlowMap'));
 
 function PrivateRoute({ children }) {
   const { user } = useAuth();
@@ -54,6 +55,7 @@ function AppShell() {
           <Route path="/regulatory"   element={<PermissionRoute allowed={can.viewRegulatoryNav}><RegulatoryReports /></PermissionRoute>} />
           <Route path="/napas"        element={<PermissionRoute allowed={can.viewNapasNav}><Napas /></PermissionRoute>} />
           <Route path="/interbank-sync" element={<PermissionRoute allowed={can.viewInterbankNav}><InterbankSync /></PermissionRoute>} />
+          <Route path="/ewallet-flow" element={<EWalletFlowMap />} />
           <Route path="/profile"      element={<Profile />} />
           <Route path="*"             element={<Navigate to="/dashboard" replace />} />
         </Routes>
