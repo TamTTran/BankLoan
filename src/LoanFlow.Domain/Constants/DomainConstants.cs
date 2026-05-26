@@ -278,12 +278,25 @@ public static class AuditActions
     public const string AutoDisbursementPending = "AUTO_DISBURSEMENT_PENDING"; // Awaiting NAPAS async callback
     public const string NapasCallbackReceived   = "NAPAS_CALLBACK_RECEIVED";
 
-    // ── E-Wallet ────────────────────────────────────────────────────
+    // ── E-Wallet ────────────────────────────────────────────────────────
     public const string EWalletLinked       = "EWALLET_LINKED";
     public const string EWalletVerified     = "EWALLET_VERIFIED";
     public const string EWalletUnlinked     = "EWALLET_UNLINKED";
     public const string EWalletPayment      = "EWALLET_PAYMENT";
     public const string EWalletDisbursement = "EWALLET_DISBURSEMENT";
+
+    // ── Auth Security Events (SEC-001) ──────────────────────────────────
+    public const string AuthLoginSuccess    = "AUTH_LOGIN_SUCCESS";
+    public const string AuthLoginFailed     = "AUTH_LOGIN_FAILED";
+    public const string AuthAccountLocked   = "AUTH_ACCOUNT_LOCKED";
+    public const string AuthLogout          = "AUTH_LOGOUT";
+    public const string AuthLogoutAll       = "AUTH_LOGOUT_ALL";
+    public const string AuthTokenRefresh    = "AUTH_TOKEN_REFRESH";
+    public const string AuthPasswordChanged = "AUTH_PASSWORD_CHANGED";
+    public const string AuthPasswordExpiredChanged = "AUTH_PASSWORD_EXPIRED_CHANGED";
+    public const string AuthMfaEnabled      = "AUTH_MFA_ENABLED";
+    public const string AuthMfaVerified     = "AUTH_MFA_VERIFIED";
+    public const string AuthSessionRevoked  = "AUTH_SESSION_REVOKED";
 }
 
 // ── Reversal Type ───────────────────────────────────────────────────────────

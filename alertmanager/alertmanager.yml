@@ -24,9 +24,6 @@ route:
     - receiver: 'discord_receiver'
       matchers:
         - channel="discord"
-    # - receiver: 'outlook_receiver'
-    #   matchers:
-    #     - channel="outlook"
 
 receivers:
   - name: 'main_receiver'
@@ -68,19 +65,3 @@ receivers:
         send_resolved: true
         title: '{{ template "loanflow.subject" . }}'
         message: '{{ template "loanflow.text" . }}'
-
-  # Outlook / Microsoft 365 SMTP setup:
-  # 1. Use an Outlook mailbox and an app password or SMTP-auth enabled account.
-  # 2. Uncomment this receiver and add a route above.
-  # - name: 'outlook_receiver'
-  #   email_configs:
-  #     - to: '<OUTLOOK_TO_EMAIL>'
-  #       from: '<OUTLOOK_FROM_EMAIL>'
-  #       smarthost: 'smtp.office365.com:587'
-  #       auth_username: '<OUTLOOK_FROM_EMAIL>'
-  #       auth_password: '<OUTLOOK_APP_PASSWORD>'
-  #       require_tls: true
-  #       send_resolved: true
-  #       headers:
-  #         subject: '{{ template "loanflow.subject" . }}'
-  #       html: '{{ template "loanflow.email.html" . }}'

@@ -1,7 +1,9 @@
 using LoanFlow.Application.Common;
 using LoanFlow.Application.DTOs.Auth;
+using LoanFlow.Domain.Constants;
 using LoanFlow.Domain.Entities;
 using LoanFlow.Infrastructure.Data;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -21,18 +23,21 @@ public class AuthService : IAuthService
     private readonly ITotpService _totpService;
     private readonly INotificationService? _notificationService;
     private readonly ILogger<AuthService> _logger;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
 
     private const int MaxFailedAttempts = 5;
     private const int LockoutMinutes = 15;
     private const int MaxConcurrentDevices = 5;
 
+    // ── Constructor overloads (backward-compatible for tests) ────────────────
+
     public AuthService(LoanFlowDbContext db, IConfiguration config)
-        : this(db, config, new TotpService(), null, NullLogger<AuthService>.Instance)
+        : this(db, config, new TotpService(), null, NullLogger<AuthService>.Instance, null)
     {
     }
 
     public AuthService(LoanFlowDbContext db, IConfiguration config, ITotpService totpService)
-        : this(db, config, totpService, null, NullLogger<AuthService>.Instance)
+        : this(db, config, totpService, null, NullLogger<AuthService>.Instance, null)
     {
     }
 
@@ -42,26 +47,29 @@ public class AuthService : IAuthService
         INotificationService notificationService,
         ITotpService totpService,
         ILogger<AuthService> logger)
-        : this(db, config, totpService, notificationService, logger)
+        : this(db, config, totpService, notificationService, logger, null)
     {
     }
 
-    private AuthService(
+    // ── Primary DI constructor (registered in Program.cs) ────────────────────
+    public AuthService(
         LoanFlowDbContext db,
         IConfiguration config,
         ITotpService totpService,
         INotificationService? notificationService,
-        ILogger<AuthService> logger)
+        ILogger<AuthService> logger,
+        IHttpContextAccessor? httpContextAccessor)
     {
         _db = db;
         _config = config;
         _totpService = totpService;
         _notificationService = notificationService;
         _logger = logger;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     // ── SHA-256 one-way hash for DB storage ─────────────────────────────────
-    internal static string ComputeSha256Hash(string plainToken)
+    public static string ComputeSha256Hash(string plainToken)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(plainToken));
         return Convert.ToHexString(bytes); // 64-char hex, safe for VARCHAR(500)
@@ -73,12 +81,17 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(u => u.Username == request.Username && u.Status == "Active");
 
         if (user is null)
+        {
+            // Log failed attempt even for unknown usernames (avoids timing oracle but still audits)
+            await WriteAuthAuditAsync(AuditActions.AuthLoginFailed, 0, $"Unknown username: {request.Username}");
             return Result.Failure<LoginResponse>("Invalid credentials.");
+        }
 
         // ── Lockout check ────────────────────────────────────────────────────
         if (user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTime.UtcNow)
         {
             var remaining = (int)(user.LockoutEnd.Value - DateTime.UtcNow).TotalMinutes + 1;
+            await WriteAuthAuditAsync(AuditActions.AuthLoginFailed, user.Id, $"Account locked. Remaining: {remaining} min");
             return Result.Failure<LoginResponse>($"Account temporarily locked. Try again in {remaining} minute(s).");
         }
 
@@ -92,10 +105,12 @@ public class AuthService : IAuthService
                 user.LockoutEnd = DateTime.UtcNow.AddMinutes(LockoutMinutes);
                 user.FailedLoginAttempts = 0;
                 await _db.SaveChangesAsync();
+                await WriteAuthAuditAsync(AuditActions.AuthAccountLocked, user.Id, $"Locked for {LockoutMinutes} min after {MaxFailedAttempts} failed attempts");
                 return Result.Failure<LoginResponse>($"Account locked for {LockoutMinutes} minutes due to too many failed attempts.");
             }
 
             await _db.SaveChangesAsync();
+            await WriteAuthAuditAsync(AuditActions.AuthLoginFailed, user.Id, $"Wrong password. Attempt {user.FailedLoginAttempts}/{MaxFailedAttempts}");
             return Result.Failure<LoginResponse>("Invalid credentials.");
         }
 
@@ -159,7 +174,10 @@ public class AuthService : IAuthService
             ));
         }
 
-        return await GenerateAuthResponseAsync(user, request.DeviceId, request.DeviceName);
+        var response = await GenerateAuthResponseAsync(user, request.DeviceId, request.DeviceName);
+        if (response.IsSuccess)
+            await WriteAuthAuditAsync(AuditActions.AuthLoginSuccess, user.Id, $"Device: {request.DeviceName ?? "Unknown"}");
+        return response;
     }
 
     public async Task<Result<LoginResponse>> VerifyMfaAsync(VerifyMfaRequest request, string? deviceId, string? deviceName)
@@ -180,10 +198,14 @@ public class AuthService : IAuthService
         // 2. Verify TOTP code
         if (!_totpService.ValidateTotp(user.MfaSecret!, request.TotpCode))
         {
+            await WriteAuthAuditAsync(AuditActions.AuthLoginFailed, userId, "Invalid TOTP code during MFA verification");
             return Result.Failure<LoginResponse>("Invalid TOTP code.");
         }
 
-        return await GenerateAuthResponseAsync(user, deviceId, deviceName);
+        var response = await GenerateAuthResponseAsync(user, deviceId, deviceName);
+        if (response.IsSuccess)
+            await WriteAuthAuditAsync(AuditActions.AuthMfaVerified, userId, $"Device: {deviceName ?? "Unknown"}");
+        return response;
     }
 
     public async Task<Result<MfaSetupResponse>> GetMfaSetupAsync(int userId)
@@ -224,6 +246,7 @@ public class AuthService : IAuthService
 
         user.MfaEnabled = true;
         await _db.SaveChangesAsync();
+        await WriteAuthAuditAsync(AuditActions.AuthMfaEnabled, userId, "MFA TOTP enabled successfully");
         return Result.Success();
     }
 
@@ -280,6 +303,7 @@ public class AuthService : IAuthService
         }
 
         await _db.SaveChangesAsync();
+        await WriteAuthAuditAsync(AuditActions.AuthPasswordChanged, userId, "Password changed by user");
 
         // Revoke all sessions to force re-login with new password
         await LogoutAllAsync(user.Id);
@@ -300,12 +324,16 @@ public class AuthService : IAuthService
         // Revoke current token (Refresh Token Rotation)
         existingToken.IsRevoked = true;
 
-        return await GenerateAuthResponseAsync(existingToken.User, existingToken.DeviceId, existingToken.DeviceName);
+        var response = await GenerateAuthResponseAsync(existingToken.User, existingToken.DeviceId, existingToken.DeviceName);
+        if (response.IsSuccess)
+            await WriteAuthAuditAsync(AuditActions.AuthTokenRefresh, existingToken.UserId, $"Device: {existingToken.DeviceName}");
+        return response;
     }
 
     public async Task<Result> LogoutAsync(int userId, string plainRefreshToken)
     {
-        // Scope to caller's own tokens only — prevents cross-user session denial
+        // SEC-002: Revoke only the calling device's token — NOT all sessions.
+        // Use POST /api/auth/logout-all to revoke all sessions.
         var hash = ComputeSha256Hash(plainRefreshToken);
         var token = await _db.RefreshTokens
             .FirstOrDefaultAsync(t => t.TokenHash == hash && t.UserId == userId);
@@ -314,7 +342,7 @@ public class AuthService : IAuthService
             token.IsRevoked = true;
             await _db.SaveChangesAsync();
         }
-        await LogoutAllAsync(userId); // force re-login everywhere
+        await WriteAuthAuditAsync(AuditActions.AuthLogout, userId, $"Device token revoked");
         return Result.Success();
     }
 
@@ -370,6 +398,7 @@ public class AuthService : IAuthService
             token.IsRevoked = true;
 
         await _db.SaveChangesAsync();
+        await WriteAuthAuditAsync(AuditActions.AuthLogoutAll, userId, $"All {activeTokens.Count} session(s) revoked");
         return Result.Success();
     }
 
@@ -390,6 +419,7 @@ public class AuthService : IAuthService
         
         token.IsRevoked = true;
         await _db.SaveChangesAsync();
+        await WriteAuthAuditAsync(AuditActions.AuthSessionRevoked, userId, $"Session {sessionId} ({token.DeviceName}) remotely revoked");
         return Result.Success();
     }
 
@@ -433,11 +463,15 @@ public class AuthService : IAuthService
         };
 
         _db.RefreshTokens.Add(refreshTokenEntity);
+
+        // SEC-005: Track last login time
+        user.LastLoginAt = DateTime.UtcNow;
+
         await _db.SaveChangesAsync();
 
         var expiresAt = DateTime.UtcNow.AddMinutes(lifetimeMinutes);
         // PlainRefreshToken is passed to controller to set as HttpOnly cookie
-        return Result.Success(new LoginResponse(accessToken, plainToken, user.Username, user.FullName, user.Role, user.Id, expiresAt));
+        return Result.Success(new LoginResponse(accessToken, plainToken, user.Username, user.FullName, user.Role, user.Id, expiresAt, LastLoginAt: user.LastLoginAt));
     }
 
     private string GenerateJwtToken(User user, int lifetimeMinutes, List<string> permissions)
@@ -525,5 +559,37 @@ public class AuthService : IAuthService
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(randomBytes);
         return Convert.ToBase64String(randomBytes);
+    }
+
+    // ── SEC-001: Centralised auth audit writer ───────────────────────────────
+    private async Task WriteAuthAuditAsync(string actionCode, int userId, string? detail = null)
+    {
+        try
+        {
+            var ctx = _httpContextAccessor?.HttpContext;
+            var ip  = ctx?.Connection.RemoteIpAddress?.ToString()
+                      ?? ctx?.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            var ua  = ctx?.Request.Headers["User-Agent"].FirstOrDefault();
+            var cid = ctx?.TraceIdentifier;
+
+            _db.AuditLogs.Add(new AuditLog
+            {
+                ActorUserId    = userId > 0 ? userId : null,
+                ActionCode     = actionCode,
+                EntityType     = "User",
+                EntityId       = userId,
+                NewValuesJson  = detail is not null ? $"{{\"detail\":\"{detail}\"}}" : null,
+                IpAddress      = ip,
+                UserAgent      = ua,
+                CorrelationId  = cid,
+                CreatedAt      = DateTime.UtcNow
+            });
+            await _db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            // Never let audit failure break the auth flow
+            _logger.LogWarning(ex, "Failed to write auth audit log for action {Action}, userId {UserId}", actionCode, userId);
+        }
     }
 }

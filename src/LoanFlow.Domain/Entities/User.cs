@@ -18,6 +18,9 @@ public class User
     public bool MfaEnabled { get; set; } = false;
     public string? MfaSecret { get; set; }
 
+    // ── SEC-005: Last login tracking ───────────────────────────────────────────
+    public DateTime? LastLoginAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

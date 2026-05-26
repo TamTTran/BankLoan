@@ -2,16 +2,17 @@ using System.ComponentModel.DataAnnotations;
 
 namespace LoanFlow.Application.DTOs.Auth;
 
+// SEC-007: Input validation attributes on all auth DTOs to prevent oversized payloads and injection
 public record LoginRequest(
-    [Required] string Username, 
-    [Required] string Password, 
-    string? DeviceId = null, 
-    string? DeviceName = null);
+    [Required][MaxLength(100)][RegularExpression(@"^[a-zA-Z0-9._@\-]+$", ErrorMessage = "Username contains invalid characters.")]
+    string Username,
 
-/// <summary>
-/// Internal service response — carries the plain refresh token to the controller.
-/// Controller sets it as an HttpOnly cookie and exposes only PublicLoginResponse to clients.
-/// </summary>
+    [Required][MaxLength(256)]
+    string Password,
+
+    [MaxLength(128)] string? DeviceId = null,
+    [MaxLength(200)] string? DeviceName = null);
+
 public record LoginResponse(
     string AccessToken,
     string RefreshToken,        // plain token — controller moves to HttpOnly cookie, never serialised to JSON
@@ -22,7 +23,9 @@ public record LoginResponse(
     DateTime ExpiresAt,
     bool RequiresMfa = false,
     string? MfaToken = null,
-    bool RequiresPasswordChange = false
+    bool RequiresPasswordChange = false,
+    // SEC-005: carries last login time from DB to controller
+    DateTime? LastLoginAt = null
 );
 
 /// <summary>JSON-safe response sent to the browser — no refresh token.</summary>
@@ -36,29 +39,44 @@ public record PublicLoginResponse(
     bool RequiresMfa = false,
     string? MfaToken = null,
     bool RequiresPasswordChange = false,
-    List<string>? Permissions = null
+    List<string>? Permissions = null,
+    // SEC-005: expose last login time so clients can detect suspicious activity
+    DateTime? LastLoginAt = null
 );
 
-public record LogoutRequest(string? DeviceHint = null);
+public record LogoutRequest([MaxLength(128)] string? DeviceHint = null);
+
 public record SessionDto(int Id, string DeviceName, DateTime CreatedAt, DateTime ExpiresAt, bool IsActive);
 
 public record ChangePasswordRequest(
-    [Required] string OldPassword,
-    [Required] string NewPassword
+    [Required][MaxLength(256)]
+    string OldPassword,
+
+    [Required][MinLength(12)][MaxLength(256)]
+    string NewPassword
 );
 
 public record VerifyMfaRequest(
-    [Required] string MfaToken,
-    [Required] string TotpCode
+    [Required][MaxLength(2048)]
+    string MfaToken,
+
+    [Required][StringLength(6, MinimumLength = 6, ErrorMessage = "TOTP code must be exactly 6 digits.")]
+    [RegularExpression(@"^\d{6}$", ErrorMessage = "TOTP code must be 6 numeric digits.")]
+    string TotpCode
 );
 
 public record ChangeExpiredPasswordRequest(
-    [Required] string MfaToken,
-    [Required] string NewPassword
+    [Required][MaxLength(2048)]
+    string MfaToken,
+
+    [Required][MinLength(12)][MaxLength(256)]
+    string NewPassword
 );
 
 public record EnableMfaRequest(
-    [Required] string TotpCode
+    [Required][StringLength(6, MinimumLength = 6)]
+    [RegularExpression(@"^\d{6}$", ErrorMessage = "TOTP code must be 6 numeric digits.")]
+    string TotpCode
 );
 
 public record MfaSetupResponse(

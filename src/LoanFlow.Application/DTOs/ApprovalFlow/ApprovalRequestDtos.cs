@@ -12,14 +12,14 @@ public class SubmitApprovalRequest
 
 public class ApprovalRequestResponse
 {
-    public int Id { get; set; }
+    public int    Id { get; set; }
     public string ActionType { get; set; } = default!;
     public string Payload { get; set; } = default!;
     public string Status { get; set; } = default!;
-    public int RequestedByUserId { get; set; }
+    public int    RequestedByUserId { get; set; }
     public string RequestedByUserName { get; set; } = default!;
     public DateTime CreatedAt { get; set; }
-    public int? ApprovedByUserId { get; set; }
+    public int?    ApprovedByUserId { get; set; }
     public string? ApprovedByUserName { get; set; }
     public DateTime? DecidedAt { get; set; }
     public string? RejectionReason { get; set; }
@@ -33,6 +33,7 @@ public class ProcessApprovalRequest
 public class RestructureApprovalPayload
 {
     public int LoanId { get; set; }
+
     public RestructureRequest Request { get; set; } = new();
 }
 

@@ -3147,6 +3147,9 @@ namespace LoanFlow.Infrastructure.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("varchar(150)");
 
+                    b.Property<DateTime?>("LastLoginAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<DateTime?>("LastPasswordChangeAt")
                         .HasColumnType("datetime(6)");
 

@@ -4,6 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>LoanFlow.API</RootNamespace>
+    <UserSecretsId>loanflow-api-dev-secrets</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\LoanFlow.Application\LoanFlow.Application.csproj" />

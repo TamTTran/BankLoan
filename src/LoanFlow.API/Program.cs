@@ -443,6 +443,26 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
+
+    // SEC-006: Per-user rate limit for sensitive actions (change-password, logout-all)
+    // Partition by userId (from JWT) + IP to defeat VPN/proxy rotation
+    options.AddPolicy("SensitiveActionRateLimit", httpContext =>
+    {
+        var userId = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var partitionKey = string.IsNullOrEmpty(userId)
+            ? $"anon:{GetClientPartitionKey(httpContext)}"
+            : $"user:{userId}:{GetClientPartitionKey(httpContext)}";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: partitionKey,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(10),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
 });
 
 // === Swagger ===
@@ -487,6 +507,7 @@ app.UseForwardedHeaders();
 // === Middleware ===
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
+app.UseMiddleware<SecurityHeadersMiddleware>(); // SEC-004: HTTP security headers on all API responses
 app.UseCors("AllowFrontend");
 
 // Swagger — Development only

@@ -64,7 +64,8 @@ public class AuthController : ControllerBase
         var publicResponse = new PublicLoginResponse(
             result.Value.AccessToken, result.Value.Username, result.Value.FullName,
             result.Value.Role, result.Value.UserId, result.Value.ExpiresAt,
-            result.Value.RequiresMfa, result.Value.MfaToken, result.Value.RequiresPasswordChange, permissions);
+            result.Value.RequiresMfa, result.Value.MfaToken, result.Value.RequiresPasswordChange,
+            permissions, result.Value.LastLoginAt);
 
         return Ok(new { success = true, data = publicResponse });
     }
@@ -92,7 +93,8 @@ public class AuthController : ControllerBase
         var publicResponse = new PublicLoginResponse(
             result.Value.AccessToken, result.Value.Username, result.Value.FullName,
             result.Value.Role, result.Value.UserId, result.Value.ExpiresAt,
-            result.Value.RequiresMfa, result.Value.MfaToken, result.Value.RequiresPasswordChange, permissions);
+            result.Value.RequiresMfa, result.Value.MfaToken, result.Value.RequiresPasswordChange,
+            permissions, result.Value.LastLoginAt);
 
         return Ok(new { success = true, data = publicResponse });
     }
@@ -116,6 +118,7 @@ public class AuthController : ControllerBase
     /// <summary>POST /auth/logout-all — AUTH-004</summary>
     [HttpPost("logout-all")]
     [Authorize]
+    [EnableRateLimiting("SensitiveActionRateLimit")]
     public async Task<IActionResult> LogoutAll()
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -137,9 +140,25 @@ public class AuthController : ControllerBase
         return Ok(new { success = true, data = sessions });
     }
 
+    /// <summary>DELETE /auth/sessions/{id} — SEC-003: Revoke a specific remote session</summary>
+    [HttpDelete("sessions/{id:int}")]
+    [Authorize]
+    public async Task<IActionResult> RevokeSession(int id)
+    {
+        var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(userIdString, out int userId)) return Unauthorized();
+
+        var result = await _service.RevokeSessionAsync(userId, id);
+        if (!result.IsSuccess)
+            return NotFound(new { success = false, error = new { message = result.Error } });
+
+        return NoContent();
+    }
+
     /// <summary>POST /auth/change-password</summary>
     [HttpPost("change-password")]
     [Authorize]
+    [EnableRateLimiting("SensitiveActionRateLimit")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
