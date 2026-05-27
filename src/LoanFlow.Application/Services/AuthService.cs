@@ -337,12 +337,17 @@ public class AuthService : IAuthService
         var hash = ComputeSha256Hash(plainRefreshToken);
         var token = await _db.RefreshTokens
             .FirstOrDefaultAsync(t => t.TokenHash == hash && t.UserId == userId);
-        if (token != null)
+
+        // L-4: Distinguish between 'already gone' and 'successfully revoked' in audit
+        if (token is null || token.IsRevoked)
         {
-            token.IsRevoked = true;
-            await _db.SaveChangesAsync();
+            await WriteAuthAuditAsync(AuditActions.AuthLogout, userId, "Token not found or already revoked (idempotent logout)");
+            return Result.Success(); // idempotent — logout is always successful from client perspective
         }
-        await WriteAuthAuditAsync(AuditActions.AuthLogout, userId, $"Device token revoked");
+
+        token.IsRevoked = true;
+        await _db.SaveChangesAsync();
+        await WriteAuthAuditAsync(AuditActions.AuthLogout, userId, $"Device '{token.DeviceName}' session revoked");
         return Result.Success();
     }
 
@@ -572,13 +577,19 @@ public class AuthService : IAuthService
             var ua  = ctx?.Request.Headers["User-Agent"].FirstOrDefault();
             var cid = ctx?.TraceIdentifier;
 
+            // M-4: Use System.Text.Json to safely serialize detail — prevents JSON injection
+            // when detail contains quotes, backslashes, or control characters.
+            string? newValuesJson = detail is not null
+                ? System.Text.Json.JsonSerializer.Serialize(new { detail })
+                : null;
+
             _db.AuditLogs.Add(new AuditLog
             {
                 ActorUserId    = userId > 0 ? userId : null,
                 ActionCode     = actionCode,
                 EntityType     = "User",
                 EntityId       = userId,
-                NewValuesJson  = detail is not null ? $"{{\"detail\":\"{detail}\"}}" : null,
+                NewValuesJson  = newValuesJson,
                 IpAddress      = ip,
                 UserAgent      = ua,
                 CorrelationId  = cid,

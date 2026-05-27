@@ -143,6 +143,7 @@ public class AuthController : ControllerBase
     /// <summary>DELETE /auth/sessions/{id} — SEC-003: Revoke a specific remote session</summary>
     [HttpDelete("sessions/{id:int}")]
     [Authorize]
+    [EnableRateLimiting("SensitiveActionRateLimit")] // M-5: Prevent brute-force of sequential session IDs
     public async Task<IActionResult> RevokeSession(int id)
     {
         var userIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);

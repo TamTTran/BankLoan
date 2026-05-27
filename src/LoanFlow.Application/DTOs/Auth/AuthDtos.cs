@@ -53,6 +53,9 @@ public record ChangePasswordRequest(
     string OldPassword,
 
     [Required][MinLength(12)][MaxLength(256)]
+    [RegularExpression(
+        @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{12,}$",
+        ErrorMessage = "Mật khẩu phải có ít nhất 12 ký tự, bao gồm 1 chữ hoa, 1 chữ thường, 1 số và 1 ký tự đặc biệt.")]
     string NewPassword
 );
 
@@ -70,6 +73,9 @@ public record ChangeExpiredPasswordRequest(
     string MfaToken,
 
     [Required][MinLength(12)][MaxLength(256)]
+    [RegularExpression(
+        @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{12,}$",
+        ErrorMessage = "Mật khẩu phải có ít nhất 12 ký tự, bao gồm 1 chữ hoa, 1 chữ thường, 1 số và 1 ký tự đặc biệt.")]
     string NewPassword
 );
 

@@ -506,8 +506,8 @@ app.UseForwardedHeaders();
 
 // === Middleware ===
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>(); // SEC-004: must come BEFORE HttpsRedirection so 301s also carry headers
 app.UseHttpsRedirection();
-app.UseMiddleware<SecurityHeadersMiddleware>(); // SEC-004: HTTP security headers on all API responses
 app.UseCors("AllowFrontend");
 
 // Swagger — Development only
@@ -667,7 +667,29 @@ static bool IsLocalhostOrigin(string origin)
 
 static string GetClientPartitionKey(HttpContext httpContext)
 {
-    return httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    // H-1: When running behind Docker/Nginx, RemoteIpAddress is the proxy IP.
+    // UseForwardedHeaders() rewrites it, but only for known proxies.
+    // Fallback: if the resolved IP is still a private/loopback address, read
+    // the first entry of X-Forwarded-For (the original client IP).
+    var ip = httpContext.Connection.RemoteIpAddress;
+    if (ip is null || IsPrivateOrLoopback(ip))
+    {
+        var forwarded = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(forwarded))
+            return forwarded.Split(',')[0].Trim();
+    }
+    return ip?.ToString() ?? "unknown";
+}
+
+static bool IsPrivateOrLoopback(IPAddress ip)
+{
+    if (IPAddress.IsLoopback(ip)) return true;
+    var bytes = ip.GetAddressBytes();
+    return ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && (
+        bytes[0] == 10 ||
+        (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
+        (bytes[0] == 192 && bytes[1] == 168)
+    );
 }
 
 static async Task MigrateWithRetryAsync(WebApplication app)

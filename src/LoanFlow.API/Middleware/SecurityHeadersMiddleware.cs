@@ -2,14 +2,20 @@ namespace LoanFlow.API.Middleware;
 
 /// <summary>
 /// SEC-004: Adds HTTP security headers to all API responses.
-/// Protects against MIME-sniffing, clickjacking, and caching of sensitive data.
+/// Protects against MIME-sniffing, clickjacking, caching of sensitive data,
+/// and transport downgrade attacks.
 /// These complement the headers already set by Nginx for the frontend.
 /// </summary>
 public class SecurityHeadersMiddleware
 {
     private readonly RequestDelegate _next;
+    private readonly IWebHostEnvironment _env;
 
-    public SecurityHeadersMiddleware(RequestDelegate next) => _next = next;
+    public SecurityHeadersMiddleware(RequestDelegate next, IWebHostEnvironment env)
+    {
+        _next = next;
+        _env  = env;
+    }
 
     public async Task InvokeAsync(HttpContext context)
     {
@@ -32,7 +38,22 @@ public class SecurityHeadersMiddleware
         headers["Pragma"]        = "no-cache";
         headers["Expires"]       = "0";
 
-        // Remove any Server header that leaks technology stack info
+        // H-2: Content-Security-Policy — API returns JSON only; no scripts/styles needed.
+        // Swagger UI is exempt in Development (it needs inline scripts).
+        if (!_env.IsDevelopment())
+        {
+            headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none';";
+        }
+
+        // M-1: HSTS — tell browsers to only connect via HTTPS for 1 year.
+        // Only set on HTTPS requests so HTTP→HTTPS redirects aren't affected.
+        if (context.Request.IsHttps)
+        {
+            headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
+        }
+
+        // Remove headers that leak technology stack info.
+        // OnStarting fires just before response headers are flushed — guaranteed last.
         context.Response.OnStarting(() =>
         {
             context.Response.Headers.Remove("Server");
