@@ -37,103 +37,111 @@ public class LateFeeService : ILateFeeService
         // Ensure rate exists (> 0). Some products might not have late fee enabled.
         if (loan.LateFeeRate <= 0) return Result.Success();
 
+        // Pass 1: Collect all new LateFee + LoanTransaction pairs without SaveChanges per item (BUG-005 fix).
+        var newFeeEntries = new List<(LateFee Fee, LoanTransaction Tx)>();
+
+        var debitCode  = await _accountingService.GetAccountCodeAsync("LateFee_Accrual", true);
+        var creditCode = await _accountingService.GetAccountCodeAsync("LateFee_Accrual", false);
+
         foreach (var schedule in loan.RepaymentSchedules)
         {
-            // Only consider unpaid or partially paid installments that are past due date
             if (schedule.Status == InstallmentStatus.Paid) continue;
             if (schedule.DueDate >= calculationDate) continue;
 
             int daysOverdue = calculationDate.DayNumber - schedule.DueDate.DayNumber;
-            
-            // Only calculate if past the grace days
             if (daysOverdue <= loan.LateFeeGraceDays) continue;
 
-            // Late fee formula: overdue_amount * rate * effective_days / 360
-            // We use the current remaining amount as overdue amount for calculation. 
-            // In a real bank, this can be complex (e.g. tracking historical balances), but we use current remaining due.
-            decimal overdueAmount = schedule.RemainingDueAmount;
-            if (overdueAmount <= 0) continue;
+            if (schedule.RemainingDueAmount <= 0) continue;
 
-            // Annual rate applied daily
-            decimal dailyRate = loan.LateFeeRate / 360m;
             int effectiveDays = daysOverdue - loan.LateFeeGraceDays;
-            decimal calculatedFee = Math.Round(overdueAmount * dailyRate * effectiveDays, 2);
+            decimal dailyRate = loan.LateFeeRate / 360m;
 
             var existingFee = loan.LateFees.FirstOrDefault(f => f.ScheduleId == schedule.Id && f.Status == LateFeeStatus.Pending);
-            
-            var accrualDelta = 0m;
+
+            decimal accrualDelta;
 
             if (existingFee != null)
             {
-                var difference = calculatedFee - existingFee.FeeAmount;
-                if (difference > 0)
+                // BUG-001 fix: use frozen BaseOverdueAmount so partial payments don't corrupt accrual math.
+                var recalculated = Math.Round(existingFee.BaseOverdueAmount * dailyRate * effectiveDays, 2);
+                accrualDelta = recalculated - existingFee.FeeAmount;
+
+                if (accrualDelta > 0)
                 {
-                    accrualDelta = difference;
-                    // Update existing pending fee
-                    existingFee.OverdueAmount = overdueAmount;
-                    existingFee.DaysOverdue = daysOverdue;
-                    existingFee.FeeAmount = calculatedFee;
-                    existingFee.CalculatedAt = _businessClock.UtcNow;
+                    existingFee.OverdueAmount = schedule.RemainingDueAmount;
+                    existingFee.DaysOverdue   = daysOverdue;
+                    existingFee.FeeAmount     = recalculated;
+                    existingFee.CalculatedAt  = _businessClock.UtcNow;
+                }
+                else
+                {
+                    accrualDelta = 0;
                 }
             }
             else
             {
+                // Freeze base at grace-period-end (current remaining amount before any future partial payments).
+                decimal baseAmount    = schedule.RemainingDueAmount;
+                decimal calculatedFee = Math.Round(baseAmount * dailyRate * effectiveDays, 2);
                 accrualDelta = calculatedFee;
-                // Create new pending fee
+
                 var newFee = new LateFee
                 {
-                    LoanId = loan.Id,
-                    ScheduleId = schedule.Id,
-                    OverdueAmount = overdueAmount,
-                    DaysOverdue = daysOverdue,
-                    FeeRate = loan.LateFeeRate,
-                    FeeAmount = calculatedFee,
-                    Status = LateFeeStatus.Pending,
-                    CalculatedAt = _businessClock.UtcNow
+                    LoanId            = loan.Id,
+                    ScheduleId        = schedule.Id,
+                    OverdueAmount     = baseAmount,
+                    BaseOverdueAmount = baseAmount,
+                    DaysOverdue       = daysOverdue,
+                    FeeRate           = loan.LateFeeRate,
+                    FeeAmount         = calculatedFee,
+                    Status            = LateFeeStatus.Pending,
+                    CalculatedAt      = _businessClock.UtcNow
                 };
-                _db.LateFees.Add(newFee);
-
-                // Ledger chain: create a LoanTransaction record for this accrual
                 var accrualTx = new LoanTransaction
                 {
-                    LoanId = loan.Id,
-                    PaymentId = null,
+                    LoanId          = loan.Id,
+                    PaymentId       = null,
                     TransactionType = "LateFeeAccrual",
-                    Amount = calculatedFee,
-                    ReferenceNo = $"LATE-{loan.Id}-S{schedule.Id}"
+                    Amount          = calculatedFee,
+                    ReferenceNo     = $"LATE-{loan.Id}-S{schedule.Id}"
                 };
-                _db.LoanTransactions.Add(accrualTx);
 
-                // Back-link: we'll update AccrualLoanTransactionId after SaveChanges
-                await _db.SaveChangesAsync();
-                newFee.AccrualLoanTransactionId = accrualTx.Id;
+                _db.LateFees.Add(newFee);
+                _db.LoanTransactions.Add(accrualTx);
+                newFeeEntries.Add((newFee, accrualTx));
             }
 
             if (accrualDelta > 0)
             {
-                var debitCode = await _accountingService.GetAccountCodeAsync("LateFee_Accrual", true);
-                var creditCode = await _accountingService.GetAccountCodeAsync("LateFee_Accrual", false);
-
                 var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
                 {
-                    ReferenceNumber = $"LATEFEE-ACCR-{loan.Id}-S{schedule.Id}-{_businessClock.TodayBusinessDate():yyMMddHHmmss}",
-                    BusinessDate = _businessClock.TodayBusinessDate(),
-                    Description = $"Late Fee Accrual for Loan {loan.LoanAccountNo}",
+                    ReferenceNumber = $"LATEFEE-ACCR-{loan.Id}-S{schedule.Id}-{_businessClock.UtcNow:yyMMddHHmmss}",
+                    BusinessDate    = _businessClock.TodayBusinessDate(),
+                    Description     = $"Late Fee Accrual for Loan {loan.LoanAccountNo}",
                     Lines = new List<JournalEntryLineDto>
                     {
                         new JournalEntryLineDto { AccountCode = debitCode, DebitAmount = accrualDelta, CreditAmount = 0, LineDescription = "Late Fee Receivable" },
                         new JournalEntryLineDto { AccountCode = creditCode, DebitAmount = 0, CreditAmount = accrualDelta, LineDescription = "Late Fee Income" }
                     }
                 });
-                
+
                 if (!journalResult.IsSuccess)
-                {
                     throw new DomainValidationException($"Failed to post Late Fee Journal: {journalResult.Error}");
-                }
             }
         }
 
-        await SaveChangesWithConcurrencyHandlingAsync();
+        // Pass 2: Single SaveChanges to get DB-generated IDs for new rows.
+        // Callers that own an ambient transaction (e.g. LoanPaymentService) rely on this NOT calling
+        // an extra SaveChanges — the back-link update (Pass 3) will be flushed by the caller's own SaveChanges.
+        if (newFeeEntries.Count > 0)
+        {
+            await _db.SaveChangesAsync();
+
+            // Pass 3: Back-link IDs now that EF has populated them; flushed by caller's next SaveChanges.
+            foreach (var (fee, tx) in newFeeEntries)
+                fee.AccrualLoanTransactionId = tx.Id;
+        }
+
         return Result.Success();
     }
 

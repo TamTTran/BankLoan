@@ -57,6 +57,10 @@ public class LoanPaymentService : ILoanPaymentService
             // Make sure late fees are calculated up to payment date
             await _lateFeeService.CalculateLateFeesAsync(loanId, req.PaymentDate);
 
+            // Reload LateFees after calculation — the int-overload loads a separate loan instance
+            // internally, so newly-created fees aren't visible in the current loan's navigation property.
+            await _db.Entry(loan).Collection(l => l.LateFees).LoadAsync();
+
             // PAY-VAL-003: cap overpayment
             var scheduleDue = loan.RepaymentSchedules
                 .Where(s => s.Status != InstallmentStatus.Paid)
@@ -247,7 +251,7 @@ public class LoanPaymentService : ILoanPaymentService
 
             var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
             {
-                ReferenceNumber = $"PAY-{payment.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                ReferenceNumber = $"PAY-{payment.Id}",
                 BusinessDate    = req.PaymentDate,
                 Description     = $"Payment Recorded for Loan {loanId}",
                 Lines           = journalLines
@@ -457,16 +461,22 @@ public class LoanPaymentService : ILoanPaymentService
             foreach (var fee in loan!.LateFees.Where(f => f.Status == LateFeeStatus.Pending))
                 fee.Status = LateFeeStatus.Paid;
 
-            // Mark all schedules as paid (with pro-rata adjustment)
+            // Mark all schedules as paid (with pro-rata adjustment).
+            // Use InstallmentNo (int?) for matching — reference equality on EF entities is fragile across queries.
+            // Null when all remaining installments are already past settlement date (fully overdue loan).
+            int? firstUnsettledInstallmentNo = loan.RepaymentSchedules
+                .Where(x => x.Status != InstallmentStatus.Paid && x.DueDate >= request.SettlementDate)
+                .OrderBy(x => x.InstallmentNo)
+                .Select(x => (int?)x.InstallmentNo)
+                .FirstOrDefault();
+
             foreach (var s in loan.RepaymentSchedules.Where(s => s.Status != InstallmentStatus.Paid))
             {
                 s.PrincipalPaid = s.PrincipalDue;
                 if (s.DueDate >= request.SettlementDate)
                 {
-                    s.InterestDue = s.InterestPaid = s == loan.RepaymentSchedules
-                        .FirstOrDefault(x => x.DueDate >= request.SettlementDate)
-                        ? preview.ProRataInterest
-                        : 0;
+                    s.InterestDue  = s.InstallmentNo == firstUnsettledInstallmentNo ? preview.ProRataInterest : 0;
+                    s.InterestPaid = s.InterestDue;
                 }
                 else
                 {
@@ -537,7 +547,7 @@ public class LoanPaymentService : ILoanPaymentService
 
             var journalResult = await _accountingService.PostJournalAsync(new JournalEntryDto
             {
-                ReferenceNumber = $"EARLYSETTLE-{payment.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                ReferenceNumber = $"EARLYSETTLE-{payment.Id}",
                 BusinessDate    = request.SettlementDate,
                 Description     = $"Early Settlement for Loan {loanId}",
                 Lines           = journalLines

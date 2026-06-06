@@ -220,7 +220,12 @@ $RECYCLE.BIN/
 # Linux
 *~
 
+# claude
+/.claude
+./plans
 
+# kiro
+./kiro
 # ── WHAT IS INTENTIONALLY TRACKED ────────────────────────────────────────────
 # (reminder — these are NOT in .gitignore)
 #

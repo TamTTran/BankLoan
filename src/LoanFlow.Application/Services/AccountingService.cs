@@ -69,21 +69,15 @@ public class AccountingService : IAccountingService
                 LineDescription = lineDto.LineDescription
             });
 
-            // Update GL Account Balance based on AccountType
-            if (account.AccountType == GLAccountType.Asset || account.AccountType == GLAccountType.Expense)
-            {
-                // Assets & Expenses increase with debit, decrease with credit
-                account.Balance += lineDto.DebitAmount;
-                account.Balance -= lineDto.CreditAmount;
-            }
-            else
-            {
-                // Liabilities, Equity, Income increase with credit, decrease with debit
-                account.Balance += lineDto.CreditAmount;
-                account.Balance -= lineDto.DebitAmount;
-            }
-            
-            account.UpdatedAt = DateTime.UtcNow;
+            // Update GL account balance atomically via raw SQL to prevent lost-update on concurrent payments.
+            // Assets/Expenses: normal balance is debit (balance increases with debit, decreases with credit).
+            // Liabilities/Equity/Income: normal balance is credit (balance increases with credit, decreases with debit).
+            var netDelta = (account.AccountType == GLAccountType.Asset || account.AccountType == GLAccountType.Expense)
+                ? lineDto.DebitAmount - lineDto.CreditAmount
+                : lineDto.CreditAmount - lineDto.DebitAmount;
+
+            await _db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE `GLAccounts` SET `Balance` = `Balance` + {netDelta}, `UpdatedAt` = {DateTime.UtcNow} WHERE `Id` = {account.Id}");
         }
 
         _db.JournalEntries.Add(entry);

@@ -1493,6 +1493,10 @@ namespace LoanFlow.Infrastructure.Migrations
                     b.Property<int?>("AccrualLoanTransactionId")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("BaseOverdueAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime>("CalculatedAt")
                         .HasColumnType("datetime(6)");
 

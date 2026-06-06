@@ -10,7 +10,8 @@ public class LateFee
     public int Id { get; set; }
     public int LoanId { get; set; }
     public int ScheduleId { get; set; }               // which installment incurred this fee
-    public decimal OverdueAmount { get; set; }         // overdue amount at calculation time
+    public decimal OverdueAmount { get; set; }         // overdue amount at last recalculation
+    public decimal BaseOverdueAmount { get; set; }     // frozen at grace-period-end; used as accrual base
     public int DaysOverdue { get; set; }               // number of days overdue
     public decimal FeeRate { get; set; }               // annual rate from product snapshot
     public decimal FeeAmount { get; set; }             // = overdue_amount × rate × effective_days / 360
